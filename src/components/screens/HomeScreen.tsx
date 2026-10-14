@@ -180,8 +180,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     <div className="space-y-0 pb-8 animate-in fade-in select-none">
       {/* ---------------- 1. CRIMSON RED LUXURY HEADER SECTION ---------------- */}
       <div className="relative z-30 bg-gradient-to-b from-[#69030e] via-[#850818] to-[#990c1e] text-white pt-3 pb-6 px-4 shadow-lg rounded-b-[24px]">
-        {/* Mobile Phone Status Bar (8:01, Signal, Wifi, Battery) */}
-        <div className="flex items-center justify-between text-xs text-white/90 mb-3 px-1">
+        {/* Mobile Phone Status Bar (8:01, Signal, Wifi, Battery) - Shown only in desktop phone frame mockup */}
+        <div className="hidden sm:flex items-center justify-between text-xs text-white/90 mb-3 px-1">
           <span className="font-bold text-xs tracking-tight">8:01</span>
 
           {/* Center Dynamic Island Notch */}
@@ -224,7 +224,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             <div
               onClick={() => setShowUserControlModal(true)}
               className="min-w-0 flex-1 cursor-pointer group"
-              title="Click to open User Log In / Log Out & Profile Control Panel"
+              title="Click to open User Profile Control Panel"
             >
               <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-amber-200 tracking-tight leading-snug truncate">
                 {currentMember.name || 'DMC Xayraxa'}
@@ -232,11 +232,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               <div className="text-[11px] text-red-200 font-mono leading-tight mt-0.5 truncate">
                 ID: {currentMember.memberId || 'DM000123'}
               </div>
-              <div className="text-[10px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-1 flex flex-wrap items-center gap-1">
+              <div className="text-[10px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-1 flex items-center gap-1">
                 <span className="truncate">{isActive ? t.activeMember : t.freeMember}</span>
-                <span className="px-1.5 py-0.5 rounded bg-black/35 text-[9px] text-white/95 font-semibold border border-white/25 shrink-0">
-                  {t.switchLogOut}
-                </span>
               </div>
             </div>
           </div>
@@ -340,7 +337,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* 6-Language One-Tap Selector Bar (Instant visual language switching as shown in image) */}
+        {/* 6-Language One-Tap Selector Bar */}
         <div className="grid grid-cols-6 gap-1 mb-2.5 p-1 rounded-xl bg-black/30 border border-white/15">
           {SUPPORTED_LANGUAGES.map((langOpt) => {
             const isSelected = language === langOpt.code;
@@ -349,7 +346,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 key={langOpt.code}
                 type="button"
                 onClick={() => setLanguage(langOpt.code)}
-                className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                className={`py-1 px-0.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5 transition-all cursor-pointer whitespace-nowrap ${
                   isSelected
                     ? 'bg-gradient-to-r from-[#f5a623] to-[#e69110] text-slate-950 font-black shadow-sm scale-[1.02]'
                     : 'text-white/85 hover:bg-white/10 hover:text-white'
@@ -357,13 +354,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 title={`${langOpt.nativeName} (${langOpt.name})`}
               >
                 <span className="text-xs leading-none">{langOpt.flag}</span>
-                <span className="truncate">{langOpt.shortLabel}</span>
+                <span className="tracking-tighter">{langOpt.shortLabel}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Quick Mobile Bar: User Log In, Register, Log Out, Profile & SMS Recovery, and Super Admin Portal */}
+        {/* Single Clean Auth Bar: User Log In, Register, Log Out, Profile & SMS Recovery, and Admin */}
         <div className="flex flex-wrap items-center justify-between gap-1 mb-3.5 px-2.5 py-1.5 rounded-xl bg-black/30 border border-white/15 text-[10px]">
           <button
             onClick={() => {
