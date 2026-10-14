@@ -16,5 +16,20 @@
   <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if (
+        window.location.hostname.endsWith('github.io') &&
+        !window.location.pathname.includes('/docs/') &&
+        document.querySelector('script[src="/src/main.tsx"]')
+      ) {
+        var p = window.location.pathname;
+        if (p.endsWith('/index.html')) {
+          p = p.slice(0, -10);
+        } else if (!p.endsWith('/')) {
+          p = p + '/';
+        }
+        window.location.replace(p + 'docs/' + window.location.search + window.location.hash);
+      }
+    </script>
   </body>
 </html>
