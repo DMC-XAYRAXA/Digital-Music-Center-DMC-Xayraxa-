@@ -1,0 +1,6 @@
+{
+  "name": "DMC Xayraxa Super App",
+  "description": "DMC Xayraxa Super App Rev 2.6 – Digital Music Center unified platform featuring 5 core screens, 3-level unilevel sponsor commission engine, immutable wallet ledger, catalog & music production entitlements, and web admin portal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
