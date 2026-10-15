@@ -253,6 +253,18 @@ export interface ProductSKU {
   featured?: boolean;
 }
 
+export interface EventActivityPost {
+  id: string;
+  headline: string;
+  title: string;
+  information: string;
+  imageUrl: string;
+  eventDate: string;
+  location: string;
+  badge: string;
+  createdAt: string;
+}
+
 export interface CartItem {
   sku: string;
   quantity: number;

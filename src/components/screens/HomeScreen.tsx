@@ -54,6 +54,13 @@ import {
   Upload,
   Check,
   Globe,
+  Plus,
+  Pencil,
+  Trash2,
+  Calendar,
+  MapPin,
+  Megaphone,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { QrCodeModal } from '../common/QrCodeModal';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
@@ -62,7 +69,8 @@ import { DmcOfficialLogo } from '../common/DmcLogo';
 import { LaoShippingCarrierModal } from '../common/LaoShippingCarrierModal';
 import { UserControlPanelModal } from '../common/UserControlPanelModal';
 import { AuthPortalModal } from '../common/AuthPortalModal';
-import { LaoShippingCarrierId, ProductSKU } from '../../types/dmc';
+import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
+import { LaoShippingCarrierId, ProductSKU, EventActivityPost } from '../../types/dmc';
 
 interface HomeScreenProps {
   onNavigate: (tab: any) => void;
@@ -80,6 +88,8 @@ const PRESET_AVATARS = [
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const {
     currentMember,
+    allMembers,
+    setCurrentMemberId,
     getMemberBalances,
     getMemberSongs,
     language,
@@ -88,12 +98,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     products,
     createOrder,
     adminUpdateMember,
+    adminAddProduct,
+    adminUpdateProduct,
+    adminDeleteProduct,
+    eventPosts,
+    adminAddEventPost,
+    adminUpdateEventPost,
+    adminDeleteEventPost,
+    isAdminMode,
+    isAdminAuthenticated,
+    setIsAdminAuthenticated,
+    getDownlines,
+    isLoggedOut,
     setIsLoggedOut,
   } = useDmc();
   const t = translations[language];
 
+  const isAdmin = isAdminAuthenticated || isAdminMode;
   const balances = getMemberBalances(currentMember.memberId);
   const songs = getMemberSongs(currentMember.memberId);
+  const myDownlines = getDownlines(currentMember.memberId);
+  const totalMyDownlines =
+    myDownlines.l1.length + myDownlines.l2.length + myDownlines.l3.length;
 
   const [activeQrModal, setActiveQrModal] = useState<'MEMBER' | 'REFERRAL' | null>(null);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
@@ -104,6 +130,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const [selectedBannerProductForQr, setSelectedBannerProductForQr] = useState<ProductSKU | null>(null);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const [showLoginDropdown, setShowLoginDropdown] = useState(false);
   const [showShippingModal, setShowShippingModal] = useState(false);
   const [activeCarrierId] = useState<LaoShippingCarrierId>('ANOUSITH');
   const [showUserControlModal, setShowUserControlModal] = useState(false);
@@ -114,7 +141,248 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [customAvatarInput, setCustomAvatarInput] = useState(currentMember.avatarUrl || '');
 
-  // Featured Banner Products Carousel state (Only 4 products)
+  // Event & Activity Slideshow state + Admin Post/Edit/Delete modal
+  const [activeEventIdx, setActiveEventIdx] = useState(0);
+  const [showEventAdminModal, setShowEventAdminModal] = useState(false);
+  const [viewingEventDetail, setViewingEventDetail] = useState<EventActivityPost | null>(null);
+  const [showOrganizeModal, setShowOrganizeModal] = useState(false);
+  const [eventModalMode, setEventModalMode] = useState<'CREATE' | 'EDIT'>('CREATE');
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventForm, setEventForm] = useState({
+    headline: '',
+    title: '',
+    information: '',
+    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+    eventDate: '25 Oct 2026 • 18:00',
+    location: 'DMC Central Studio, Vientiane',
+    badge: 'EVENT & ACTIVITY',
+  });
+
+  useEffect(() => {
+    if (eventPosts.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveEventIdx((prev) => (prev + 1) % eventPosts.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [eventPosts.length]);
+
+  const currentEvent: EventActivityPost | undefined =
+    eventPosts[activeEventIdx % Math.max(1, eventPosts.length)] || eventPosts[0];
+
+  const openCreateEventModal = () => {
+    if (!isAdmin) {
+      setAuthInitialMode('ADMIN');
+      setShowAuthPortalModal(true);
+      return;
+    }
+    setEventModalMode('CREATE');
+    setEditingEventId(null);
+    setEventForm({
+      headline: '',
+      title: '',
+      information: '',
+      imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+      eventDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      location: 'DMC Central Studio, Vientiane',
+      badge: 'EVENT & ACTIVITY',
+    });
+    setShowEventAdminModal(true);
+  };
+
+  const openEditEventModal = (evt: EventActivityPost) => {
+    if (!isAdmin) {
+      setViewingEventDetail(evt);
+      return;
+    }
+    setEventModalMode('EDIT');
+    setEditingEventId(evt.id);
+    setEventForm({
+      headline: evt.headline,
+      title: evt.title,
+      information: evt.information,
+      imageUrl: evt.imageUrl,
+      eventDate: evt.eventDate,
+      location: evt.location,
+      badge: evt.badge || 'EVENT & ACTIVITY',
+    });
+    setShowEventAdminModal(true);
+  };
+
+  const handleEventImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setEventForm((prev) => ({ ...prev, imageUrl: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEventPost = (e: React.FormEvent) => {
+    e.preventDefault();
+    const headlineText = eventForm.headline.trim() || eventForm.title.trim() || 'DMC Xayraxa Event & Activity';
+    const titleText = eventForm.title.trim() || headlineText;
+    if (eventModalMode === 'EDIT' && editingEventId) {
+      adminUpdateEventPost(editingEventId, {
+        headline: headlineText,
+        title: titleText,
+        information: eventForm.information.trim(),
+        imageUrl: eventForm.imageUrl.trim(),
+        eventDate: eventForm.eventDate.trim(),
+        location: eventForm.location.trim(),
+        badge: eventForm.badge.trim() || 'EVENT & ACTIVITY',
+      });
+      setRedemptionNotice(`Updated Event & Activity: "${titleText}"`);
+    } else {
+      adminAddEventPost({
+        headline: headlineText,
+        title: titleText,
+        information: eventForm.information.trim() || 'Official DMC Xayraxa Event & Activity announcement.',
+        imageUrl:
+          eventForm.imageUrl.trim() ||
+          'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+        eventDate: eventForm.eventDate.trim() || 'Upcoming Event',
+        location: eventForm.location.trim() || 'Vientiane Capital',
+        badge: eventForm.badge.trim() || 'EVENT & ACTIVITY',
+      });
+      setActiveEventIdx(0);
+      setRedemptionNotice(`Posted new Event & Activity: "${titleText}"`);
+    }
+    setTimeout(() => setRedemptionNotice(null), 4000);
+    setShowEventAdminModal(false);
+  };
+
+  // Administrator Product Image Upload, Edit, Delete, Update Modal state
+  const [showProductAdminModal, setShowProductAdminModal] = useState(false);
+  const [productModalMode, setProductModalMode] = useState<'CREATE' | 'EDIT'>('EDIT');
+  const [productForm, setProductForm] = useState<{
+    sku: string;
+    category: ProductSKU['category'];
+    titleEn: string;
+    titleLo: string;
+    titleTh: string;
+    descriptionEn: string;
+    priceLak: number;
+    commissionPoolLak: number;
+    stockSellable: number;
+    itemType: ProductSKU['itemType'];
+    imageUrl: string;
+  }>({
+    sku: '',
+    category: 'GUITAR',
+    titleEn: '',
+    titleLo: '',
+    titleTh: '',
+    descriptionEn: '',
+    priceLak: 1600000,
+    commissionPoolLak: 300000,
+    stockSellable: 20,
+    itemType: 'PHYSICAL',
+    imageUrl: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+  });
+
+  const openCreateProductModal = () => {
+    setProductModalMode('CREATE');
+    setProductForm({
+      sku: `DMC-PROD-${Math.floor(100 + Math.random() * 900)}`,
+      category: 'GUITAR',
+      titleEn: '',
+      titleLo: '',
+      titleTh: '',
+      descriptionEn: '',
+      priceLak: 1800000,
+      commissionPoolLak: 300000,
+      stockSellable: 25,
+      itemType: 'PHYSICAL',
+      imageUrl: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+    });
+    setShowProductAdminModal(true);
+  };
+
+  const openEditProductModal = (prod: ProductSKU) => {
+    setProductModalMode('EDIT');
+    setProductForm({
+      sku: prod.sku,
+      category: prod.category,
+      titleEn: prod.titleEn,
+      titleLo: prod.titleLo || prod.titleEn,
+      titleTh: prod.titleTh || prod.titleEn,
+      descriptionEn: prod.descriptionEn,
+      priceLak: prod.priceLak,
+      commissionPoolLak: prod.commissionPoolLak,
+      stockSellable: prod.stockSellable,
+      itemType: prod.itemType,
+      imageUrl: prod.imageUrl,
+    });
+    setShowProductAdminModal(true);
+  };
+
+  const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setProductForm((prev) => ({ ...prev, imageUrl: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveProductAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanSku = productForm.sku.trim().toUpperCase() || `DMC-PROD-${Date.now().toString().slice(-4)}`;
+    const titleEn = productForm.titleEn.trim() || 'DMC Official Product';
+    if (productModalMode === 'EDIT') {
+      adminUpdateProduct(cleanSku, {
+        category: productForm.category,
+        titleEn,
+        titleLo: productForm.titleLo.trim() || titleEn,
+        titleTh: productForm.titleTh.trim() || titleEn,
+        descriptionEn: productForm.descriptionEn.trim(),
+        priceLak: Number(productForm.priceLak) || 0,
+        commissionPoolLak: Number(productForm.commissionPoolLak) || 0,
+        stockSellable: Number(productForm.stockSellable) || 0,
+        itemType: productForm.itemType,
+        imageUrl: productForm.imageUrl.trim(),
+      });
+      setRedemptionNotice(`Updated product "${titleEn}" (${cleanSku})`);
+    } else {
+      const newProd: ProductSKU = {
+        sku: cleanSku,
+        category: productForm.category,
+        titleEn,
+        titleLo: productForm.titleLo.trim() || titleEn,
+        titleTh: productForm.titleTh.trim() || titleEn,
+        descriptionEn: productForm.descriptionEn.trim() || 'Official DMC Xayraxa product.',
+        priceLak: Number(productForm.priceLak) || 1500000,
+        commissionPoolLak: Number(productForm.commissionPoolLak) || 300000,
+        splitRule: {
+          ruleType: 'POOL_PERCENTAGE',
+          l1Share: 50,
+          l2Share: 30,
+          l3Share: 20,
+        },
+        stockSellable: Number(productForm.stockSellable) || 20,
+        stockReserved: 0,
+        warehouseId: 'Vientiane Central Warehouse',
+        itemType: productForm.itemType,
+        imageUrl:
+          productForm.imageUrl.trim() ||
+          'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+        featured: true,
+      };
+      adminAddProduct(newProd);
+      setActiveBannerIdx(0);
+      setRedemptionNotice(`Added new product "${titleEn}" (${cleanSku})`);
+    }
+    setTimeout(() => setRedemptionNotice(null), 4000);
+    setShowProductAdminModal(false);
+  };
+
+  // Featured Banner Products Carousel state (Shows live products; defaults to first 4 or all added)
   const featuredProducts = products.slice(0, 4);
   const [activeBannerIdx, setActiveBannerIdx] = useState(0);
 
@@ -152,10 +420,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const currentLangOption =
     SUPPORTED_LANGUAGES.find((l) => l.code === language) || SUPPORTED_LANGUAGES[0];
 
-  // Circle Profile Avatar URL (never squished)
+  // Member's Own Circle Profile Image URL (independent from constant Official DMC Logo)
   const avatarUrl =
-    currentMember.avatarUrl ||
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80';
+    currentMember.avatarUrl && !currentMember.avatarUrl.startsWith('data:image/svg+xml')
+      ? currentMember.avatarUrl
+      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80';
 
   const currentHeroProduct = featuredProducts[activeBannerIdx] || featuredProducts[0];
   const currentHeroLocalized = currentHeroProduct
@@ -170,6 +439,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       if (typeof reader.result === 'string') {
         adminUpdateMember(currentMember.memberId, { avatarUrl: reader.result });
         setCustomAvatarInput(reader.result);
+        setRedemptionNotice(`Updated profile image for ${currentMember.name}!`);
+        setTimeout(() => setRedemptionNotice(null), 3500);
         setShowAvatarModal(false);
       }
     };
@@ -196,16 +467,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Member Profile Header Row (with Fixed Circle Profile Image) */}
+        {/* Single-Row Member Profile Header (Circle Profile Image + Member Name/ID + Drop Down List Login/Log Out + Bell & Language) */}
         <div className="flex items-center justify-between gap-2 mb-2.5">
+          {/* Left: Circle Profile Image + Member Name, ID & Status */}
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            {/* CIRCLE PROFILE IMAGE (Fixed 56x56px, shrink-0 so it NEVER squishes) */}
+            {/* MEMBER'S OWN CIRCLE PROFILE IMAGE (Fixed 52x52px, shrink-0 so it NEVER squishes) */}
             <div
               onClick={() => setShowAvatarModal(true)}
-              className="relative w-14 h-14 min-w-[56px] min-h-[56px] shrink-0 cursor-pointer group"
-              title="Tap to change Circle Profile Image"
+              className="relative w-13 h-13 min-w-[52px] min-h-[52px] shrink-0 cursor-pointer group"
+              title="Tap to update your own Member Profile Image"
             >
-              <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-tr from-[#f5a623] via-[#fff3b0] to-[#e69110] shadow-lg">
+              <div className="w-full h-full rounded-full p-0.5 bg-gradient-to-tr from-[#f5a623] via-[#fff3b0] to-[#e69110] shadow-lg">
                 <img
                   src={avatarUrl}
                   alt={currentMember.name}
@@ -215,39 +487,251 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               {/* Online Status Dot */}
               <span className="absolute bottom-0.5 left-0.5 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#850818] rounded-full shadow" />
               {/* Camera Edit Badge */}
-              <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border border-[#69030e] flex items-center justify-center shadow-md transition-transform group-hover:scale-110">
+              <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border border-[#69030e] flex items-center justify-center shadow-md transition-transform group-hover:scale-110">
                 <Camera className="w-2.5 h-2.5 stroke-[2.5]" />
               </span>
             </div>
 
-            {/* Profile Identifiers */}
+            {/* Profile Identifiers (Name, ID, Status — Spacious & Always Visible on Mobile) */}
             <div
               onClick={() => setShowUserControlModal(true)}
-              className="min-w-0 flex-1 cursor-pointer group"
+              className="min-w-[90px] flex-1 cursor-pointer group"
               title="Click to open User Profile Control Panel"
             >
-              <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-amber-200 tracking-tight leading-snug truncate">
-                {currentMember.name || 'DMC Xayraxa'}
+              <h2 className="text-[13px] sm:text-sm font-extrabold text-white group-hover:text-amber-200 tracking-tight leading-tight truncate">
+                {(currentMember.name || 'DMC Xayraxa').replace(/\s*\(.*?\)\s*/g, '')}
               </h2>
-              <div className="text-[11px] text-red-200 font-mono leading-tight mt-0.5 truncate">
+              <div className="text-[10px] text-red-200 font-mono leading-tight mt-0.5 truncate">
                 ID: {currentMember.memberId || 'DM000123'}
               </div>
-              <div className="text-[10px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-1 flex items-center gap-1">
-                <span className="truncate">{isActive ? t.activeMember : t.freeMember}</span>
+              <div className="text-[9px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-0.5 truncate flex items-center gap-1">
+                <span>{isActive ? t.activeMember : t.freeMember}</span>
+                {isAdmin && (
+                  <span className="px-1 py-0.2 rounded bg-emerald-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
+                    Admin
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right Header Controls: Certificate Button, Notification Bell & Language Selector */}
+          {/* Right Header Controls: Drop Down List Login / Log Out + Bell + Language Selector */}
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => setShowCertificateModal(true)}
-              className="px-2 py-1.5 rounded-lg border border-amber-300/60 bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 font-bold text-[10px] transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
-              title="Open Official DMC Xayraxa Classical Music Copyright Certificate"
-            >
-              <Award className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-              <span className="hidden xs:inline">{t.certShort}</span>
-            </button>
+            {/* 1/ DROP DOWN LIST: LOGIN / LOG OUT */}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLoginDropdown(!showLoginDropdown);
+                  setShowLanguagePicker(false);
+                }}
+                className="px-2 py-1.5 rounded-xl border border-amber-300/80 bg-black/50 hover:bg-black/70 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-md"
+                title="Drop Down List: Log In / Log Out"
+              >
+                <LogIn className="w-3 h-3 text-amber-400 shrink-0" />
+                <span className="font-extrabold text-amber-300 whitespace-nowrap leading-none">
+                  Login / Out
+                </span>
+                <ChevronDown
+                  className={`w-3 h-3 text-amber-200 shrink-0 transition-transform ${
+                    showLoginDropdown ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showLoginDropdown && (
+                <>
+                  {/* Click-outside backdrop */}
+                  <div
+                    className="fixed inset-0 z-[90]"
+                    onClick={() => setShowLoginDropdown(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900/98 backdrop-blur-xl border-2 border-amber-400/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2.5 z-[100] space-y-1.5 animate-in fade-in zoom-in-95 text-slate-100">
+                    {/* Dropdown Title Bar */}
+                    <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 border-b border-slate-800 flex items-center justify-between">
+                      <span>Login / Log Out Menu</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                          isLoggedOut
+                            ? 'bg-rose-500/20 text-rose-300'
+                            : 'bg-emerald-500/20 text-emerald-300'
+                        }`}
+                      >
+                        {isLoggedOut ? 'LOGGED OUT' : 'ONLINE'}
+                      </span>
+                    </div>
+
+                    {/* Active Session Header */}
+                    <div className="px-2.5 py-2 rounded-xl bg-slate-950/90 border border-slate-800 flex items-center gap-2.5">
+                      <img
+                        src={avatarUrl}
+                        alt={currentMember.name}
+                        className="w-9 h-9 rounded-full object-cover border border-amber-400 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-extrabold text-white truncate">
+                          {(currentMember.name || 'DMC Xayraxa').replace(/\s*\(.*?\)\s*/g, '')}
+                        </div>
+                        <div className="text-[10px] font-mono text-amber-300 truncate">
+                          {currentMember.memberId} • {isAdmin ? 'ADMIN ACTIVE' : 'MEMBER'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PRIMARY DROP DOWN OPTIONS: 1. LOG IN & 2. LOG OUT */}
+                    <div className="grid grid-cols-1 gap-1.5 pt-0.5">
+                      {/* 1. Log In */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          setAuthInitialMode('MEMBER');
+                          setShowAuthPortalModal(true);
+                        }}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 flex items-center justify-between transition-all cursor-pointer shadow-md"
+                      >
+                        <span className="flex items-center gap-2">
+                          <LogIn className="w-4 h-4 text-slate-950 shrink-0 stroke-[2.5]" />
+                          <span>1. {t.logIn} (Member Login)</span>
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-900" />
+                      </button>
+
+                      {/* 2. Log Out */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          setIsAdminAuthenticated(false);
+                          setIsLoggedOut(true);
+                        }}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-extrabold text-rose-200 bg-rose-600/25 hover:bg-rose-600/40 border border-rose-500/50 flex items-center justify-between transition-all cursor-pointer shadow-sm"
+                      >
+                        <span className="flex items-center gap-2">
+                          <LogOut className="w-4 h-4 text-rose-400 shrink-0 stroke-[2.5]" />
+                          <span>2. {t.logOut} (Sign Out)</span>
+                        </span>
+                        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-200">
+                          Exit
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="border-t border-slate-800 pt-1 space-y-1">
+                      {/* 3. Register New Member */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          setAuthInitialMode('REGISTER');
+                          setShowAuthPortalModal(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-emerald-300 hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <UserPlus className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>{t.register} (New Account)</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      </button>
+
+                      {/* 4. Profile & SMS (+856) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          setAuthInitialMode('RECOVERY');
+                          setShowAuthPortalModal(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-sky-300 hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-sky-400 shrink-0" />
+                          <span>{t.profileAndSms} (+856)</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      </button>
+
+                      {/* 5. Update My Own Profile Image */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          setShowAvatarModal(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Camera className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Update My Profile Image</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      </button>
+
+                      {/* 6. Administrator Login / Lock */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          if (isAdmin) {
+                            setIsAdminAuthenticated(false);
+                            setRedemptionNotice('Switched to Standard Member View (Admin Post Locked)');
+                            setTimeout(() => setRedemptionNotice(null), 3000);
+                          } else {
+                            setAuthInitialMode('ADMIN');
+                            setShowAuthPortalModal(true);
+                          }
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                          isAdmin
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'text-emerald-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>{isAdmin ? 'Admin Active (Click to Lock)' : t.adminLogin}</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      </button>
+                    </div>
+
+                    {/* Quick Switch Member Account List */}
+                    <div className="pt-1 border-t border-slate-800">
+                      <div className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                        Quick Switch Member Account
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-0.5 pr-0.5">
+                        {allMembers.slice(0, 6).map((m) => {
+                          const isCurr = m.memberId === currentMember.memberId;
+                          return (
+                            <button
+                              key={m.memberId}
+                              type="button"
+                              onClick={() => {
+                                setCurrentMemberId(m.memberId);
+                                setIsLoggedOut(false);
+                                setShowLoginDropdown(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] flex items-center justify-between cursor-pointer ${
+                                isCurr
+                                  ? 'bg-amber-500/20 text-amber-300 font-bold'
+                                  : 'text-slate-300 hover:bg-slate-800'
+                              }`}
+                            >
+                              <span className="truncate">
+                                {m.name.replace(/\s*\(.*?\)\s*/g, '')} ({m.memberId.slice(-5)})
+                              </span>
+                              {isCurr && <Check className="w-3 h-3 text-amber-400 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <button
               onClick={() => setShowNotificationToast(!showNotificationToast)}
@@ -261,7 +745,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Language Switcher Badge & Dropdown (6 Languages: EN, LO, TH, VI, ZH, KO) */}
             <div className="relative shrink-0">
               <button
-                onClick={() => setShowLanguagePicker(!showLanguagePicker)}
+                onClick={() => {
+                  setShowLanguagePicker(!showLanguagePicker);
+                  setShowLoginDropdown(false);
+                }}
                 className="px-2 py-1.5 rounded-xl border border-amber-300/70 bg-black/40 hover:bg-black/60 text-white font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-md"
                 title="Select Language (English, ພາສາລາວ, ไทย, Tiếng Việt, 中文, 한국어)"
               >
@@ -337,82 +824,206 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* 6-Language One-Tap Selector Bar */}
-        <div className="grid grid-cols-6 gap-1 mb-2.5 p-1 rounded-xl bg-black/30 border border-white/15">
-          {SUPPORTED_LANGUAGES.map((langOpt) => {
-            const isSelected = language === langOpt.code;
-            return (
+        {/* 2A/ HEAD LINE EVENT AND ACTIVITY SLIDE SHOW (Administrator Only Post) */}
+        <div className="mb-2 rounded-lg bg-white text-[#850818] px-2.5 py-1.5 shadow-md border border-amber-300/80 flex items-center justify-between gap-2">
+          <div
+            onClick={() => {
+              if (currentEvent) {
+                if (isAdmin) openEditEventModal(currentEvent);
+                else setViewingEventDetail(currentEvent);
+              } else if (isAdmin) {
+                openCreateEventModal();
+              }
+            }}
+            className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer"
+            title={
+              isAdmin
+                ? 'Administrator: Click to Edit Head Line Event & Activity'
+                : 'Head Line Event And Activity Slide Show (Click to view details)'
+            }
+          >
+            <span className="px-1.5 py-0.5 rounded bg-[#df1c2d] text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
+              <Megaphone className="w-2.5 h-2.5" />
+              <span>EVENT</span>
+            </span>
+            <span className="text-[11px] font-extrabold text-[#850818] truncate">
+              {currentEvent
+                ? currentEvent.headline
+                : 'Head Line Event And Activity Slide Show'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {isAdmin ? (
               <button
-                key={langOpt.code}
                 type="button"
-                onClick={() => setLanguage(langOpt.code)}
-                className={`py-1 px-0.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5 transition-all cursor-pointer whitespace-nowrap ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-[#f5a623] to-[#e69110] text-slate-950 font-black shadow-sm scale-[1.02]'
-                    : 'text-white/85 hover:bg-white/10 hover:text-white'
-                }`}
-                title={`${langOpt.nativeName} (${langOpt.name})`}
+                onClick={openCreateEventModal}
+                className="px-2 py-0.5 rounded bg-[#850818] hover:bg-red-950 text-amber-300 text-[9px] font-black flex items-center gap-0.5 cursor-pointer shadow-xs"
+                title="Administrator Only: Post New Event & Activity"
               >
-                <span className="text-xs leading-none">{langOpt.flag}</span>
-                <span className="tracking-tighter">{langOpt.shortLabel}</span>
+                <Plus className="w-2.5 h-2.5" />
+                <span>Post</span>
               </button>
-            );
-          })}
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthInitialMode('ADMIN');
+                  setShowAuthPortalModal(true);
+                }}
+                className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-[#850818] text-[8px] font-bold flex items-center gap-0.5 cursor-pointer border border-slate-200"
+                title="Administrator Only Post — Click to Sign In as Administrator"
+              >
+                <Lock className="w-2.5 h-2.5 text-[#850818]" />
+                <span>Admin Post</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Single Clean Auth Bar: User Log In, Register, Log Out, Profile & SMS Recovery, and Admin */}
-        <div className="flex flex-wrap items-center justify-between gap-1 mb-3.5 px-2.5 py-1.5 rounded-xl bg-black/30 border border-white/15 text-[10px]">
-          <button
-            onClick={() => {
-              setAuthInitialMode('MEMBER');
-              setShowAuthPortalModal(true);
-            }}
-            className="flex items-center gap-1 font-bold text-amber-300 hover:text-white transition-colors cursor-pointer"
-          >
-            <LogIn className="w-3 h-3 text-amber-400" />
-            <span>{t.logIn}</span>
-          </button>
-          <span className="text-white/25">|</span>
-          <button
-            onClick={() => {
-              setAuthInitialMode('REGISTER');
-              setShowAuthPortalModal(true);
-            }}
-            className="flex items-center gap-1 font-bold text-rose-200 hover:text-white transition-colors cursor-pointer"
-          >
-            <UserPlus className="w-3 h-3 text-amber-300" />
-            <span>{t.register}</span>
-          </button>
-          <span className="text-white/25">|</span>
-          <button
-            onClick={() => setIsLoggedOut(true)}
-            className="flex items-center gap-1 font-bold text-red-200 hover:text-white transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3 h-3 text-red-400" />
-            <span>{t.logOut}</span>
-          </button>
-          <span className="text-white/25">|</span>
-          <button
-            onClick={() => {
-              setAuthInitialMode('RECOVERY');
-              setShowAuthPortalModal(true);
-            }}
-            className="flex items-center gap-1 font-bold text-sky-300 hover:text-white transition-colors cursor-pointer"
-          >
-            <Phone className="w-3 h-3 text-sky-400" />
-            <span>{t.profileAndSms}</span>
-          </button>
-          <span className="text-white/25">|</span>
-          <button
-            onClick={() => {
-              setAuthInitialMode('ADMIN');
-              setShowAuthPortalModal(true);
-            }}
-            className="flex items-center gap-1 font-bold text-emerald-300 hover:text-white transition-colors cursor-pointer"
-          >
-            <ShieldCheck className="w-3 h-3 text-emerald-400" />
-            <span>{t.adminLogin}</span>
-          </button>
+        {/* 2B/ SLIDE SHOW IMAGE EVENT AND ACTIVITY (Administrator Only Post / Edit / Delete) */}
+        <div className="mb-3.5 rounded-xl overflow-hidden bg-white text-slate-900 shadow-xl border-2 border-white/95 relative group">
+          {currentEvent ? (
+            <div className="relative h-36 sm:h-40 w-full overflow-hidden bg-slate-900">
+              <img
+                src={currentEvent.imageUrl}
+                alt={currentEvent.title}
+                onClick={() => {
+                  if (!isAdmin) setViewingEventDetail(currentEvent);
+                }}
+                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 cursor-pointer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20 pointer-events-none" />
+
+              {/* Top Row: Event Badge & Date + Admin-Only Post / Edit / Delete Controls */}
+              <div className="absolute top-2 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow">
+                    {currentEvent.badge || 'EVENT & ACTIVITY'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[9px] font-mono font-semibold flex items-center gap-1 truncate">
+                    <Calendar className="w-2.5 h-2.5 text-amber-300 shrink-0" />
+                    <span className="truncate">{currentEvent.eventDate}</span>
+                  </span>
+                </div>
+
+                {/* Admin Quick Post / Upload / Edit / Delete Buttons — SHOWN ONLY TO ADMINISTRATOR */}
+                {isAdmin && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={openCreateEventModal}
+                      className="px-1.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 text-[9px] font-black flex items-center gap-0.5 shadow cursor-pointer"
+                      title="Administrator Only: Post New Event & Activity Image"
+                    >
+                      <Upload className="w-2.5 h-2.5" />
+                      <span>+Post</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditEventModal(currentEvent)}
+                      className="p-1 rounded-md bg-sky-500/85 hover:bg-sky-500 text-white shadow cursor-pointer"
+                      title="Administrator Only: Edit Event Image & Information"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    {eventPosts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          adminDeleteEventPost(currentEvent.id);
+                          setActiveEventIdx(0);
+                          setRedemptionNotice(`Deleted event "${currentEvent.title}"`);
+                          setTimeout(() => setRedemptionNotice(null), 3500);
+                        }}
+                        className="p-1 rounded-md bg-red-600/85 hover:bg-red-600 text-white shadow cursor-pointer"
+                        title="Administrator Only: Delete Event Slide"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Left / Right Slide Arrows */}
+              {eventPosts.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveEventIdx((prev) => (prev - 1 + eventPosts.length) % eventPosts.length)
+                    }
+                    className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/25 flex items-center justify-center cursor-pointer"
+                    aria-label="Previous Event Slide"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveEventIdx((prev) => (prev + 1) % eventPosts.length)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/25 flex items-center justify-center cursor-pointer"
+                    aria-label="Next Event Slide"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+
+              {/* Bottom Event Title, Information & Slide Indicators */}
+              <div className="absolute bottom-0 inset-x-0 p-2.5 flex items-end justify-between gap-2">
+                <div
+                  onClick={() => {
+                    if (isAdmin) openEditEventModal(currentEvent);
+                    else setViewingEventDetail(currentEvent);
+                  }}
+                  className="min-w-0 flex-1 cursor-pointer"
+                >
+                  <h4 className="text-xs sm:text-sm font-black text-white leading-tight truncate drop-shadow">
+                    {currentEvent.title}
+                  </h4>
+                  <p className="text-[10px] text-slate-200 leading-snug line-clamp-2 mt-0.5">
+                    {currentEvent.information}
+                  </p>
+                  <div className="flex items-center gap-1 text-[9px] text-amber-300 font-semibold mt-0.5 truncate">
+                    <MapPin className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{currentEvent.location}</span>
+                  </div>
+                </div>
+
+                {/* Slide Dots */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {eventPosts.map((evt, idx) => (
+                    <button
+                      key={evt.id}
+                      type="button"
+                      onClick={() => setActiveEventIdx(idx)}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        idx === activeEventIdx % eventPosts.length
+                          ? 'w-4 bg-amber-400'
+                          : 'w-1.5 bg-white/50'
+                      }`}
+                      aria-label={`Event Slide ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="h-32 flex flex-col items-center justify-center p-4 text-center">
+              <p className="text-xs font-bold text-[#850818]">Slide Show Image Event and Activity</p>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={openCreateEventModal}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-[#df1c2d] text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Post Event & Activity</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ---------------- 2. GOLD METALLIC DMC MEMBERSHIP CARD ---------------- */}
@@ -424,7 +1035,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Left Card Details */}
             <div className="flex-1 flex flex-col justify-between space-y-2 min-w-0">
               <div className="flex items-center gap-2.5">
-                <DmcOfficialLogo size={42} withGoldRing={false} className="shadow-md border border-amber-900/20 shrink-0" />
+                <DmcOfficialLogo
+                  size={50}
+                  rounded="full"
+                  withGoldRing={false}
+                  title="Official DMC R (ໄຊລາຊາ) Logo"
+                  className="shadow-md border border-amber-900/20 shrink-0"
+                />
                 <div className="min-w-0">
                   <h1 className="text-3xl font-black tracking-tight text-slate-950 leading-none">
                     DMC
@@ -465,9 +1082,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     />
                   ))}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-4 h-4 rounded bg-[#df1c2d] text-white font-black text-[7px] flex items-center justify-center shadow">
-                      D
-                    </div>
+                    <DmcOfficialLogo size={22} rounded="xl" withGoldRing={false} className="shadow" />
                   </div>
                 </div>
 
@@ -714,13 +1329,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               </span>
             </button>
           </div>
+
+          {/* 3B: DOWNLINE ORGANIZE TREE BANNER (Allow Administrator and User to see their Downline Organize) */}
+          <div className="rounded-2xl bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 text-white p-3 shadow-lg border border-purple-400/40 flex items-center justify-between gap-2.5">
+            <div
+              onClick={() => setShowOrganizeModal(true)}
+              className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white/15 border border-purple-300/30 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5 text-amber-300" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-white truncate">
+                    Downline Organize (3-Level Tree)
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
+                    {totalMyDownlines} Members
+                  </span>
+                </div>
+                <div className="text-[10px] text-purple-200 truncate mt-0.5 font-mono">
+                  L1: {myDownlines.l1.length} • L2: {myDownlines.l2.length} • L3: {myDownlines.l3.length} ({isAdmin ? 'Admin & User Tree' : 'My Organize Tree'})
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowOrganizeModal(true)}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black cursor-pointer shadow"
+              >
+                Organize Chart
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('network')}
+                className="px-2 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[10px] font-bold cursor-pointer"
+              >
+                Full View →
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* =====================================================================
-            Section 4: BANNER PRODUCTS SHOWCASE (Hero Carousel + 4 Product Banners)
+            Section 4: BANNER PRODUCTS SHOWCASE (Hero Carousel + Product Banners + Admin CRUD)
            ===================================================================== */}
         <div className="pt-2 space-y-3">
-          {/* Header Row */}
+          {/* Header Row with Administrator Upload / Add Product Button */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               <div className="p-1.5 rounded-lg bg-red-50 text-[#df1c2d] shrink-0">
@@ -735,12 +1392,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => onNavigate('catalog')}
-              className="px-2.5 py-1 rounded-full bg-[#df1c2d]/10 hover:bg-[#df1c2d]/20 text-[#df1c2d] text-[10px] font-extrabold transition-colors cursor-pointer shrink-0"
-            >
-              {t.viewAllFour}
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={openCreateProductModal}
+                  className="px-2.5 py-1 rounded-full bg-indigo-950 hover:bg-slate-800 text-amber-300 text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                  title="Administrator: Upload New Product Image & Details"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>+ Product</span>
+                </button>
+              )}
+              <button
+                onClick={() => onNavigate('catalog')}
+                className="px-2.5 py-1 rounded-full bg-[#df1c2d]/10 hover:bg-[#df1c2d]/20 text-[#df1c2d] text-[10px] font-extrabold transition-colors cursor-pointer shrink-0"
+              >
+                {t.viewAllFour}
+              </button>
+            </div>
           </div>
 
           {/* 4A. Interactive Hero Product Banner Carousel */}
@@ -755,14 +1425,48 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20" />
 
-                {/* Top Badges */}
+                {/* Top Badges + Admin Edit/Upload/Delete Controls */}
                 <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#f5a623] to-[#e69110] text-slate-950 text-[10px] font-black uppercase tracking-wider shadow">
-                    {currentHeroLocalized.categoryBadge}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/90 text-slate-950 text-[10px] font-black font-mono shadow">
-                    {t.poolLabel}: {formatLakCompact(currentHeroProduct.commissionPoolLak)} LAK
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#f5a623] to-[#e69110] text-slate-950 text-[10px] font-black uppercase tracking-wider shadow truncate">
+                      {currentHeroLocalized.categoryBadge}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-slate-950 text-[10px] font-black font-mono shadow hidden xs:inline">
+                      {t.poolLabel}: {formatLakCompact(currentHeroProduct.commissionPoolLak)}
+                    </span>
+                  </div>
+
+                  {/* Admin Quick Upload Image / Edit / Delete on Hero Product */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditProductModal(currentHeroProduct);
+                      }}
+                      className="px-2 py-1 rounded-lg bg-sky-500/90 hover:bg-sky-500 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
+                      title="Administrator: Upload Product Image / Edit / Update"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Edit / Image</span>
+                    </button>
+                    {products.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          adminDeleteProduct(currentHeroProduct.sku);
+                          setActiveBannerIdx(0);
+                          setRedemptionNotice(`Deleted product ${currentHeroProduct.sku}`);
+                          setTimeout(() => setRedemptionNotice(null), 3500);
+                        }}
+                        className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
+                        title="Administrator: Delete Product"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Prev / Next Carousel Buttons */}
@@ -838,7 +1542,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* 4B. Visual Banner Products Grid (Only 4 Official Products in 2x2 Grid) */}
+          {/* 4B. Visual Banner Products Grid (With Admin Upload Image / Edit / Delete on every card) */}
           <div className="grid grid-cols-2 gap-2.5">
             {featuredProducts.map((prod) => {
               const loc = getLocalizedProduct(prod, language);
@@ -858,9 +1562,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/20" />
-                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-amber-300 text-[9px] font-bold uppercase">
+                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-amber-300 text-[8px] font-bold uppercase max-w-[55%] truncate">
                       {loc.categoryBadge}
                     </span>
+
+                    {/* Admin Quick Edit/Upload & Delete Buttons */}
+                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditProductModal(prod);
+                        }}
+                        className="p-1 rounded-md bg-sky-500/90 hover:bg-sky-500 text-white shadow cursor-pointer"
+                        title="Upload Product Image / Edit / Update"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      {products.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            adminDeleteProduct(prod.sku);
+                            setActiveBannerIdx(0);
+                            setRedemptionNotice(`Deleted product ${prod.sku}`);
+                            setTimeout(() => setRedemptionNotice(null), 3500);
+                          }}
+                          className="p-1 rounded-md bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
+                          title="Delete Product"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
                     <span className="absolute bottom-1.5 left-2 right-2 text-white font-black font-mono text-xs drop-shadow">
                       {formatNumberWithCommas(prod.priceLak)} LAK
                     </span>
@@ -878,11 +1614,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     </div>
 
                     <div className="pt-1 border-t border-slate-100 flex items-center justify-between gap-1">
-                      <span className="text-[9px] font-mono text-slate-400 truncate">
-                        {prod.itemType === 'SERVICE'
-                          ? t.studioMasterLabel
-                          : `${t.stockLabel}: ${prod.stockSellable}`}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditProductModal(prod);
+                        }}
+                        className="text-[9px] font-bold text-sky-700 hover:underline flex items-center gap-0.5 truncate cursor-pointer"
+                      >
+                        <Camera className="w-2.5 h-2.5 shrink-0" />
+                        <span>Image / Edit</span>
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -908,7 +1650,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
       {/* ---------------- 4. MODALS (AVATAR PICKER, QR, PROMOTIONS, SUPPORT) ---------------- */}
 
-      {/* Circle Profile Image Picker / Upload Modal */}
+      {/* Member's Own Circle Profile Image Picker / Upload Modal */}
       {showAvatarModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900">
@@ -918,8 +1660,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <Camera className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Circle Profile Image</h4>
-                  <span className="text-[10px] text-slate-500">{currentMember.name}</span>
+                  <h4 className="text-sm font-bold text-slate-900">Update My Profile Image</h4>
+                  <span className="text-[10px] text-slate-500">
+                    {currentMember.name} ({currentMember.memberId})
+                  </span>
                 </div>
               </div>
               <button
@@ -930,7 +1674,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               </button>
             </div>
 
-            {/* Current Circle Profile Preview */}
+            {/* Current Member Profile Image Preview */}
             <div className="flex flex-col items-center py-2">
               <div className="w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-[#f5a623] via-[#fff3b0] to-[#e69110] shadow-lg">
                 <img
@@ -939,14 +1683,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   className="w-full h-full rounded-full object-cover border-2 border-white"
                 />
               </div>
-              <span className="text-xs font-bold text-slate-700 mt-2">{currentMember.memberId}</span>
+              <span className="text-xs font-bold text-slate-700 mt-2">
+                {currentMember.name} • {currentMember.memberId}
+              </span>
             </div>
 
-            {/* Upload from Device */}
+            {/* Upload Member's Own Profile Photo from Device */}
             <div>
               <label className="w-full py-2.5 px-4 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow cursor-pointer transition-colors">
                 <Upload className="w-4 h-4" />
-                <span>Upload Photo from Device</span>
+                <span>Upload My Profile Image from Device</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -969,6 +1715,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     onClick={() => {
                       adminUpdateMember(currentMember.memberId, { avatarUrl: url });
                       setCustomAvatarInput(url);
+                      setRedemptionNotice(`Updated profile image for ${currentMember.name}!`);
+                      setTimeout(() => setRedemptionNotice(null), 3500);
                       setShowAvatarModal(false);
                     }}
                     className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-transform hover:scale-110 cursor-pointer ${
@@ -984,7 +1732,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Custom Image URL Input */}
             <div className="space-y-1.5 pt-1 border-t border-slate-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Or Paste Image URL
+                Or Paste Profile Image URL
               </label>
               <div className="flex gap-2">
                 <input
@@ -999,6 +1747,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   onClick={() => {
                     if (customAvatarInput.trim()) {
                       adminUpdateMember(currentMember.memberId, { avatarUrl: customAvatarInput.trim() });
+                      setRedemptionNotice(`Updated profile image for ${currentMember.name}!`);
+                      setTimeout(() => setRedemptionNotice(null), 3500);
                       setShowAvatarModal(false);
                     }
                   }}
@@ -1213,6 +1963,576 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         onClose={() => setShowAuthPortalModal(false)}
         initialMode={authInitialMode}
       />
+
+      {/* 2/ Administrator Event & Activity Post, Image Upload, Edit & Delete Modal */}
+      {showEventAdminModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-red-50 text-[#df1c2d]">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    {eventModalMode === 'EDIT'
+                      ? 'Edit Event & Activity Slide'
+                      : 'Post New Event & Activity'}
+                  </h4>
+                  <span className="text-[10px] text-slate-500">
+                    Administrator Post, Image, Information, Event & Activity
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEventAdminModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Switcher between Existing Events or + New Post */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={openCreateEventModal}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
+                  eventModalMode === 'CREATE'
+                    ? 'bg-[#df1c2d] text-white shadow'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ New Post</span>
+              </button>
+              {eventPosts.map((evt, idx) => (
+                <button
+                  key={evt.id}
+                  type="button"
+                  onClick={() => openEditEventModal(evt)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer truncate max-w-[120px] ${
+                    eventModalMode === 'EDIT' && editingEventId === evt.id
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  Slide #{idx + 1}: {evt.title}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleSaveEventPost} className="space-y-3 text-xs">
+              {/* Live Event Slide Preview */}
+              <div className="relative h-36 w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner">
+                <img
+                  src={eventForm.imageUrl}
+                  alt={eventForm.title || 'Event Preview'}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+                <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase">
+                  {eventForm.badge || 'EVENT & ACTIVITY'}
+                </span>
+                <div className="absolute bottom-2 left-2.5 right-2.5 text-white">
+                  <div className="text-xs font-black truncate">
+                    {eventForm.title || 'Slide Show Image Event and Activity'}
+                  </div>
+                  <div className="text-[10px] text-slate-200 line-clamp-1">
+                    {eventForm.information || 'Event information preview...'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Upload Event Image from Phone/Computer or URL */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="py-2 px-3 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Event Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleEventImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                <input
+                  type="text"
+                  value={eventForm.imageUrl}
+                  onChange={(e) => setEventForm({ ...eventForm, imageUrl: e.target.value })}
+                  placeholder="Or paste Image URL (https://...)"
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+              </div>
+
+              {/* Headline for Head Line Event And Activity Slide Show */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Head Line Event & Activity Text *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={eventForm.headline}
+                  onChange={(e) => setEventForm({ ...eventForm, headline: e.target.value })}
+                  placeholder="e.g. DMC Xayraxa Live Studio Showcase — Vientiane Capital"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold"
+                />
+              </div>
+
+              {/* Slide Title & Badge */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Event / Activity Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={eventForm.title}
+                    onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                    placeholder="e.g. Grand Music Concert & Open House"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Badge</label>
+                  <input
+                    type="text"
+                    value={eventForm.badge}
+                    onChange={(e) => setEventForm({ ...eventForm, badge: e.target.value })}
+                    placeholder="LIVE EVENT"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-bold uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Event Date & Location */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Date & Time
+                  </label>
+                  <input
+                    type="text"
+                    value={eventForm.eventDate}
+                    onChange={(e) => setEventForm({ ...eventForm, eventDate: e.target.value })}
+                    placeholder="25 Oct 2026 • 18:00"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={eventForm.location}
+                    onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+                    placeholder="DMC Central Studio, Vientiane"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Detailed Information */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Information & Activity Details *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={eventForm.information}
+                  onChange={(e) => setEventForm({ ...eventForm, information: e.target.value })}
+                  placeholder="Enter full Event & Activity information, schedule, and highlights..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+              </div>
+
+              {/* Save / Delete Buttons */}
+              <div className="flex items-center gap-2 pt-2">
+                {eventModalMode === 'EDIT' && editingEventId && eventPosts.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      adminDeleteEventPost(editingEventId);
+                      setActiveEventIdx(0);
+                      setShowEventAdminModal(false);
+                      setRedemptionNotice('Deleted Event & Activity slide.');
+                      setTimeout(() => setRedemptionNotice(null), 3500);
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowEventAdminModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md cursor-pointer"
+                >
+                  {eventModalMode === 'EDIT' ? 'Update Event' : 'Post Event'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3/ Administrator Product Image Upload, Edit, Delete & Update Modal */}
+      {showProductAdminModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-900">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    {productModalMode === 'EDIT'
+                      ? `Edit / Update Product (${productForm.sku})`
+                      : 'Upload & Add New Product'}
+                  </h4>
+                  <span className="text-[10px] text-slate-500">
+                    Administrator Product Image Upload, Edit, Delete & Update
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProductAdminModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Product Selector Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={openCreateProductModal}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer ${
+                  productModalMode === 'CREATE'
+                    ? 'bg-[#df1c2d] text-white shadow'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ Add Product</span>
+              </button>
+              {products.map((p) => (
+                <button
+                  key={p.sku}
+                  type="button"
+                  onClick={() => openEditProductModal(p)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer truncate max-w-[130px] ${
+                    productModalMode === 'EDIT' && productForm.sku === p.sku
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {p.titleEn}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleSaveProductAdmin} className="space-y-3 text-xs">
+              {/* Product Image Live Preview */}
+              <div className="relative h-36 w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner">
+                <img
+                  src={productForm.imageUrl}
+                  alt={productForm.titleEn || 'Product Preview'}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-amber-300 text-[9px] font-mono font-bold">
+                  {productForm.sku}
+                </span>
+                <span className="absolute bottom-2 left-2.5 text-white font-black font-mono text-xs">
+                  {formatNumberWithCommas(Number(productForm.priceLak) || 0)} LAK
+                </span>
+              </div>
+
+              {/* Upload Product Image from Device or URL */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="py-2 px-3 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Product Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProductImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                <input
+                  type="text"
+                  value={productForm.imageUrl}
+                  onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
+                  placeholder="Or paste Image URL (https://...)"
+                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Product SKU *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={productModalMode === 'EDIT'}
+                    value={productForm.sku}
+                    onChange={(e) => setProductForm({ ...productForm, sku: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono uppercase disabled:opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={productForm.category}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        category: e.target.value as ProductSKU['category'],
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-semibold"
+                  >
+                    <option value="MUSIC_PACKAGE">MUSIC_PACKAGE</option>
+                    <option value="GUITAR">GUITAR</option>
+                    <option value="AUDIO_GEAR">AUDIO_GEAR</option>
+                    <option value="ACCESSORY">ACCESSORY</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Product Title (English) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={productForm.titleEn}
+                  onChange={(e) => setProductForm({ ...productForm, titleEn: e.target.value })}
+                  placeholder="e.g. DMC Signature Acoustic Guitar"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Title (Lao / ພາສາລາວ)
+                  </label>
+                  <input
+                    type="text"
+                    value={productForm.titleLo}
+                    onChange={(e) => setProductForm({ ...productForm, titleLo: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Title (Thai / ไทย)
+                  </label>
+                  <input
+                    type="text"
+                    value={productForm.titleTh}
+                    onChange={(e) => setProductForm({ ...productForm, titleTh: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Price (LAK) *
+                  </label>
+                  <input
+                    type="number"
+                    step="10000"
+                    required
+                    value={productForm.priceLak}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, priceLak: Number(e.target.value) })
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Pool (LAK) *
+                  </label>
+                  <input
+                    type="number"
+                    step="10000"
+                    required
+                    value={productForm.commissionPoolLak}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, commissionPoolLak: Number(e.target.value) })
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Stock</label>
+                  <input
+                    type="number"
+                    required
+                    value={productForm.stockSellable}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, stockSellable: Number(e.target.value) })
+                    }
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Product Information / Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={productForm.descriptionEn}
+                  onChange={(e) => setProductForm({ ...productForm, descriptionEn: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+              </div>
+
+              {/* Action Buttons: Delete, Cancel, Save/Update */}
+              <div className="flex items-center gap-2 pt-2">
+                {productModalMode === 'EDIT' && products.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      adminDeleteProduct(productForm.sku);
+                      setActiveBannerIdx(0);
+                      setShowProductAdminModal(false);
+                      setRedemptionNotice(`Deleted product ${productForm.sku}`);
+                      setTimeout(() => setRedemptionNotice(null), 3500);
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowProductAdminModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md cursor-pointer"
+                >
+                  {productModalMode === 'EDIT' ? 'Update Product' : 'Save Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Read-Only Event & Activity Detail Modal for Users */}
+      {viewingEventDetail && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 text-slate-900">
+            <div className="relative h-48 w-full bg-slate-900">
+              <img
+                src={viewingEventDetail.imageUrl}
+                alt={viewingEventDetail.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+              <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                {viewingEventDetail.badge || 'EVENT & ACTIVITY'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingEventDetail(null)}
+                className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-3 left-3.5 right-3.5 text-white">
+                <h4 className="text-base font-black leading-tight">{viewingEventDetail.title}</h4>
+                <div className="flex items-center gap-3 text-[11px] text-amber-300 font-semibold mt-1">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {viewingEventDetail.eventDate}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {viewingEventDetail.location}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-3 text-xs">
+              <div className="p-2.5 rounded-xl bg-red-50 border border-red-100 text-[#850818] font-bold">
+                {viewingEventDetail.headline}
+              </div>
+              <p className="text-slate-700 leading-relaxed">{viewingEventDetail.information}</p>
+              <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+                <span className="text-[10px] text-slate-400">
+                  Note: Only Administrator can Post or Edit Event & Activity
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setViewingEventDetail(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Downline Organize Tree Modal (Accessible directly from Home Screen for both Admin & User) */}
+      {showOrganizeModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-4xl bg-slate-950 border-2 border-purple-500/50 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" />
+                <h4 className="text-sm sm:text-base font-black text-white">
+                  Downline Organize — 3-Level Unilevel Hierarchy
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOrganizeModal(false)}
+                className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer"
+              >
+                Close ✕
+              </button>
+            </div>
+
+            <DownlineOrganizeTree />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

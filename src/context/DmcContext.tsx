@@ -28,6 +28,7 @@ import {
   LaoShippingCarrier,
   LAO_SHIPPING_CARRIERS,
   SuperAdminProfile,
+  EventActivityPost,
 } from '../types/dmc';
 
 interface DmcContextType {
@@ -39,6 +40,8 @@ interface DmcContextType {
   setLanguage: (lang: Language) => void;
   isAdminMode: boolean;
   setIsAdminMode: (admin: boolean) => void;
+  isAdminAuthenticated: boolean;
+  setIsAdminAuthenticated: (adminAuth: boolean) => void;
   isLoggedOut: boolean;
   setIsLoggedOut: (loggedOut: boolean) => void;
   superAdminProfile: SuperAdminProfile;
@@ -103,6 +106,10 @@ interface DmcContextType {
   adminAddProduct: (prod: ProductSKU) => void;
   adminUpdateProduct: (sku: string, updates: Partial<ProductSKU>) => void;
   adminDeleteProduct: (sku: string) => boolean;
+  eventPosts: EventActivityPost[];
+  adminAddEventPost: (post: Omit<EventActivityPost, 'id' | 'createdAt'>) => EventActivityPost;
+  adminUpdateEventPost: (id: string, updates: Partial<EventActivityPost>) => void;
+  adminDeleteEventPost: (id: string) => boolean;
   adminAddOrder: (order: Order) => void;
   adminUpdateOrder: (orderId: string, updates: Partial<Order>) => void;
   adminDeleteOrder: (orderId: string) => boolean;
@@ -283,6 +290,278 @@ const INITIAL_MEMBERS: Member[] = [
       branch: 'No. 088 Lanexang Avenue, Hatsady, Vientiane',
       isDefault: true,
     },
+  },
+  // L1 Direct Downlines of Khamla (DMC-LA-00404)
+  {
+    id: 'usr-00506',
+    memberId: 'DMC-LA-00506',
+    name: 'Bounmy Sisavath (L1 Direct)',
+    phone: '+856 20 5544 1122',
+    email: 'bounmy@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00404',
+    createdAt: '2026-09-05T10:00:00Z',
+    activatedAt: '2026-09-10T12:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-05T10:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-05T10:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+    bankAccount: {
+      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      bankCode: 'BCEL',
+      accountNumber: '160-12-0050611-001',
+      accountName: 'BOUNMY SISAVATH',
+      branch: 'Head Office Vientiane, Rue Pangkham',
+      isDefault: true,
+    },
+  },
+  {
+    id: 'usr-00507',
+    memberId: 'DMC-LA-00507',
+    name: 'Chanthaly Keomany (L1 Direct)',
+    phone: '+856 20 7788 3344',
+    email: 'chanthaly@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00404',
+    createdAt: '2026-09-12T11:30:00Z',
+    activatedAt: '2026-09-20T15:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-12T11:30:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-12T11:30:00Z',
+    },
+    kycStatus: 'VERIFIED',
+    bankAccount: {
+      bankName: 'Development Bank CO LTD (LDB)',
+      bankCode: 'LDB',
+      accountNumber: '020-88-0050722-001',
+      accountName: 'CHANTHALY KEOMANY',
+      branch: 'Lane Xang Avenue Branch, Vientiane',
+      isDefault: true,
+    },
+  },
+  {
+    id: 'usr-00508',
+    memberId: 'DMC-LA-00508',
+    name: 'Phouthone Vongphachanh (L1 Direct)',
+    phone: '+856 20 9911 2244',
+    email: 'phouthone@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'FREE_MEMBER',
+    sponsorId: 'DMC-LA-00404',
+    createdAt: '2026-09-18T14:20:00Z',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-18T14:20:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-18T14:20:00Z',
+    },
+    kycStatus: 'VERIFIED',
+    bankAccount: {
+      bankName: 'Joint Development Bank (JDB)',
+      bankCode: 'JDB',
+      accountNumber: '010-12-0050833-001',
+      accountName: 'PHOUTHONE VONGPHACHANH',
+      branch: 'Lane Xang Branch, Hatsady, Chanthabouly',
+      isDefault: true,
+    },
+  },
+  // L2 Downlines under Bounmy (00506), Chanthaly (00507), Phouthone (00508)
+  {
+    id: 'usr-00601',
+    memberId: 'DMC-LA-00601',
+    name: 'Dalavanh Souvanna (L2)',
+    phone: '+856 20 5512 9001',
+    email: 'dalavanh@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00506',
+    createdAt: '2026-09-22T09:00:00Z',
+    activatedAt: '2026-09-22T10:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-22T09:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-22T09:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  {
+    id: 'usr-00602',
+    memberId: 'DMC-LA-00602',
+    name: 'Keooudone Phommasone (L2)',
+    phone: '+856 20 5512 9002',
+    email: 'keooudone@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'FREE_MEMBER',
+    sponsorId: 'DMC-LA-00506',
+    createdAt: '2026-09-24T11:00:00Z',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-24T11:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-24T11:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  {
+    id: 'usr-00603',
+    memberId: 'DMC-LA-00603',
+    name: 'Malichanh Xayavong (L2)',
+    phone: '+856 20 5512 9003',
+    email: 'malichanh@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00507',
+    createdAt: '2026-09-25T13:00:00Z',
+    activatedAt: '2026-09-25T14:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-25T13:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-25T13:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  {
+    id: 'usr-00604',
+    memberId: 'DMC-LA-00604',
+    name: 'Vilayphone Inthavong (L2)',
+    phone: '+856 20 5512 9004',
+    email: 'vilayphone@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00508',
+    createdAt: '2026-09-27T15:00:00Z',
+    activatedAt: '2026-09-27T16:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-09-27T15:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-09-27T15:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  // L3 Downlines under L2 Members
+  {
+    id: 'usr-00701',
+    memberId: 'DMC-LA-00701',
+    name: 'Souksavanh Phetsarath (L3)',
+    phone: '+856 20 5513 8001',
+    email: 'souksavanh@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00601',
+    createdAt: '2026-10-01T09:00:00Z',
+    activatedAt: '2026-10-01T10:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-10-01T09:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-10-01T09:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  {
+    id: 'usr-00702',
+    memberId: 'DMC-LA-00702',
+    name: 'Thipphaphone Chanthavong (L3)',
+    phone: '+856 20 5513 8002',
+    email: 'thipphaphone@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'FREE_MEMBER',
+    sponsorId: 'DMC-LA-00601',
+    createdAt: '2026-10-03T11:00:00Z',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-10-03T11:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-10-03T11:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  {
+    id: 'usr-00703',
+    memberId: 'DMC-LA-00703',
+    name: 'Latsamy Douangmala (L3)',
+    phone: '+856 20 5513 8003',
+    email: 'latsamy@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    sponsorId: 'DMC-LA-00603',
+    createdAt: '2026-10-05T14:00:00Z',
+    activatedAt: '2026-10-05T15:00:00Z',
+    activationMethod: 'DIRECT_CASH',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-10-05T14:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-10-05T14:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
+  },
+  {
+    id: 'usr-00704',
+    memberId: 'DMC-LA-00704',
+    name: 'Phonesavanh Sayasith (L3)',
+    phone: '+856 20 5513 8004',
+    email: 'phonesavanh@dmcxayraxa.la',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
+    language: 'lo',
+    membershipState: 'FREE_MEMBER',
+    sponsorId: 'DMC-LA-00604',
+    createdAt: '2026-10-06T16:00:00Z',
+    consents: {
+      termsAccepted: true,
+      termsVersion: 'v2.6',
+      termsAcceptedAt: '2026-10-06T16:00:00Z',
+      autoRedeemConsent: true,
+      autoRedeemVersion: 'v2.6',
+      autoRedeemAcceptedAt: '2026-10-06T16:00:00Z',
+    },
+    kycStatus: 'VERIFIED',
   },
 ];
 
@@ -493,11 +772,55 @@ const INITIAL_SONGS: SongProductionProject[] = [
   },
 ];
 
+// Initial Event & Activity Slideshow Posts
+const INITIAL_EVENT_POSTS: EventActivityPost[] = [
+  {
+    id: 'evt-001',
+    headline: 'DMC Xayraxa Live Studio Showcase & Artist Concert — Vientiane Capital',
+    title: 'DMC Xayraxa Grand Music Concert & Studio Open House',
+    information:
+      'Join our live recording showcase, acoustic guitar exhibition, and Active Lifetime Member recognition ceremony at DMC Central Studio, Vientiane.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+    eventDate: '25 Oct 2026 • 18:00',
+    location: 'DMC Central Studio, Vientiane',
+    badge: 'LIVE EVENT',
+    createdAt: '2026-10-14T08:00:00Z',
+  },
+  {
+    id: 'evt-002',
+    headline: 'Vocal & Songwriting Masterclass with Producer Xay Raxa — Free for Members',
+    title: 'Pro Vocal Coaching & Studio Mixing Workshop',
+    information:
+      'Hands-on vocal arrangement, microphone technique, and mastering session for members redeeming their 1,600,000 LAK Studio Song Package.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+    eventDate: '02 Nov 2026 • 14:00',
+    location: 'Dongdok Studio Hall A',
+    badge: 'ACTIVITY',
+    createdAt: '2026-10-14T09:00:00Z',
+  },
+  {
+    id: 'evt-003',
+    headline: 'Lao National Acoustic Guitar Tour & Unilevel Creator Meetup 2026',
+    title: 'DMC Signature Guitar Exhibition & Creator Meetup',
+    information:
+      'Experience the DMC Xayraxa Signature Solid-Top Acoustic & Custom Alnico V Electric Guitars with live demos and instant BCEL One QR rewards.',
+    imageUrl:
+      'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80',
+    eventDate: '15 Nov 2026 • 16:30',
+    location: 'Vientiane & Luang Prabang Hub',
+    badge: 'EXHIBITION',
+    createdAt: '2026-10-14T10:00:00Z',
+  },
+];
+
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [currentMemberId, setCurrentMemberId] = useState<string>('DMC-LA-00404'); // Default to Khamla (FREE with 1.2M held)
   const [language, setLanguage] = useState<Language>('en');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [isLoggedOut, setIsLoggedOut] = useState<boolean>(false);
   const [superAdminProfile, setSuperAdminProfile] = useState<SuperAdminProfile>({
     operatorId: 'SUPER-ADMIN-LAO',
@@ -511,7 +834,30 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     lastPasswordUpdatedAt: '2026-10-01T08:00:00Z',
   });
   const [activeSmsOtps, setActiveSmsOtps] = useState<Record<string, string>>({});
-  const [products, setProducts] = useState<ProductSKU[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<ProductSKU[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_products_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_PRODUCTS;
+  });
+  const [eventPosts, setEventPosts] = useState<EventActivityPost[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_event_posts_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_EVENT_POSTS;
+  });
   const [songs, setSongs] = useState<SongProductionProject[]>(INITIAL_SONGS);
   const [laoBanks, setLaoBanks] = useState<LaoBankDefinition[]>(DEFAULT_LAO_BANKS);
   const [corporateBankAccounts, setCorporateBankAccounts] = useState<CorporateBankAccount[]>(INITIAL_CORPORATE_BANKS);
@@ -1909,9 +2255,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  // 2. Products CRUD
+  // 2. Products CRUD (with localStorage persistence)
   const adminAddProduct = (prod: ProductSKU) => {
-    setProducts(prev => [...prev, prod]);
+    setProducts(prev => {
+      const filtered = prev.filter(p => p.sku !== prod.sku);
+      const next = [prod, ...filtered];
+      try {
+        localStorage.setItem('dmc_rev26_products_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -1927,9 +2282,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateProduct = (sku: string, updates: Partial<ProductSKU>) => {
-    setProducts(prev =>
-      prev.map(p => (p.sku === sku ? { ...p, ...updates } : p))
-    );
+    setProducts(prev => {
+      const next = prev.map(p => (p.sku === sku ? { ...p, ...updates } : p));
+      try {
+        localStorage.setItem('dmc_rev26_products_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -1945,7 +2306,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminDeleteProduct = (sku: string): boolean => {
-    setProducts(prev => prev.filter(p => p.sku !== sku));
+    setProducts(prev => {
+      const next = prev.filter(p => p.sku !== sku);
+      try {
+        localStorage.setItem('dmc_rev26_products_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -1954,6 +2323,86 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         action: 'ADMIN_DELETE_PRODUCT',
         entityType: 'PRODUCT',
         entityId: sku,
+        details: { deletedAt: new Date().toISOString() },
+      },
+      ...prev,
+    ]);
+    return true;
+  };
+
+  // 2B. Event & Activity Posts CRUD (with localStorage persistence)
+  const adminAddEventPost = (postData: Omit<EventActivityPost, 'id' | 'createdAt'>): EventActivityPost => {
+    const newPost: EventActivityPost = {
+      ...postData,
+      id: `evt-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setEventPosts(prev => {
+      const next = [newPost, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_event_posts_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_ADD_EVENT_POST',
+        entityType: 'EVENT_ACTIVITY',
+        entityId: newPost.id,
+        details: { headline: newPost.headline, title: newPost.title },
+      },
+      ...prev,
+    ]);
+    return newPost;
+  };
+
+  const adminUpdateEventPost = (id: string, updates: Partial<EventActivityPost>) => {
+    setEventPosts(prev => {
+      const next = prev.map(item => (item.id === id ? { ...item, ...updates } : item));
+      try {
+        localStorage.setItem('dmc_rev26_event_posts_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPDATE_EVENT_POST',
+        entityType: 'EVENT_ACTIVITY',
+        entityId: id,
+        details: updates,
+      },
+      ...prev,
+    ]);
+  };
+
+  const adminDeleteEventPost = (id: string): boolean => {
+    setEventPosts(prev => {
+      const next = prev.filter(item => item.id !== id);
+      try {
+        localStorage.setItem('dmc_rev26_event_posts_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_DELETE_EVENT_POST',
+        entityType: 'EVENT_ACTIVITY',
+        entityId: id,
         details: { deletedAt: new Date().toISOString() },
       },
       ...prev,
@@ -2337,6 +2786,8 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLanguage,
         isAdminMode,
         setIsAdminMode,
+        isAdminAuthenticated,
+        setIsAdminAuthenticated,
         isLoggedOut,
         setIsLoggedOut,
         superAdminProfile,
@@ -2370,6 +2821,10 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminAddProduct,
         adminUpdateProduct,
         adminDeleteProduct,
+        eventPosts,
+        adminAddEventPost,
+        adminUpdateEventPost,
+        adminDeleteEventPost,
         adminAddOrder,
         adminUpdateOrder,
         adminDeleteOrder,

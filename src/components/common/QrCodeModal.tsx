@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { QrCode, Copy, Check, X, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
 import { formatLak } from '../../utils/i18n';
+import { DmcOfficialLogo } from './DmcLogo';
 
 interface QrModalProps {
   isOpen: boolean;
@@ -91,11 +92,9 @@ export const QrCodeModal: React.FC<QrModalProps> = ({
             })}
           </div>
 
-          {/* Central DMC Logo Badge */}
+          {/* Central Official DMC Logo Badge */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-10 h-10 rounded-lg bg-slate-950 border border-amber-500 flex items-center justify-center font-black text-amber-400 text-[10px] shadow-lg">
-              DMC
-            </div>
+            <DmcOfficialLogo size={42} rounded="xl" withGoldRing={true} className="shadow-lg" />
           </div>
         </div>
 

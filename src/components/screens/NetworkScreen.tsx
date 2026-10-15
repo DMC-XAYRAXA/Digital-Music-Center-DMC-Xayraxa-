@@ -22,6 +22,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { QrCodeModal } from '../common/QrCodeModal';
+import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
 
 interface NetworkScreenProps {
   onNavigate: (tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet') => void;
@@ -31,7 +32,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
   const { currentMember, getDownlines, getSponsorChain, getMemberAwards, unallocatedAwards, language } = useDmc();
   const t = translations[language];
 
-  const [activeTab, setActiveTab] = useState<'L1' | 'L2' | 'L3' | 'COMMISSIONS' | 'UNALLOCATED'>('L1');
+  const [activeTab, setActiveTab] = useState<'ORGANIZE' | 'L1' | 'L2' | 'L3' | 'COMMISSIONS' | 'UNALLOCATED'>('ORGANIZE');
   const [copied, setCopied] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
@@ -173,8 +174,21 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto text-xs">
           <button
+            onClick={() => setActiveTab('ORGANIZE')}
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'ORGANIZE' ? 'bg-purple-600 text-white font-black shadow-sm' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Downline Organize Chart</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/30">
+              {totalDownlineCount}
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('L1')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'L1' ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -186,7 +200,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
 
           <button
             onClick={() => setActiveTab('L2')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'L2' ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -198,7 +212,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
 
           <button
             onClick={() => setActiveTab('L3')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'L3' ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -210,7 +224,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
 
           <button
             onClick={() => setActiveTab('COMMISSIONS')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'COMMISSIONS' ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -223,7 +237,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
 
           <button
             onClick={() => setActiveTab('UNALLOCATED')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
               activeTab === 'UNALLOCATED' ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -233,6 +247,9 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
             </span>
           </button>
         </div>
+
+        {/* Tab 0: Visual Downline Organize Tree Chart */}
+        {activeTab === 'ORGANIZE' && <DownlineOrganizeTree />}
 
         {/* Tab 1, 2, 3: Downlines List */}
         {(activeTab === 'L1' || activeTab === 'L2' || activeTab === 'L3') && (

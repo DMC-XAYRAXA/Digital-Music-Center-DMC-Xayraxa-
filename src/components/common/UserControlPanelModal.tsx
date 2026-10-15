@@ -40,13 +40,16 @@ import {
   MapPin,
   Navigation,
   MessageSquare,
-  Send
+  Send,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { Member, BankAccountInfo, DEFAULT_LAO_BANKS, LaoShippingCarrierId, LAO_SHIPPING_CARRIERS } from '../../types/dmc';
 import { SUPPORTED_LANGUAGES } from '../../utils/i18n';
 import { BankQrPaymentModal } from './BankQrPaymentModal';
 import { CopyrightCertificateModal, downloadDmcCertificateImage } from './CopyrightCertificateModal';
 import { LaoShippingCarrierModal } from './LaoShippingCarrierModal';
+import { DmcOfficialLogo } from './DmcLogo';
 
 interface UserControlPanelModalProps {
   isOpen: boolean;
@@ -282,9 +285,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
         {/* Top Header */}
         <div className="px-5 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold">
-              <User className="w-5 h-5" />
-            </div>
+            <DmcOfficialLogo size={38} rounded="xl" withGoldRing={true} className="shrink-0" />
             <div>
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
                 <span>User Control Panel & Login Hub</span>
@@ -436,25 +437,86 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
           {/* TAB 1: PROFILE OVERVIEW */}
           {activeTab === 'PROFILE' && (
             <div className="space-y-4 text-xs animate-in fade-in">
-              {/* Member Card */}
+              {/* Member Card with Member's Own Editable Profile Image */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-800/90 to-slate-900 border border-slate-700/80 shadow-md">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] font-mono text-amber-400 tracking-wider uppercase font-bold">
-                      DMC Member Identity
-                    </span>
-                    <h4 className="text-base font-bold text-white mt-0.5">{currentMember.name}</h4>
-                    <p className="font-mono text-xs text-slate-300 mt-0.5">{currentMember.memberId}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative w-14 h-14 shrink-0">
+                      <img
+                        src={
+                          currentMember.avatarUrl && !currentMember.avatarUrl.startsWith('data:image/svg+xml')
+                            ? currentMember.avatarUrl
+                            : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80'
+                        }
+                        alt={currentMember.name}
+                        className="w-14 h-14 rounded-full object-cover ring-2 ring-amber-400"
+                      />
+                      <label
+                        className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 border border-slate-900 flex items-center justify-center shadow cursor-pointer"
+                        title="Upload your own Member Profile Image"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (typeof reader.result === 'string') {
+                                adminUpdateMember(currentMember.memberId, { avatarUrl: reader.result });
+                                setProfileUpdateNotice(`Updated profile image for ${currentMember.name}!`);
+                                setTimeout(() => setProfileUpdateNotice(''), 3500);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-mono text-amber-400 tracking-wider uppercase font-bold">
+                        DMC Member Identity
+                      </span>
+                      <h4 className="text-base font-bold text-white mt-0.5 truncate">{currentMember.name}</h4>
+                      <p className="font-mono text-xs text-slate-300 mt-0.5">{currentMember.memberId}</p>
+                    </div>
                   </div>
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                      isActive
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    }`}
-                  >
-                    {isActive ? 'ACTIVE LIFETIME' : 'FREE MEMBER'}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                        isActive
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      }`}
+                    >
+                      {isActive ? 'ACTIVE LIFETIME' : 'FREE MEMBER'}
+                    </span>
+                    <label className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer">
+                      <Upload className="w-3 h-3" />
+                      <span>Update Own Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              adminUpdateMember(currentMember.memberId, { avatarUrl: reader.result });
+                              setProfileUpdateNotice(`Updated profile image for ${currentMember.name}!`);
+                              setTimeout(() => setProfileUpdateNotice(''), 3500);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-700/60 grid grid-cols-2 gap-3 text-slate-300">

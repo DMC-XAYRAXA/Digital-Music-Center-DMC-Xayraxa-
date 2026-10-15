@@ -45,8 +45,14 @@ import {
   Smartphone,
   MessageSquare,
   KeyRound,
-  Lock
+  Lock,
+  Megaphone,
+  Upload,
+  Calendar,
+  MapPin
 } from 'lucide-react';
+import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
+import { DmcOfficialLogo } from '../common/DmcLogo';
 import { 
   Member, 
   ProductSKU, 
@@ -57,7 +63,8 @@ import {
   BankAccountInfo,
   DEFAULT_LAO_BANKS,
   LaoShippingCarrierId,
-  LAO_SHIPPING_CARRIERS
+  LAO_SHIPPING_CARRIERS,
+  EventActivityPost
 } from '../../types/dmc';
 
 export const AdminPortal: React.FC = () => {
@@ -102,10 +109,24 @@ export const AdminPortal: React.FC = () => {
     superAdminProfile,
     updateSuperAdminProfile,
     sendSmsRecoveryOtp,
-    resetPasswordWithSmsOtp
+    resetPasswordWithSmsOtp,
+    eventPosts,
+    adminAddEventPost,
+    adminUpdateEventPost,
+    adminDeleteEventPost
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'MEMBERS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('MEMBERS');
+  const [activeAdminTab, setActiveAdminTab] = useState<'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('MEMBERS');
+  const [adminEventForm, setAdminEventForm] = useState({
+    id: '' as string,
+    headline: '',
+    title: '',
+    information: '',
+    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+    eventDate: '25 Oct 2026 • 18:00',
+    location: 'DMC Central Studio, Vientiane',
+    badge: 'EVENT & ACTIVITY',
+  });
   const [adminFormName, setAdminFormName] = useState(superAdminProfile.name);
   const [adminFormOperatorId, setAdminFormOperatorId] = useState(superAdminProfile.operatorId);
   const [adminFormPhone, setAdminFormPhone] = useState(superAdminProfile.phone);
@@ -574,9 +595,7 @@ export const AdminPortal: React.FC = () => {
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+            <DmcOfficialLogo size={46} rounded="2xl" withGoldRing={true} className="shrink-0" />
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-black text-white tracking-tight">
@@ -632,6 +651,8 @@ export const AdminPortal: React.FC = () => {
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
         {[
           { id: 'MEMBERS', label: 'Members CRUD', icon: Users, count: allMembers.length },
+          { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
+          { id: 'EVENTS', label: 'Event & Activity Posts', icon: Megaphone, count: eventPosts.length },
           { id: 'ADMIN_PROFILE', label: 'Admin & User SMS Security', icon: Smartphone },
           { id: 'PRODUCTS', label: 'Products & SKUs', icon: Package, count: products.length },
           { id: 'ORDERS', label: 'Orders & Shipping', icon: Truck, count: orders.length },
@@ -665,6 +686,296 @@ export const AdminPortal: React.FC = () => {
           );
         })}
       </div>
+
+      {/* ================= TAB: DOWNLINE ORGANIZE TREE ================= */}
+      {activeAdminTab === 'ORGANIZE' && (
+        <div className="space-y-4 animate-in fade-in">
+          <DownlineOrganizeTree />
+        </div>
+      )}
+
+      {/* ================= TAB: EVENT & ACTIVITY POSTS (ADMIN ONLY) ================= */}
+      {activeAdminTab === 'EVENTS' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-amber-400" />
+                <span>Administrator Only: Post Event & Activity Slideshow</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Only authenticated Administrators can post, upload images, edit, or delete Event & Activity announcements shown on the Home Screen.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Post / Edit Event Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const headlineText = adminEventForm.headline.trim() || adminEventForm.title.trim() || 'DMC Event & Activity';
+                const titleText = adminEventForm.title.trim() || headlineText;
+                if (adminEventForm.id) {
+                  adminUpdateEventPost(adminEventForm.id, {
+                    headline: headlineText,
+                    title: titleText,
+                    information: adminEventForm.information.trim(),
+                    imageUrl: adminEventForm.imageUrl.trim(),
+                    eventDate: adminEventForm.eventDate.trim(),
+                    location: adminEventForm.location.trim(),
+                    badge: adminEventForm.badge.trim() || 'EVENT & ACTIVITY',
+                  });
+                  showNotification(`Updated Event & Activity: "${titleText}"`);
+                } else {
+                  adminAddEventPost({
+                    headline: headlineText,
+                    title: titleText,
+                    information: adminEventForm.information.trim() || 'Official DMC Xayraxa Event & Activity.',
+                    imageUrl: adminEventForm.imageUrl.trim(),
+                    eventDate: adminEventForm.eventDate.trim() || 'Upcoming',
+                    location: adminEventForm.location.trim() || 'Vientiane Capital',
+                    badge: adminEventForm.badge.trim() || 'EVENT & ACTIVITY',
+                  });
+                  showNotification(`Posted new Event & Activity: "${titleText}"`);
+                }
+                setAdminEventForm({
+                  id: '',
+                  headline: '',
+                  title: '',
+                  information: '',
+                  imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+                  eventDate: '25 Oct 2026 • 18:00',
+                  location: 'DMC Central Studio, Vientiane',
+                  badge: 'EVENT & ACTIVITY',
+                });
+              }}
+              className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 text-xs"
+            >
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-amber-300">
+                  {adminEventForm.id ? 'Edit Event & Activity Slide' : '+ Post New Event & Activity'}
+                </h4>
+                {adminEventForm.id && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAdminEventForm({
+                        id: '',
+                        headline: '',
+                        title: '',
+                        information: '',
+                        imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=900&q=80',
+                        eventDate: '25 Oct 2026 • 18:00',
+                        location: 'DMC Central Studio, Vientiane',
+                        badge: 'EVENT & ACTIVITY',
+                      })
+                    }
+                    className="text-[11px] text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    + Switch to New Post
+                  </button>
+                )}
+              </div>
+
+              <div className="relative h-36 rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
+                <img
+                  src={adminEventForm.imageUrl}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black">
+                  {adminEventForm.badge || 'EVENT & ACTIVITY'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Event Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === 'string') {
+                          setAdminEventForm((prev) => ({ ...prev, imageUrl: reader.result as string }));
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                <input
+                  type="text"
+                  value={adminEventForm.imageUrl}
+                  onChange={(e) => setAdminEventForm({ ...adminEventForm, imageUrl: e.target.value })}
+                  placeholder="Or paste Image URL..."
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Head Line Ticker Text *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminEventForm.headline}
+                  onChange={(e) => setAdminEventForm({ ...adminEventForm, headline: e.target.value })}
+                  placeholder="e.g. DMC Xayraxa Grand Music Gala 2026"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Event / Activity Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={adminEventForm.title}
+                    onChange={(e) => setAdminEventForm({ ...adminEventForm, title: e.target.value })}
+                    placeholder="Event Slide Title"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Badge</label>
+                  <input
+                    type="text"
+                    value={adminEventForm.badge}
+                    onChange={(e) => setAdminEventForm({ ...adminEventForm, badge: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-bold uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Date & Time</label>
+                  <input
+                    type="text"
+                    value={adminEventForm.eventDate}
+                    onChange={(e) => setAdminEventForm({ ...adminEventForm, eventDate: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={adminEventForm.location}
+                    onChange={(e) => setAdminEventForm({ ...adminEventForm, location: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Information & Activity Description *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={adminEventForm.information}
+                  onChange={(e) => setAdminEventForm({ ...adminEventForm, information: e.target.value })}
+                  placeholder="Enter full Event & Activity details..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow"
+              >
+                {adminEventForm.id ? 'Update Event & Activity Slide' : 'Post Event & Activity Slide'}
+              </button>
+            </form>
+
+            {/* Right: Existing Event & Activity Slides */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Active Event & Activity Slides ({eventPosts.length})
+              </h4>
+              {eventPosts.map((evt) => (
+                <div
+                  key={evt.id}
+                  className="p-3.5 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex gap-3 items-start text-xs"
+                >
+                  <img
+                    src={evt.imageUrl}
+                    alt={evt.title}
+                    className="w-24 h-20 rounded-xl object-cover shrink-0 border border-slate-700"
+                  />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-black uppercase">
+                        {evt.badge || 'EVENT'}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdminEventForm({
+                              id: evt.id,
+                              headline: evt.headline,
+                              title: evt.title,
+                              information: evt.information,
+                              imageUrl: evt.imageUrl,
+                              eventDate: evt.eventDate,
+                              location: evt.location,
+                              badge: evt.badge || 'EVENT & ACTIVITY',
+                            })
+                          }
+                          className="px-2 py-1 rounded bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        {eventPosts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              adminDeleteEventPost(evt.id);
+                              showNotification(`Deleted event "${evt.title}"`);
+                            }}
+                            className="p-1 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="font-bold text-white truncate">{evt.title}</div>
+                    <div className="text-[11px] text-amber-300/90 truncate">{evt.headline}</div>
+                    <p className="text-[11px] text-slate-400 line-clamp-2">{evt.information}</p>
+                    <div className="text-[10px] text-slate-500 flex items-center gap-3 pt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-amber-400" />
+                        {evt.eventDate}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-amber-400" />
+                        {evt.location}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= TAB 1: MEMBERS CRUD ================= */}
       {activeAdminTab === 'MEMBERS' && (
@@ -855,17 +1166,19 @@ export const AdminPortal: React.FC = () => {
                 className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex flex-col justify-between space-y-3 text-xs"
               >
                 <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="font-mono text-[10px] text-amber-400 font-bold uppercase">{p.sku}</span>
-                      <h4 className="font-bold text-white text-sm mt-0.5">{p.titleEn}</h4>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
+                      <img src={p.imageUrl} alt={p.titleEn} className="w-full h-full object-cover" />
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-mono text-[10px] text-amber-400 font-bold uppercase">{p.sku}</span>
+                      <h4 className="font-bold text-white text-sm mt-0.5 truncate">{p.titleEn}</h4>
+                      <p className="text-[11px] text-slate-400 line-clamp-2 mt-1">{p.descriptionEn}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 shrink-0">
                       Stock: {p.stockSellable}
                     </span>
                   </div>
-
-                  <p className="text-[11px] text-slate-400 line-clamp-2">{p.descriptionEn}</p>
 
                   <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1 font-mono">
                     <div className="flex justify-between text-slate-300">
@@ -2540,6 +2853,45 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Product Image Upload */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <label className="text-slate-300 font-medium block">Product Image Upload / URL</label>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
+                    <img src={newProductForm.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold text-[11px] cursor-pointer hover:bg-amber-400">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Product Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            if (typeof ev.target?.result === 'string') {
+                              setNewProductForm(prev => ({ ...prev, imageUrl: ev.target!.result as string }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={newProductForm.imageUrl}
+                      onChange={e => setNewProductForm({ ...newProductForm, imageUrl: e.target.value })}
+                      placeholder="https://... or upload image file"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-[11px] text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-2 pt-3">
                 <button
                   type="button"
@@ -2794,6 +3146,45 @@ export const AdminPortal: React.FC = () => {
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white leading-relaxed"
                   placeholder="one song-production entitlement per verified qualifying initial purchase..."
                 />
+              </div>
+
+              {/* Product Image Upload in Edit Modal */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <label className="text-slate-300 font-medium block">Product Image Upload / URL</label>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
+                    <img src={editingProduct.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold text-[11px] cursor-pointer hover:bg-amber-400">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload New Product Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            if (typeof ev.target?.result === 'string') {
+                              setEditingProduct(prev => prev ? { ...prev, imageUrl: ev.target!.result as string } : null);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={editingProduct.imageUrl}
+                      onChange={e => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
+                      placeholder="https://... or upload image file"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-[11px] text-white"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-3">

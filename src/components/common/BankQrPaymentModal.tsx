@@ -36,6 +36,7 @@ import {
 import { useDmc } from '../../context/DmcContext';
 import { formatLak, formatLakCompact } from '../../utils/i18n';
 import { CorporateBankAccount } from '../../types/dmc';
+import { DmcOfficialLogo } from './DmcLogo';
 
 export interface BankQrPaymentModalProps {
   isOpen: boolean;
@@ -418,12 +419,10 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
 
               {/* Central Logo Emblem */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-12 h-12 rounded-xl bg-white p-1 shadow-lg border border-slate-300 flex flex-col items-center justify-center text-center">
-                  <span className="text-[9px] font-black leading-none text-red-600">
+                <div className="w-13 h-13 rounded-xl bg-white p-1 shadow-lg border border-slate-300 flex flex-col items-center justify-center text-center">
+                  <DmcOfficialLogo size={28} rounded="full" withGoldRing={false} />
+                  <span className="text-[8px] font-black leading-none text-red-600 mt-0.5">
                     {selectedBank.bankCode}
-                  </span>
-                  <span className="text-[7px] font-bold text-slate-600 leading-none mt-0.5">
-                    DMC
                   </span>
                 </div>
               </div>

@@ -48,7 +48,7 @@ function AppContent() {
         ) : deviceFrame === 'mobile' ? (
           /* Mobile View (Full screen on mobile devices, Phone Frame Mockup on Desktop) */
           <div className="flex justify-center sm:py-2">
-            <div className="w-full sm:max-w-[416px] bg-[#69030e] border-0 sm:border-[8px] sm:border-slate-800 rounded-none sm:rounded-[3rem] shadow-none sm:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] sm:ring-1 sm:ring-slate-600/40 relative min-h-screen sm:min-h-[820px] overflow-hidden flex flex-col justify-between">
+            <div className="w-full sm:max-w-[440px] bg-[#69030e] border-0 sm:border-[8px] sm:border-slate-800 rounded-none sm:rounded-[3rem] shadow-none sm:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] sm:ring-1 sm:ring-slate-600/40 relative min-h-screen sm:min-h-[820px] overflow-hidden flex flex-col justify-between">
               <div className="flex-1 overflow-y-auto no-scrollbar">
                 {activeTab === 'home' && <HomeScreen onNavigate={setActiveTab} />}
                 {activeTab === 'academy' && <div className="p-4"><AcademyScreen /></div>}
