@@ -51,16 +51,23 @@ import {
   Calendar,
   MapPin,
   FileSpreadsheet,
-  Download
+  Download,
+  CreditCard
 } from 'lucide-react';
 import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
 import { DmcOfficialLogo } from '../common/DmcLogo';
 import { AdminExcelReportHub, AdminReportId } from './AdminExcelReportHub';
 import { AdminCompanyProfilePdfHub } from './AdminCompanyProfilePdfHub';
+import { AdminBusinessCardStudio } from './AdminBusinessCardStudio';
+import { AdminStepByStepPdfHub } from './AdminStepByStepPdfHub';
 import {
   DEFAULT_COMPANY_PROFILE_DATA,
   downloadCompanyProfilePdf,
 } from '../../utils/companyProfilePdfGenerator';
+import {
+  DEFAULT_STEP_BY_STEP_SUMMARY_DATA,
+  downloadStepByStepSummaryPdf,
+} from '../../utils/stepByStepSummaryPdfGenerator';
 import { 
   Member, 
   ProductSKU, 
@@ -125,7 +132,7 @@ export const AdminPortal: React.FC = () => {
     adminDeleteEventPost
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('COMPANY_PROFILE_PDF');
+  const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
   const [selectedExcelReport, setSelectedExcelReport] = useState<AdminReportId>('1_MEMBERS');
   const [adminEventForm, setAdminEventForm] = useState({
     id: '' as string,
@@ -629,12 +636,30 @@ export const AdminPortal: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setActiveAdminTab('COMPANY_PROFILE_PDF')}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              title="Open 1/ Company Profile Digital Music Center PDF File Hub"
+              onClick={() => setActiveAdminTab('BUSINESS_CARDS')}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#df1c2d] via-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+              title="Open 1/ Design Business Cards Studio & Print Hub"
+            >
+              <CreditCard className="w-4 h-4 stroke-[2.5]" />
+              <span>1/ Design Business Cards</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('STEP_BY_STEP_PDF')}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-[#df1c2d] hover:from-indigo-500 hover:to-red-500 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+              title="Open 2/ DMC_Xayraxa_Step_By_Step_Summary PDF Hub"
             >
               <FileText className="w-4 h-4 stroke-[2.5]" />
-              <span>1/ Company Profile DMC (.PDF)</span>
+              <span>2/ DMC_Xayraxa_Step_By_Step_Summary (.PDF)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('COMPANY_PROFILE_PDF')}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+              title="Open Company Profile Digital Music Center PDF File Hub"
+            >
+              <FileText className="w-4 h-4 stroke-[2.5]" />
+              <span>Company Profile DMC (.PDF)</span>
             </button>
 
             <button
@@ -673,9 +698,109 @@ export const AdminPortal: React.FC = () => {
           </div>
         </div>
 
-        {/* Official PDF Dossier & Quick 7-File Excel Report Strip in Admin Header */}
+        {/* Official PDF Dossier, Business Cards & Quick 7-File Excel Report Strip in Admin Header */}
         <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
-          {/* Featured 1/ Company Profile Digital Music Center PDF Strip */}
+          {/* Featured 1/ Design Business Cards & 2/ DMC_Xayraxa_Step_By_Step_Summary PDF Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            {/* 1/ Design Business Cards Card */}
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-[#df1c2d]/20 via-slate-900 to-amber-500/15 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-[#df1c2d] text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-white">
+                      1/ Design Business Cards (Front & Back + A4 8-Card Print Sheet)
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      300 DPI .PDF & .PNG
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    ອອກແບບນາມບັດບໍລິຫານ ແລະ ສະມາຊິກ DMC Xayraxa (4 ຮູບແບບ • ພາສາລາວ & English)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveAdminTab('BUSINESS_CARDS')}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Open Business Card Studio</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2/ DMC_Xayraxa_Step_By_Step_Summary PDF Card */}
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/20 via-slate-900 to-emerald-500/15 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-white">
+                      2/ DMC_Xayraxa_Step_By_Step_Summary PDF (ພາສາລາວ & English)
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      10 STEPS • 3-PAGE .PDF
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    ຄູ່ມືສະຫຼຸບ 10 ຂັ້ນຕອນ: ສະໝັກສະມາຊິກ, 1.6M LAK, Unilevel 3 ຊັ້ນ, ກະເປົາເງິນ 5 ບັນຊີ & ຫ້ອງອັດສຽງ
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveAdminTab('STEP_BY_STEP_PDF')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs cursor-pointer"
+                >
+                  Preview PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadStepByStepSummaryPdf(
+                      DEFAULT_STEP_BY_STEP_SUMMARY_DATA,
+                      '2_DMC_Xayraxa_Step_By_Step_Summary_Lao.pdf',
+                      'LO'
+                    );
+                    showNotification(
+                      'ດາວໂຫຼດ 2_DMC_Xayraxa_Step_By_Step_Summary_Lao.pdf (ພາສາລາວ) ສຳເລັດແລ້ວ!'
+                    );
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center gap-1 shadow cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>🇱🇦 Lao .PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadStepByStepSummaryPdf(
+                      DEFAULT_STEP_BY_STEP_SUMMARY_DATA,
+                      '2_DMC_Xayraxa_Step_By_Step_Summary.pdf',
+                      'EN'
+                    );
+                    showNotification(
+                      'Downloaded 2_DMC_Xayraxa_Step_By_Step_Summary.pdf (English Version)!'
+                    );
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1 shadow cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>🇬🇧 EN .PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Featured Company Profile Digital Music Center PDF Strip */}
           <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
@@ -843,7 +968,9 @@ export const AdminPortal: React.FC = () => {
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
         {[
-          { id: 'COMPANY_PROFILE_PDF', label: '1/ Company Profile PDF', icon: FileText, count: 4 },
+          { id: 'BUSINESS_CARDS', label: '1/ Design Business Cards', icon: CreditCard, count: 4 },
+          { id: 'STEP_BY_STEP_PDF', label: '2/ Step-By-Step Summary PDF', icon: FileText, count: 10 },
+          { id: 'COMPANY_PROFILE_PDF', label: 'Company Profile PDF', icon: FileText, count: 4 },
           { id: 'EXCEL_REPORTS', label: 'Excel Reports (1-7)', icon: FileSpreadsheet, count: 7 },
           { id: 'MEMBERS', label: 'Members CRUD', icon: Users, count: allMembers.length },
           { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
@@ -882,7 +1009,17 @@ export const AdminPortal: React.FC = () => {
         })}
       </div>
 
-      {/* ================= TAB: 1/ COMPANY PROFILE DIGITAL MUSIC CENTER PDF ================= */}
+      {/* ================= TAB: 1/ DESIGN BUSINESS CARDS STUDIO ================= */}
+      {activeAdminTab === 'BUSINESS_CARDS' && (
+        <AdminBusinessCardStudio />
+      )}
+
+      {/* ================= TAB: 2/ DMC_XAYRAXA_STEP_BY_STEP_SUMMARY PDF ================= */}
+      {activeAdminTab === 'STEP_BY_STEP_PDF' && (
+        <AdminStepByStepPdfHub />
+      )}
+
+      {/* ================= TAB: COMPANY PROFILE DIGITAL MUSIC CENTER PDF ================= */}
       {activeAdminTab === 'COMPANY_PROFILE_PDF' && (
         <AdminCompanyProfilePdfHub />
       )}

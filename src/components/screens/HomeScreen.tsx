@@ -318,6 +318,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   });
 
   const openCreateProductModal = () => {
+    if (!isAdmin) {
+      setAuthInitialMode('ADMIN');
+      setShowAuthPortalModal(true);
+      return;
+    }
     setProductModalMode('CREATE');
     setProductForm({
       sku: `DMC-PROD-${Math.floor(100 + Math.random() * 900)}`,
@@ -336,6 +341,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   };
 
   const openEditProductModal = (prod: ProductSKU) => {
+    if (!isAdmin) {
+      setAuthInitialMode('ADMIN');
+      setShowAuthPortalModal(true);
+      return;
+    }
     setProductModalMode('EDIT');
     setProductForm({
       sku: prod.sku,
@@ -1437,37 +1447,39 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     </span>
                   </div>
 
-                  {/* Admin Quick Upload Image / Edit / Delete on Hero Product */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditProductModal(currentHeroProduct);
-                      }}
-                      className="px-2 py-1 rounded-lg bg-sky-500/90 hover:bg-sky-500 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
-                      title="Administrator: Upload Product Image / Edit / Update"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      <span>Edit / Image</span>
-                    </button>
-                    {products.length > 1 && (
+                  {/* Admin Quick Upload Image / Edit / Delete on Hero Product — ADMINISTRATOR ONLY */}
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          adminDeleteProduct(currentHeroProduct.sku);
-                          setActiveBannerIdx(0);
-                          setRedemptionNotice(`Deleted product ${currentHeroProduct.sku}`);
-                          setTimeout(() => setRedemptionNotice(null), 3500);
+                          openEditProductModal(currentHeroProduct);
                         }}
-                        className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
-                        title="Administrator: Delete Product"
+                        className="px-2 py-1 rounded-lg bg-sky-500/90 hover:bg-sky-500 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
+                        title="Administrator Only: Upload Product Image / Edit / Update"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit / Image</span>
                       </button>
-                    )}
-                  </div>
+                      {products.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            adminDeleteProduct(currentHeroProduct.sku);
+                            setActiveBannerIdx(0);
+                            setRedemptionNotice(`Deleted product ${currentHeroProduct.sku}`);
+                            setTimeout(() => setRedemptionNotice(null), 3500);
+                          }}
+                          className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
+                          title="Administrator Only: Delete Product"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Prev / Next Carousel Buttons */}
@@ -1567,36 +1579,38 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       {loc.categoryBadge}
                     </span>
 
-                    {/* Admin Quick Edit/Upload & Delete Buttons */}
-                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditProductModal(prod);
-                        }}
-                        className="p-1 rounded-md bg-sky-500/90 hover:bg-sky-500 text-white shadow cursor-pointer"
-                        title="Upload Product Image / Edit / Update"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      {products.length > 1 && (
+                    {/* Admin Quick Edit/Upload & Delete Buttons — ADMINISTRATOR ONLY */}
+                    {isAdmin && (
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            adminDeleteProduct(prod.sku);
-                            setActiveBannerIdx(0);
-                            setRedemptionNotice(`Deleted product ${prod.sku}`);
-                            setTimeout(() => setRedemptionNotice(null), 3500);
+                            openEditProductModal(prod);
                           }}
-                          className="p-1 rounded-md bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
-                          title="Delete Product"
+                          className="p-1 rounded-md bg-sky-500/90 hover:bg-sky-500 text-white shadow cursor-pointer"
+                          title="Administrator Only: Upload Product Image / Edit / Update"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Pencil className="w-3 h-3" />
                         </button>
-                      )}
-                    </div>
+                        {products.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              adminDeleteProduct(prod.sku);
+                              setActiveBannerIdx(0);
+                              setRedemptionNotice(`Deleted product ${prod.sku}`);
+                              setTimeout(() => setRedemptionNotice(null), 3500);
+                            }}
+                            className="p-1 rounded-md bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
+                            title="Administrator Only: Delete Product"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     <span className="absolute bottom-1.5 left-2 right-2 text-white font-black font-mono text-xs drop-shadow">
                       {formatNumberWithCommas(prod.priceLak)} LAK
@@ -1615,17 +1629,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     </div>
 
                     <div className="pt-1 border-t border-slate-100 flex items-center justify-between gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditProductModal(prod);
-                        }}
-                        className="text-[9px] font-bold text-sky-700 hover:underline flex items-center gap-0.5 truncate cursor-pointer"
-                      >
-                        <Camera className="w-2.5 h-2.5 shrink-0" />
-                        <span>Image / Edit</span>
-                      </button>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditProductModal(prod);
+                          }}
+                          className="text-[9px] font-bold text-sky-700 hover:underline flex items-center gap-0.5 truncate cursor-pointer"
+                          title="Administrator Only: Edit / Update Product"
+                        >
+                          <Camera className="w-2.5 h-2.5 shrink-0" />
+                          <span>Image / Edit</span>
+                        </button>
+                      ) : (
+                        <span className="text-[9px] font-mono font-semibold text-slate-400 truncate">
+                          {prod.sku}
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1636,7 +1657,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                             setSelectedBannerProductForQr(prod);
                           }
                         }}
-                        className="px-2 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-[10px] cursor-pointer shrink-0"
+                        className="px-2.5 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-[10px] cursor-pointer shrink-0 ml-auto"
                       >
                         {t.buyQrBtn}
                       </button>
@@ -1857,29 +1878,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <UserPlus className="w-3 h-3" />
                   <span>Register Now</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSupportModalMode('CREATE');
-                    setEditingSupportId(null);
-                    setSupportForm({
-                      category: 'OFFICE_LOCATION',
-                      label: 'DMC Branch / Studio Location',
-                      value: 'Dongdok Campus, Vientiane Capital',
-                      locationAddress: 'Vientiane Capital, Lao PDR',
-                      mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
-                      mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
-                      photoUrl:
-                        'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
-                      notes: 'Open Mon–Sat • 08:30 – 18:00',
-                    });
-                  }}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
-                  title="Administrator: Add New Location, Photo or Support Contact"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span className="hidden sm:inline">+ Location</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSupportModalMode('CREATE');
+                      setEditingSupportId(null);
+                      setSupportForm({
+                        category: 'OFFICE_LOCATION',
+                        label: 'DMC Branch / Studio Location',
+                        value: 'Dongdok Campus, Vientiane Capital',
+                        locationAddress: 'Vientiane Capital, Lao PDR',
+                        mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+                        mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
+                        photoUrl:
+                          'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+                        notes: 'Open Mon–Sat • 08:30 – 18:00',
+                      });
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
+                    title="Administrator Only: Add New Location, Photo or Support Contact"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span className="hidden sm:inline">+ Location</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1923,8 +1946,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               </button>
             </div>
 
-            {/* Quick Item Switcher Bar when viewing Contacts & Map */}
-            {supportModalMode !== 'REGISTER_VIDEO_GUIDE' && (
+            {/* Quick Item Switcher Bar when viewing Contacts & Map (Administrator Only) */}
+            {isAdmin && supportModalMode !== 'REGISTER_VIDEO_GUIDE' && (
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                 <button
                   type="button"
@@ -2048,35 +2071,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                           </div>
                         </div>
 
-                        {/* Administrator Action Bar on Each Item: Edit, Photo Upload, Location, Delete */}
+                        {/* Action Bar on Each Item: Map Toggle for Everyone; Edit, Photo Upload, Delete for Administrator Only */}
                         <div className="flex items-center gap-1 shrink-0">
-                          {/* Quick Direct Upload Photo Button */}
-                          <label
-                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/80 cursor-pointer transition-colors"
-                            title="Upload Photo from Device"
-                          >
-                            <Camera className="w-3.5 h-3.5" />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                const reader = new FileReader();
-                                reader.onload = () => {
-                                  if (typeof reader.result === 'string') {
-                                    adminUpdateSupportLocation(item.id, {
-                                      photoUrl: reader.result,
-                                    });
-                                    setRedemptionNotice(`Uploaded photo for "${item.label}"!`);
-                                    setTimeout(() => setRedemptionNotice(null), 3500);
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }}
-                            />
-                          </label>
+                          {isAdmin && (
+                            <label
+                              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/80 cursor-pointer transition-colors"
+                              title="Administrator Only: Upload Photo from Device"
+                            >
+                              <Camera className="w-3.5 h-3.5" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    if (typeof reader.result === 'string') {
+                                      adminUpdateSupportLocation(item.id, {
+                                        photoUrl: reader.result,
+                                      });
+                                      setRedemptionNotice(`Uploaded photo for "${item.label}"!`);
+                                      setTimeout(() => setRedemptionNotice(null), 3500);
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                          )}
 
                           {/* Toggle Map & Location Preview */}
                           {hasMapOrLocation && (
@@ -2096,32 +2120,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                             </button>
                           )}
 
-                          {/* Edit / Update Item, Photo & Location */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSupportModalMode('EDIT');
-                              setEditingSupportId(item.id);
-                              setSupportForm({
-                                category: item.category,
-                                label: item.label,
-                                value: item.value,
-                                locationAddress: item.locationAddress || item.value,
-                                mapQuery: item.mapQuery || item.locationAddress || item.value,
-                                mapUrl: item.mapUrl || '',
-                                photoUrl: item.photoUrl || '',
-                                notes: item.notes || '',
-                              });
-                            }}
-                            className="px-2 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-xs cursor-pointer"
-                            title="Edit / Update Photo, Location & Details"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            <span>Edit</span>
-                          </button>
+                          {/* Edit / Update Item, Photo & Location — ADMINISTRATOR ONLY */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSupportModalMode('EDIT');
+                                setEditingSupportId(item.id);
+                                setSupportForm({
+                                  category: item.category,
+                                  label: item.label,
+                                  value: item.value,
+                                  locationAddress: item.locationAddress || item.value,
+                                  mapQuery: item.mapQuery || item.locationAddress || item.value,
+                                  mapUrl: item.mapUrl || '',
+                                  photoUrl: item.photoUrl || '',
+                                  notes: item.notes || '',
+                                });
+                              }}
+                              className="px-2 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                              title="Administrator Only: Edit / Update Photo, Location & Details"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                          )}
 
-                          {/* Delete Item */}
-                          {supportLocations.length > 1 && (
+                          {/* Delete Item — ADMINISTRATOR ONLY */}
+                          {isAdmin && supportLocations.length > 1 && (
                             <button
                               type="button"
                               onClick={() => {
@@ -2130,7 +2156,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                                 setTimeout(() => setRedemptionNotice(null), 3500);
                               }}
                               className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200/80 cursor-pointer"
-                              title="Delete Item"
+                              title="Administrator Only: Delete Item"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -2138,7 +2164,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                         </div>
                       </div>
 
-                      {/* Uploaded Photo Display (with Upload / Replace / Delete Photo controls) */}
+                      {/* Uploaded Photo Display (with Upload / Replace / Delete Photo controls for Administrator) */}
                       {item.photoUrl && (
                         <div className="px-3 pb-2.5">
                           <div className="relative h-36 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200 group">
@@ -2152,44 +2178,46 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                               <ImageIcon className="w-2.5 h-2.5" />
                               <span>Location / Studio Photo</span>
                             </span>
-                            <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
-                              <label className="px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-slate-900 text-[9px] font-bold flex items-center gap-1 shadow cursor-pointer">
-                                <Upload className="w-2.5 h-2.5 text-[#df1c2d]" />
-                                <span>Change Photo</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = () => {
-                                      if (typeof reader.result === 'string') {
-                                        adminUpdateSupportLocation(item.id, {
-                                          photoUrl: reader.result,
-                                        });
-                                        setRedemptionNotice(`Updated photo for "${item.label}"!`);
-                                        setTimeout(() => setRedemptionNotice(null), 3500);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
+                            {isAdmin && (
+                              <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+                                <label className="px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-slate-900 text-[9px] font-bold flex items-center gap-1 shadow cursor-pointer">
+                                  <Upload className="w-2.5 h-2.5 text-[#df1c2d]" />
+                                  <span>Change Photo</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = () => {
+                                        if (typeof reader.result === 'string') {
+                                          adminUpdateSupportLocation(item.id, {
+                                            photoUrl: reader.result,
+                                          });
+                                          setRedemptionNotice(`Updated photo for "${item.label}"!`);
+                                          setTimeout(() => setRedemptionNotice(null), 3500);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    adminUpdateSupportLocation(item.id, { photoUrl: '' });
+                                    setRedemptionNotice(`Removed photo from "${item.label}".`);
+                                    setTimeout(() => setRedemptionNotice(null), 3500);
                                   }}
-                                />
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  adminUpdateSupportLocation(item.id, { photoUrl: '' });
-                                  setRedemptionNotice(`Removed photo from "${item.label}".`);
-                                  setTimeout(() => setRedemptionNotice(null), 3500);
-                                }}
-                                className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
-                                title="Delete Photo"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
+                                  className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
+                                  title="Administrator Only: Delete Photo"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2218,27 +2246,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                               <ExternalLink className="w-3 h-3 shrink-0" />
                               <span className="truncate">Open Location in Google Maps</span>
                             </a>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSupportModalMode('EDIT');
-                                setEditingSupportId(item.id);
-                                setSupportForm({
-                                  category: item.category,
-                                  label: item.label,
-                                  value: item.value,
-                                  locationAddress: item.locationAddress || item.value,
-                                  mapQuery: item.mapQuery || item.locationAddress || item.value,
-                                  mapUrl: item.mapUrl || '',
-                                  photoUrl: item.photoUrl || '',
-                                  notes: item.notes || '',
-                                });
-                              }}
-                              className="text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 shrink-0 cursor-pointer"
-                            >
-                              <MapPin className="w-3 h-3 text-[#df1c2d]" />
-                              <span>Update Location</span>
-                            </button>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSupportModalMode('EDIT');
+                                  setEditingSupportId(item.id);
+                                  setSupportForm({
+                                    category: item.category,
+                                    label: item.label,
+                                    value: item.value,
+                                    locationAddress: item.locationAddress || item.value,
+                                    mapQuery: item.mapQuery || item.locationAddress || item.value,
+                                    mapUrl: item.mapUrl || '',
+                                    photoUrl: item.photoUrl || '',
+                                    notes: item.notes || '',
+                                  });
+                                }}
+                                className="text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                              >
+                                <MapPin className="w-3 h-3 text-[#df1c2d]" />
+                                <span>Update Location</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}

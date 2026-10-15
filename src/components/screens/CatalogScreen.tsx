@@ -36,8 +36,9 @@ interface CatalogScreenProps {
 }
 
 export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate }) => {
-  const { products, orders, createOrder, currentMember, language, adminUpdateProduct, setIsAdminMode } = useDmc();
+  const { products, orders, createOrder, currentMember, language, adminUpdateProduct, setIsAdminMode, isAdminMode, isAdminAuthenticated } = useDmc();
   const t = translations[language];
+  const isAdmin = isAdminAuthenticated || isAdminMode;
 
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [cart, setCart] = useState<{ [sku: string]: number }>({});
@@ -365,15 +366,17 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate }) => {
                 {t.addToCart}
               </button>
 
-              {/* Admin Quick Edit Button */}
-              <button
-                onClick={handleOpenCoreEdit}
-                className="px-4 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center gap-2 transition-colors cursor-pointer shadow-sm ml-auto"
-                title="Edit price, song entitlement description, and candidate unilevel splits"
-              >
-                <Pencil className="w-4 h-4 text-amber-400" />
-                <span>{t.editCoreProduct}</span>
-              </button>
+              {/* Admin Quick Edit Button — ADMINISTRATOR ONLY */}
+              {isAdmin && (
+                <button
+                  onClick={handleOpenCoreEdit}
+                  className="px-4 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center gap-2 transition-colors cursor-pointer shadow-sm ml-auto"
+                  title="Administrator Only: Edit price, song entitlement description, and candidate unilevel splits"
+                >
+                  <Pencil className="w-4 h-4 text-amber-400" />
+                  <span>{t.editCoreProduct}</span>
+                </button>
+              )}
             </div>
           </div>
 

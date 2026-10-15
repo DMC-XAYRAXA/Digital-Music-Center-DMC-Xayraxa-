@@ -72,7 +72,11 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
     adminUpdateCorporateBankAccount,
     adminDeleteCorporateBankAccount,
     updateMemberBankAccount,
+    isAdminMode,
+    isAdminAuthenticated,
   } = useDmc();
+
+  const isAdmin = isAdminAuthenticated || isAdminMode;
 
   // Find primary deposit bank or default to BCEL
   const primaryBank: CorporateBankAccount =
@@ -129,6 +133,7 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
   };
 
   const openEditBankModal = (bank: CorporateBankAccount) => {
+    if (!isAdmin) return;
     setSelectedBankId(bank.id);
     setBankForm({
       bankCode: bank.bankCode,
@@ -143,6 +148,7 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
   };
 
   const openCreateBankModal = () => {
+    if (!isAdmin) return;
     setBankForm({
       bankCode: 'PSVB',
       bankName: 'Phongsavanh Bank Ltd (Laos)',
@@ -234,8 +240,9 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
     document.body.removeChild(a);
   };
 
-  // Direct 1-click QR Code Image upload onto the currently selected bank
+  // Direct 1-click QR Code Image upload onto the currently selected bank (Administrator Only)
   const handleDirectQrImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isAdmin) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -388,26 +395,28 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
                 BCEL, LDB, JDB, VIETIN, Phongsavanh Bank Laos (PSVB)
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => openEditBankModal(selectedBank)}
-                className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/50 text-sky-300 text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
-                title="Edit, Update or Upload QR Code Image for Selected Bank"
-              >
-                <Pencil className="w-3 h-3" />
-                <span>Edit / Upload QR</span>
-              </button>
-              <button
-                type="button"
-                onClick={openCreateBankModal}
-                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
-                title="Add New Bank & Upload QR Code"
-              >
-                <Plus className="w-3 h-3" />
-                <span>+ Add Bank</span>
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => openEditBankModal(selectedBank)}
+                  className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/50 text-sky-300 text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
+                  title="Administrator Only: Edit, Update or Upload QR Code Image for Selected Bank"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Edit / Upload QR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openCreateBankModal}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
+                  title="Administrator Only: Add New Bank & Upload QR Code"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Add Bank</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Grid of Lao Banks including Phongsavanh Bank Laos (PSVB) */}
@@ -474,9 +483,9 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
 
         {/* MAIN BODY CONTAINER */}
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-          {editorMode !== 'NONE' ? (
+          {isAdmin && editorMode !== 'NONE' ? (
             /* =================================================================
-               SELF-SERVICE ADMINISTRATOR & USER BANK + QR IMAGE EDITOR FORM
+               ADMINISTRATOR ONLY BANK + QR IMAGE EDITOR FORM
                ================================================================= */
             <form
               onSubmit={(e) => {
@@ -911,45 +920,47 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
                   )}
                 </div>
 
-                {/* Self-Service Action Bar directly inside the QR Card: Upload QR Image, Edit, Delete QR */}
-                <div className="mt-2.5 pt-2 border-t border-slate-200 w-full flex flex-wrap items-center justify-center gap-1.5">
-                  <label className="px-2.5 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white text-[10px] font-extrabold flex items-center gap-1 shadow-xs cursor-pointer">
-                    <Upload className="w-3 h-3" />
-                    <span>Upload QR Image</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDirectQrImageUpload}
-                      className="hidden"
-                    />
-                  </label>
+                {/* Action Bar directly inside the QR Card: Administrator Only Upload QR Image, Edit, Delete QR */}
+                {isAdmin && (
+                  <div className="mt-2.5 pt-2 border-t border-slate-200 w-full flex flex-wrap items-center justify-center gap-1.5">
+                    <label className="px-2.5 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white text-[10px] font-extrabold flex items-center gap-1 shadow-xs cursor-pointer">
+                      <Upload className="w-3 h-3" />
+                      <span>Upload QR Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleDirectQrImageUpload}
+                        className="hidden"
+                      />
+                    </label>
 
-                  <button
-                    type="button"
-                    onClick={() => openEditBankModal(selectedBank)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Pencil className="w-3 h-3" />
-                    <span>Edit / Update</span>
-                  </button>
-
-                  {selectedBank.customQrImageUrl && (
                     <button
                       type="button"
-                      onClick={() => {
-                        adminUpdateCorporateBankAccount(selectedBank.id, {
-                          customQrImageUrl: '',
-                        });
-                        showNotice(`Removed custom QR image for ${selectedBank.bankCode}.`);
-                      }}
-                      className="px-2 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                      title="Delete Uploaded QR Image"
+                      onClick={() => openEditBankModal(selectedBank)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Delete QR</span>
+                      <Pencil className="w-3 h-3" />
+                      <span>Edit / Update</span>
                     </button>
-                  )}
-                </div>
+
+                    {selectedBank.customQrImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          adminUpdateCorporateBankAccount(selectedBank.id, {
+                            customQrImageUrl: '',
+                          });
+                          showNotice(`Removed custom QR image for ${selectedBank.bankCode}.`);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                        title="Administrator Only: Delete Uploaded QR Image"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete QR</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Recipient Account Name */}
                 <div className="mt-2 text-center text-slate-900 border-t border-slate-200 pt-2 w-full">
@@ -975,27 +986,31 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
                     <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${theme.badge}`}>
                       {selectedBank.swiftCode || selectedBank.bankCode}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => openEditBankModal(selectedBank)}
-                      className="p-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 cursor-pointer"
-                      title="Edit Bank Institution & Account Number"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    {corporateBankAccounts.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const code = selectedBank.bankCode;
-                          adminDeleteCorporateBankAccount(selectedBank.id);
-                          showNotice(`Deleted bank ${code}.`);
-                        }}
-                        className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 cursor-pointer"
-                        title="Delete Bank Account"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditBankModal(selectedBank)}
+                          className="p-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 cursor-pointer"
+                          title="Administrator Only: Edit Bank Institution & Account Number"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        {corporateBankAccounts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const code = selectedBank.bankCode;
+                              adminDeleteCorporateBankAccount(selectedBank.id);
+                              showNotice(`Deleted bank ${code}.`);
+                            }}
+                            className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 cursor-pointer"
+                            title="Administrator Only: Delete Bank Account"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

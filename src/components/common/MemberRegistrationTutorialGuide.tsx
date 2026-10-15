@@ -36,6 +36,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { DmcOfficialLogo } from './DmcLogo';
+import { useDmc } from '../../context/DmcContext';
 
 export interface RegistrationTutorialStep {
   stepNumber: number;
@@ -159,6 +160,8 @@ interface MemberRegistrationTutorialGuideProps {
 export const MemberRegistrationTutorialGuide: React.FC<MemberRegistrationTutorialGuideProps> = ({
   onStartRegistration,
 }) => {
+  const { isAdminMode, isAdminAuthenticated } = useDmc();
+  const isAdmin = isAdminAuthenticated || isAdminMode;
   const [activeStepIdx, setActiveStepIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [stepProgress, setStepProgress] = useState(0); // 0 to 100 within current step
@@ -297,15 +300,17 @@ export const MemberRegistrationTutorialGuide: React.FC<MemberRegistrationTutoria
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowCustomVideoEditor(!showCustomVideoEditor)}
-            className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
-            title="Upload or change tutorial video file / URL"
-          >
-            <Upload className="w-3 h-3 text-amber-300" />
-            <span>{showCustomVideoEditor ? 'Close Video Setup' : 'Upload Video'}</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowCustomVideoEditor(!showCustomVideoEditor)}
+              className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+              title="Administrator Only: Upload or change tutorial video file / URL"
+            >
+              <Upload className="w-3 h-3 text-amber-300" />
+              <span>{showCustomVideoEditor ? 'Close Video Setup' : 'Upload Video'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -316,8 +321,8 @@ export const MemberRegistrationTutorialGuide: React.FC<MemberRegistrationTutoria
         </div>
       )}
 
-      {/* Administrator / User Custom Video Upload & URL Panel */}
-      {showCustomVideoEditor && (
+      {/* Administrator Only Custom Video Upload & URL Panel */}
+      {isAdmin && showCustomVideoEditor && (
         <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-300 space-y-2.5 text-xs animate-in fade-in">
           <div className="flex items-center justify-between">
             <span className="font-black text-slate-800 text-[11px] flex items-center gap-1.5">
