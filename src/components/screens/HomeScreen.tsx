@@ -468,7 +468,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         </div>
 
         {/* Single-Row Member Profile Header (Circle Profile Image + Member Name/ID + Drop Down List Login/Log Out + Bell & Language) */}
-        <div className="flex items-center justify-between gap-2 mb-2.5">
+        <div className="relative flex items-center justify-between gap-2 mb-2.5">
           {/* Left: Circle Profile Image + Member Name, ID & Status */}
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             {/* MEMBER'S OWN CIRCLE PROFILE IMAGE (Fixed 52x52px, shrink-0 so it NEVER squishes) */}
@@ -518,7 +518,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           {/* Right Header Controls: Drop Down List Login / Log Out + Bell + Language Selector */}
           <div className="flex items-center gap-1 shrink-0">
             {/* 1/ DROP DOWN LIST: LOGIN / LOG OUT */}
-            <div className="relative shrink-0">
+            <div className="shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -546,7 +546,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     className="fixed inset-0 z-[90]"
                     onClick={() => setShowLoginDropdown(false)}
                   />
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900/98 backdrop-blur-xl border-2 border-amber-400/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2.5 z-[100] space-y-1.5 animate-in fade-in zoom-in-95 text-slate-100">
+                  <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-72 top-full mt-2 bg-slate-900/98 backdrop-blur-xl border-2 border-amber-400/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-3 z-[100] space-y-2 animate-in fade-in zoom-in-95 text-slate-100">
                     {/* Dropdown Title Bar */}
                     <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 border-b border-slate-800 flex items-center justify-between">
                       <span>Login / Log Out Menu</span>
@@ -617,7 +617,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       </button>
                     </div>
 
-                    <div className="border-t border-slate-800 pt-1 space-y-1">
+                    <div className="border-t border-slate-800 pt-1.5 space-y-1">
                       {/* 3. Register New Member */}
                       <button
                         type="button"
@@ -694,39 +694,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                         </span>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                       </button>
-                    </div>
-
-                    {/* Quick Switch Member Account List */}
-                    <div className="pt-1 border-t border-slate-800">
-                      <div className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                        Quick Switch Member Account
-                      </div>
-                      <div className="max-h-28 overflow-y-auto space-y-0.5 pr-0.5">
-                        {allMembers.slice(0, 6).map((m) => {
-                          const isCurr = m.memberId === currentMember.memberId;
-                          return (
-                            <button
-                              key={m.memberId}
-                              type="button"
-                              onClick={() => {
-                                setCurrentMemberId(m.memberId);
-                                setIsLoggedOut(false);
-                                setShowLoginDropdown(false);
-                              }}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] flex items-center justify-between cursor-pointer ${
-                                isCurr
-                                  ? 'bg-amber-500/20 text-amber-300 font-bold'
-                                  : 'text-slate-300 hover:bg-slate-800'
-                              }`}
-                            >
-                              <span className="truncate">
-                                {m.name.replace(/\s*\(.*?\)\s*/g, '')} ({m.memberId.slice(-5)})
-                              </span>
-                              {isCurr && <Check className="w-3 h-3 text-amber-400 shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
                     </div>
                   </div>
                 </>
