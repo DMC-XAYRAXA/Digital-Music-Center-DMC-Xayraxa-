@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useDmc } from '../../context/DmcContext';
 import { formatLakCompact } from '../../utils/i18n';
-import { Member } from '../../types/dmc';
+import { Member, LAO_SHIPPING_CARRIERS, LaoShippingCarrierId } from '../../types/dmc';
 import {
-  Users,
   ShieldCheck,
   CheckCircle2,
   UserPlus,
@@ -11,9 +10,20 @@ import {
   Crown,
   ChevronRight,
   Phone,
-  Award,
-  Sparkles,
   Search,
+  Camera,
+  Edit3,
+  Trash2,
+  Upload,
+  Save,
+  X,
+  Lock,
+  Unlock,
+  Mail,
+  Building2,
+  MapPin,
+  Wallet,
+  KeyRound,
 } from 'lucide-react';
 import { DmcOfficialLogo } from './DmcLogo';
 
@@ -22,6 +32,17 @@ interface DownlineOrganizeTreeProps {
   compactMode?: boolean;
   onAddDownlineClick?: (sponsorId: string) => void;
 }
+
+const PRESET_PORTRAITS = [
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=240&q=80',
+  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=240&q=80',
+];
 
 export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
   initialRootMemberId,
@@ -35,8 +56,12 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     getSponsorChain,
     getMemberBalances,
     isAdminAuthenticated,
+    setIsAdminAuthenticated,
     isAdminMode,
     adminAddMember,
+    adminUpdateMember,
+    adminDeleteMember,
+    adminAdjustMemberBalance,
   } = useDmc();
 
   const isAdmin = isAdminAuthenticated || isAdminMode;
@@ -46,13 +71,45 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
+
+  // Quick Add Downline Modal state
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [quickAddSponsorId, setQuickAddSponsorId] = useState<string>(currentMember.memberId);
   const [quickAddName, setQuickAddName] = useState('');
   const [quickAddPhone, setQuickAddPhone] = useState('+856 20 ');
+  const [quickAddEmail, setQuickAddEmail] = useState('');
+  const [quickAddAvatar, setQuickAddAvatar] = useState(PRESET_PORTRAITS[0]);
   const [quickAddState, setQuickAddState] = useState<Member['membershipState']>(
     'ACTIVE_LIFETIME_MEMBER'
   );
+  const quickAddFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Full Administrator Member Edit / Update / Delete / Photo Modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingOriginalId, setEditingOriginalId] = useState<string>('');
+  const [editMemberId, setEditMemberId] = useState<string>('');
+  const [editName, setEditName] = useState<string>('');
+  const [editPhone, setEditPhone] = useState<string>('');
+  const [editEmail, setEditEmail] = useState<string>('');
+  const [editAvatarUrl, setEditAvatarUrl] = useState<string>('');
+  const [editMembershipState, setEditMembershipState] =
+    useState<Member['membershipState']>('FREE_MEMBER');
+  const [editSponsorId, setEditSponsorId] = useState<string>('');
+  const [editKycStatus, setEditKycStatus] = useState<Member['kycStatus']>('VERIFIED');
+  const [editPassword, setEditPassword] = useState<string>('123456');
+  const [editBankName, setEditBankName] = useState<string>('BCEL One');
+  const [editBankAccountNum, setEditBankAccountNum] = useState<string>('');
+  const [editBankAccountName, setEditBankAccountName] = useState<string>('');
+  const [editCarrierId, setEditCarrierId] = useState<LaoShippingCarrierId>('ANOUSITH');
+  const [editProvince, setEditProvince] = useState<string>('Vientiane Capital');
+  const [editDistrict, setEditDistrict] = useState<string>('');
+  const [editVillage, setEditVillage] = useState<string>('');
+  const [editHeldLak, setEditHeldLak] = useState<number>(0);
+  const [editAvailableLak, setEditAvailableLak] = useState<number>(0);
+  const [confirmDeleteStep, setConfirmDeleteStep] = useState<boolean>(false);
+
+  const editPhotoInputRef = useRef<HTMLInputElement>(null);
 
   // Sync root if currentMember changes and user hasn't manually drilled down
   React.useEffect(() => {
@@ -62,7 +119,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
   }, [currentMember.memberId, initialRootMemberId]);
 
   const rootMember =
-    allMembers.find((m) => m.memberId === focusedMemberId) || currentMember;
+    allMembers.find((m) => m.memberId === focusedMemberId) ||
+    allMembers[0] ||
+    currentMember;
   const downlines = getDownlines(rootMember.memberId);
   const sponsorChain = getSponsorChain(rootMember.memberId);
 
@@ -81,24 +140,160 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
   const selectedDownlines = getDownlines(selectedMember.memberId);
 
   const getAvatar = (m: Member, fallbackIdx = 0) => {
-    if (m.avatarUrl) return m.avatarUrl;
-    const defaults = [
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
-    ];
-    return defaults[fallbackIdx % defaults.length];
+    if (m.avatarUrl && !m.avatarUrl.startsWith('data:image/svg+xml')) return m.avatarUrl;
+    return PRESET_PORTRAITS[fallbackIdx % PRESET_PORTRAITS.length];
+  };
+
+  const showToast = (msg: string) => {
+    setStatusBanner(msg);
+    setTimeout(() => setStatusBanner(null), 4000);
+  };
+
+  // Open the full Member Update / Edit / Delete / Photo Modal when clicking any node
+  const openMemberEditModal = (member: Member, fallbackAvatarIdx = 0) => {
+    setSelectedNodeId(member.memberId);
+    const bal = getMemberBalances(member.memberId);
+    setEditingOriginalId(member.memberId);
+    setEditMemberId(member.memberId);
+    setEditName(member.name || '');
+    setEditPhone(member.phone || '+856 20 ');
+    setEditEmail(member.email || '');
+    setEditAvatarUrl(getAvatar(member, fallbackAvatarIdx));
+    setEditMembershipState(member.membershipState);
+    setEditSponsorId(member.sponsorId || '');
+    setEditKycStatus(member.kycStatus || 'VERIFIED');
+    setEditPassword(member.password || '123456');
+    setEditBankName(member.bankAccount?.bankName || 'BCEL One');
+    setEditBankAccountNum(member.bankAccount?.accountNumber || '160-12-00000000-001');
+    setEditBankAccountName(member.bankAccount?.accountName || member.name.toUpperCase());
+    setEditCarrierId(member.preferredCarrierId || 'ANOUSITH');
+    setEditProvince(member.deliveryAddress?.province || 'Vientiane Capital');
+    setEditDistrict(member.deliveryAddress?.district || 'Chanthabouly');
+    setEditVillage(member.deliveryAddress?.village || '');
+    setEditHeldLak(bal.heldForQualification);
+    setEditAvailableLak(bal.available);
+    setConfirmDeleteStep(false);
+    setShowEditModal(true);
+  };
+
+  const handleEditPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setEditAvatarUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleQuickAddPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setQuickAddAvatar(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveMemberEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+
+    const cleanNewId = editMemberId.trim() || editingOriginalId;
+    const currentBal = getMemberBalances(editingOriginalId);
+
+    adminUpdateMember(editingOriginalId, {
+      memberId: cleanNewId,
+      name: editName.trim(),
+      phone: editPhone.trim(),
+      email: editEmail.trim() || undefined,
+      avatarUrl: editAvatarUrl.trim() || PRESET_PORTRAITS[0],
+      membershipState: editMembershipState,
+      sponsorId: editSponsorId ? editSponsorId : null,
+      kycStatus: editKycStatus,
+      password: editPassword.trim() || '123456',
+      preferredCarrierId: editCarrierId,
+      bankAccount: {
+        bankName: editBankName.trim() || 'BCEL One',
+        accountNumber: editBankAccountNum.trim() || '160-12-00000000-001',
+        accountName: editBankAccountName.trim() || editName.trim().toUpperCase(),
+      },
+      deliveryAddress: {
+        recipientName: editName.trim(),
+        phone: editPhone.trim(),
+        province: editProvince.trim() || 'Vientiane Capital',
+        district: editDistrict.trim(),
+        village: editVillage.trim(),
+      },
+    });
+
+    // Apply balance adjustments if changed
+    const heldDelta = Math.round(editHeldLak) - currentBal.heldForQualification;
+    if (heldDelta !== 0) {
+      adminAdjustMemberBalance(
+        cleanNewId,
+        'HELD_FOR_QUALIFICATION',
+        heldDelta,
+        'Admin Organize Tree Held Balance Update'
+      );
+    }
+
+    const availDelta = Math.round(editAvailableLak) - currentBal.available;
+    if (availDelta !== 0) {
+      adminAdjustMemberBalance(
+        cleanNewId,
+        'AVAILABLE',
+        availDelta,
+        'Admin Organize Tree Available Balance Update'
+      );
+    }
+
+    if (focusedMemberId === editingOriginalId && cleanNewId !== editingOriginalId) {
+      setFocusedMemberId(cleanNewId);
+    }
+    setSelectedNodeId(cleanNewId);
+    setShowEditModal(false);
+    showToast(`Updated member ${editName.trim()} (${cleanNewId}) in Organize Tree!`);
+  };
+
+  const handleDeleteMemberFromTree = () => {
+    if (!editingOriginalId) return;
+    if (allMembers.length <= 1) {
+      showToast('Cannot delete the last remaining member in the system.');
+      return;
+    }
+    const target = allMembers.find((m) => m.memberId === editingOriginalId);
+    const fallbackRootId =
+      target?.sponsorId ||
+      allMembers.find((m) => m.memberId !== editingOriginalId)?.memberId ||
+      currentMember.memberId;
+
+    adminDeleteMember(editingOriginalId);
+
+    if (focusedMemberId === editingOriginalId) {
+      setFocusedMemberId(fallbackRootId);
+    }
+    setSelectedNodeId(fallbackRootId);
+    setShowEditModal(false);
+    setConfirmDeleteStep(false);
+    showToast(
+      `Deleted member ${target?.name || editingOriginalId} (${editingOriginalId}) and re-linked downlines.`
+    );
   };
 
   const handleQuickAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickAddName.trim()) return;
-    adminAddMember({
+    const created = adminAddMember({
       name: quickAddName.trim(),
       phone: quickAddPhone.trim() || '+856 20 5500 1122',
+      email: quickAddEmail.trim() || undefined,
+      avatarUrl: quickAddAvatar,
       sponsorId: quickAddSponsorId,
       membershipState: quickAddState,
       initialHeldLak: quickAddState === 'FREE_MEMBER' ? 400000 : 0,
@@ -106,32 +301,93 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     });
     setQuickAddName('');
     setQuickAddPhone('+856 20 ');
+    setQuickAddEmail('');
     setShowQuickAddModal(false);
+    showToast(`Added ${created.name} (${created.memberId}) under ${quickAddSponsorId}!`);
   };
 
   return (
     <div className="space-y-4">
+      {/* Status Toast Banner */}
+      {statusBanner && (
+        <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-xs font-extrabold flex items-center justify-between shadow-lg animate-in fade-in">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{statusBanner}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setStatusBanner(null)}
+            className="text-emerald-300 hover:text-white text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Organization Control Header */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <DmcOfficialLogo size={38} rounded="xl" withGoldRing={true} className="shrink-0" />
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm sm:text-base font-black text-white tracking-tight">
                   Downline Organize Chart (3-Level Unilevel Tree)
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-400/30">
-                  {isAdmin ? 'ADMIN & USER VIEW' : 'MY DOWNLINE ORGANIZE'}
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                    isAdmin
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                      : 'bg-purple-500/20 text-purple-300 border-purple-400/30'
+                  }`}
+                >
+                  {isAdmin
+                    ? 'ADMIN FULL CRUD: CLICK ANY MEMBER TO EDIT / PHOTO / DELETE'
+                    : 'MY DOWNLINE ORGANIZE'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Visual organization hierarchy (Root → Level 1 → Level 2 → Level 3). Tap any member node to inspect or expand their branch.
+                {isAdmin
+                  ? 'Administrator Active: Click any member photo or card in the tree below to update Photo, Edit all Member Info, or Delete.'
+                  : 'Visual organization hierarchy (Root → Level 1 → Level 2 → Level 3). Click any member node to view or unlock Admin Edit.'}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* 1-Click Admin Edit Mode Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !isAdminAuthenticated;
+                setIsAdminAuthenticated(next);
+                showToast(
+                  next
+                    ? 'Administrator Edit Mode Enabled: Click any member node in the tree to Update, Edit, Upload Photo, or Delete!'
+                    : 'Switched to Standard Member Organize View.'
+                );
+              }}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition-all shadow ${
+                isAdmin
+                  ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
+              }`}
+              title="Toggle Administrator Edit / Update / Delete / Photo Mode"
+            >
+              {isAdmin ? (
+                <>
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Admin Edit: ON</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Unlock Admin Edit</span>
+                </>
+              )}
+            </button>
+
             {focusedMemberId !== currentMember.memberId && (
               <button
                 type="button"
@@ -196,6 +452,16 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                   );
                 })}
             </select>
+
+            <button
+              type="button"
+              onClick={() => openMemberEditModal(rootMember, 0)}
+              className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-extrabold border border-amber-500/40 flex items-center gap-1 cursor-pointer"
+              title="Edit / Update / Upload Photo / Delete this Root Member"
+            >
+              <Edit3 className="w-3 h-3" />
+              <span>Edit Root Member</span>
+            </button>
 
             {sponsorChain.l1 && (
               <button
@@ -262,17 +528,18 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
       </div>
 
       {/* ========================================================================
-          VISUAL HIERARCHICAL ORGANIZATION TREE DIAGRAM (Matching Oganize.jpg)
+          VISUAL HIERARCHICAL ORGANIZATION TREE DIAGRAM (Click any node to Edit/Update/Delete/Photo)
          ======================================================================== */}
       <div className="bg-gradient-to-b from-white via-slate-50 to-purple-50/40 text-slate-900 rounded-3xl border-2 border-purple-200/80 shadow-xl p-4 sm:p-6 overflow-x-auto">
         <div className="min-w-[540px] flex flex-col items-center">
           {/* ---------------- LEVEL 0: ROOT HEAD NODE ---------------- */}
           <div className="flex flex-col items-center relative">
             <div
-              onClick={() => setSelectedNodeId(rootMember.memberId)}
+              onClick={() => openMemberEditModal(rootMember, 0)}
               className={`group cursor-pointer flex flex-col items-center transition-transform hover:scale-105 ${
                 selectedMember.memberId === rootMember.memberId ? 'scale-105' : ''
               }`}
+              title="Click to Update Photo, Edit Member Information, or Delete"
             >
               {/* Crown Badge */}
               <div className="mb-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-700 to-indigo-800 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow">
@@ -295,10 +562,14 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                   }`}
                   title={rootMember.membershipState}
                 />
+                {/* Admin Camera / Edit Overlay Badge */}
+                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-amber-400 text-slate-950 border border-purple-900 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                  <Camera className="w-3 h-3 stroke-[2.5]" />
+                </span>
               </div>
 
               {/* Name & ID Pill Box below Circle (Matching Oganize.jpg purple pill bar) */}
-              <div className="mt-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-purple-800 to-indigo-900 text-white text-center shadow-md border border-purple-400/40 min-w-[130px] max-w-[180px]">
+              <div className="mt-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-800 to-indigo-900 text-white text-center shadow-md border border-purple-400/40 min-w-[140px] max-w-[195px]">
                 <div className="text-[11px] font-black truncate">{rootMember.name}</div>
                 <div className="text-[9px] font-mono text-amber-300 font-bold">
                   {rootMember.memberId}
@@ -315,6 +586,10 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                   </span>
                   <span className="text-[8px] text-purple-200 font-mono">
                     L1: {downlines.l1.length}
+                  </span>
+                  <span className="px-1 py-0.2 rounded bg-white/15 text-amber-200 text-[7px] font-bold flex items-center gap-0.5">
+                    <Edit3 className="w-2 h-2" />
+                    <span>Edit</span>
                   </span>
                 </div>
               </div>
@@ -362,14 +637,13 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
 
                       {/* LEVEL 1 NODE CARD */}
                       <div
-                        onClick={() => setSelectedNodeId(l1Member.memberId)}
-                        onDoubleClick={() => setFocusedMemberId(l1Member.memberId)}
-                        className={`cursor-pointer flex flex-col items-center transition-all hover:scale-105 ${
+                        onClick={() => openMemberEditModal(l1Member, l1Idx + 1)}
+                        className={`group cursor-pointer flex flex-col items-center transition-all hover:scale-105 ${
                           selectedMember.memberId === l1Member.memberId
                             ? 'ring-2 ring-purple-600 rounded-2xl p-1 bg-purple-100/60'
                             : ''
                         }`}
-                        title="Click to inspect • Double-click to focus tree on this member"
+                        title="Click to Update Photo, Edit Member Information, or Delete"
                       >
                         <span className="mb-1 px-2 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[8px] font-black uppercase tracking-wider shadow-xs">
                           LEVEL 1 (L1)
@@ -388,6 +662,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                                 : 'bg-amber-400'
                             }`}
                           />
+                          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-400 text-slate-950 border border-purple-900 flex items-center justify-center shadow group-hover:scale-110 transition-transform">
+                            <Camera className="w-2.5 h-2.5 stroke-[2.5]" />
+                          </span>
                         </div>
 
                         {/* Purple Label Pill matching Oganize.jpg */}
@@ -412,6 +689,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                             </span>
                             <span className="text-[8px] text-purple-200 font-mono">
                               L2:{l2Children.length}
+                            </span>
+                            <span className="px-1 rounded bg-white/15 text-amber-200 text-[7px] font-bold">
+                              Edit
                             </span>
                           </div>
                         </div>
@@ -455,13 +735,15 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
 
                                   {/* LEVEL 2 NODE */}
                                   <div
-                                    onClick={() => setSelectedNodeId(l2Member.memberId)}
-                                    onDoubleClick={() => setFocusedMemberId(l2Member.memberId)}
-                                    className={`cursor-pointer flex flex-col items-center transition-all hover:scale-105 ${
+                                    onClick={() =>
+                                      openMemberEditModal(l2Member, l1Idx * 3 + l2Idx + 2)
+                                    }
+                                    className={`group cursor-pointer flex flex-col items-center transition-all hover:scale-105 ${
                                       selectedMember.memberId === l2Member.memberId
                                         ? 'ring-2 ring-purple-600 rounded-xl p-0.5 bg-purple-100/70'
                                         : ''
                                     }`}
+                                    title="Click to Update Photo, Edit Member Information, or Delete"
                                   >
                                     <span className="mb-0.5 px-1.5 py-0.2 rounded-full bg-sky-600 text-white text-[7px] font-black uppercase">
                                       L2
@@ -480,6 +762,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                                             : 'bg-amber-400'
                                         }`}
                                       />
+                                      <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-400 text-slate-950 border border-purple-900 flex items-center justify-center shadow">
+                                        <Edit3 className="w-2 h-2 stroke-[2.5]" />
+                                      </span>
                                     </div>
 
                                     <div className="mt-1 px-2 py-0.5 rounded-lg bg-purple-700 text-white text-center shadow-xs w-24 sm:w-28">
@@ -523,16 +808,17 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                                               {/* LEVEL 3 NODE */}
                                               <div
                                                 onClick={() =>
-                                                  setSelectedNodeId(l3Member.memberId)
+                                                  openMemberEditModal(
+                                                    l3Member,
+                                                    l1Idx + l2Idx + l3Idx + 4
+                                                  )
                                                 }
-                                                onDoubleClick={() =>
-                                                  setFocusedMemberId(l3Member.memberId)
-                                                }
-                                                className={`cursor-pointer flex flex-col items-center transition-all hover:scale-105 ${
+                                                className={`group cursor-pointer flex flex-col items-center transition-all hover:scale-105 ${
                                                   selectedMember.memberId === l3Member.memberId
                                                     ? 'ring-2 ring-purple-600 rounded-lg p-0.5 bg-purple-100/70'
                                                     : ''
                                                 }`}
+                                                title="Click to Update Photo, Edit Member Information, or Delete"
                                               >
                                                 <span className="mb-0.5 px-1 rounded bg-emerald-600 text-white text-[6px] font-black uppercase">
                                                   L3
@@ -546,6 +832,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                                                     alt={l3Member.name}
                                                     className="w-full h-full rounded-full object-cover border border-white"
                                                   />
+                                                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 text-slate-950 border border-purple-900 flex items-center justify-center shadow">
+                                                    <Edit3 className="w-1.5 h-1.5 stroke-[2.5]" />
+                                                  </span>
                                                 </div>
                                                 <div className="mt-0.5 px-1.5 py-0.5 rounded bg-purple-800/95 text-white text-center w-18 sm:w-20 shadow-xs">
                                                   <div className="text-[8px] font-bold truncate">
@@ -594,15 +883,24 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
         </div>
       </div>
 
-      {/* Selected Member Inspector Card */}
+      {/* Selected Member Inspector & Quick Admin Action Card */}
       {!compactMode && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
-            <img
-              src={getAvatar(selectedMember, 0)}
-              alt={selectedMember.name}
-              className="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shrink-0"
-            />
+            <div
+              onClick={() => openMemberEditModal(selectedMember, 0)}
+              className="relative cursor-pointer group shrink-0"
+              title="Click to update Member Photo & Information"
+            >
+              <img
+                src={getAvatar(selectedMember, 0)}
+                alt={selectedMember.name}
+                className="w-12 h-12 rounded-full object-cover border-2 border-amber-400"
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow">
+                <Camera className="w-3 h-3" />
+              </span>
+            </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-black text-white text-sm">{selectedMember.name}</span>
@@ -653,6 +951,15 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
               </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => openMemberEditModal(selectedMember, 0)}
+              className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Edit / Photo / Delete</span>
+            </button>
+
             {selectedMember.memberId !== focusedMemberId && (
               <button
                 type="button"
@@ -679,7 +986,445 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
         </div>
       )}
 
-      {/* Quick Add Downline Modal */}
+      {/* ========================================================================
+          ADMINISTRATOR FULL MEMBER EDIT, UPDATE, PHOTO UPLOAD & DELETE MODAL
+         ======================================================================== */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-[130] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl space-y-4 text-white my-auto max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <DmcOfficialLogo size={36} rounded="xl" withGoldRing={true} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm sm:text-base font-black text-white">
+                      Organize Member Control (Update, Edit, Photo & Delete)
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      ADMIN CRUD
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Editing Node: <strong className="text-amber-300">{editName}</strong> ({editingOriginalId})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMemberEdit} className="space-y-4 text-xs">
+              {/* 1. PHOTO / PROFILE IMAGE UPLOAD & PRESETS */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div
+                    onClick={() => editPhotoInputRef.current?.click()}
+                    className="relative w-20 h-20 rounded-full p-1 bg-gradient-to-tr from-purple-600 via-amber-400 to-emerald-400 shrink-0 cursor-pointer group shadow-lg"
+                    title="Click to upload photo from your device"
+                  >
+                    <img
+                      src={editAvatarUrl || PRESET_PORTRAITS[0]}
+                      alt={editName}
+                      className="w-full h-full rounded-full object-cover border-2 border-slate-950"
+                    />
+                    <span className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-amber-400 text-slate-950 border-2 border-slate-950 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                      <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </span>
+                  </div>
+
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>1. Member Photo / Profile Image</span>
+                      </label>
+                      <input
+                        ref={editPhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditPhotoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => editPhotoInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Photo from Device</span>
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={editAvatarUrl}
+                      onChange={(e) => setEditAvatarUrl(e.target.value)}
+                      placeholder="Or paste image URL (https://...)"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-[11px] text-white font-mono focus:outline-none focus:border-amber-400"
+                    />
+
+                    {/* Quick Preset Portraits */}
+                    <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto pb-1">
+                      <span className="text-[10px] text-slate-400 shrink-0 mr-1">Presets:</span>
+                      {PRESET_PORTRAITS.map((url, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditAvatarUrl(url)}
+                          className={`w-7 h-7 rounded-full overflow-hidden border-2 shrink-0 cursor-pointer transition-transform hover:scale-110 ${
+                            editAvatarUrl === url ? 'border-amber-400 scale-110' : 'border-slate-700'
+                          }`}
+                        >
+                          <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. CORE MEMBER IDENTITY & ORGANIZE HIERARCHY */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-3">
+                <div className="text-[11px] font-black text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>2. Member Identity & Organize Tree Position</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Full Name (Shown on Organize Node) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="e.g. Somphone Xayraxa"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Member ID Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editMemberId}
+                      onChange={(e) => setEditMemberId(e.target.value)}
+                      placeholder="e.g. DMC-LA-00303"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Phone Number (+856) *
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-3.5 h-3.5 text-sky-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        required
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="+856 20 5511 2233"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="email"
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        placeholder="member@dmcxayraxa.la"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Membership Status (ACTIVE / FREE)
+                    </label>
+                    <select
+                      value={editMembershipState}
+                      onChange={(e) =>
+                        setEditMembershipState(e.target.value as Member['membershipState'])
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-300 focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="ACTIVE_LIFETIME_MEMBER">
+                        ACTIVE LIFETIME MEMBER (1.6M Qualified)
+                      </option>
+                      <option value="FREE_MEMBER">
+                        FREE MEMBER (Accumulating Held Credit)
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Direct Upline Sponsor (L1 Parent in Tree)
+                    </label>
+                    <select
+                      value={editSponsorId}
+                      onChange={(e) => setEditSponsorId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-purple-300 focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="">ROOT (Top Head — No Upline Sponsor)</option>
+                      {allMembers
+                        .filter((m) => m.memberId !== editingOriginalId)
+                        .map((m) => (
+                          <option key={m.memberId} value={m.memberId}>
+                            {m.name} ({m.memberId})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      KYC Verification Status
+                    </label>
+                    <select
+                      value={editKycStatus}
+                      onChange={(e) =>
+                        setEditKycStatus(e.target.value as Member['kycStatus'])
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="VERIFIED">VERIFIED</option>
+                      <option value="PENDING">PENDING</option>
+                      <option value="UNVERIFIED">UNVERIFIED</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Member Login PIN / Password
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="w-3.5 h-3.5 text-amber-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="123456"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-amber-200 font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. WALLET BALANCES & BANK / DELIVERY INFORMATION */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Wallet Balances */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2.5">
+                  <div className="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>3. Member Balances (LAK)</span>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Held Qualification Balance (LAK)
+                    </label>
+                    <input
+                      type="number"
+                      step={50000}
+                      value={editHeldLak}
+                      onChange={(e) => setEditHeldLak(Number(e.target.value) || 0)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                      Available Withdrawable Balance (LAK)
+                    </label>
+                    <input
+                      type="number"
+                      step={50000}
+                      value={editAvailableLak}
+                      onChange={(e) => setEditAvailableLak(Number(e.target.value) || 0)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-emerald-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Bank & Delivery Info */}
+                <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2.5">
+                  <div className="text-[11px] font-black text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>4. Bank & Shipping Info</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                        Bank Name
+                      </label>
+                      <input
+                        type="text"
+                        value={editBankName}
+                        onChange={(e) => setEditBankName(e.target.value)}
+                        placeholder="BCEL One"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                        Account Number
+                      </label>
+                      <input
+                        type="text"
+                        value={editBankAccountNum}
+                        onChange={(e) => setEditBankAccountNum(e.target.value)}
+                        placeholder="160-12-..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                        Province / City
+                      </label>
+                      <div className="relative">
+                        <MapPin className="w-3 h-3 text-rose-400 absolute left-2 top-2" />
+                        <input
+                          type="text"
+                          value={editProvince}
+                          onChange={(e) => setEditProvince(e.target.value)}
+                          placeholder="Vientiane"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-6 pr-2 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                        Shipping Carrier
+                      </label>
+                      <select
+                        value={editCarrierId}
+                        onChange={(e) =>
+                          setEditCarrierId(e.target.value as LaoShippingCarrierId)
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
+                      >
+                        {LAO_SHIPPING_CARRIERS.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. ORGANIZE TREE QUICK ACTIONS & DELETE CONFIRMATION */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Delete Member Button / Confirmation */}
+                  {!confirmDeleteStep ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteStep(true)}
+                      className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Member</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 bg-rose-950/80 border border-rose-500/60 px-2.5 py-1.5 rounded-xl">
+                      <span className="text-[11px] font-black text-rose-200">
+                        Confirm Delete?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDeleteMemberFromTree}
+                        className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] cursor-pointer"
+                      >
+                        Yes, Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteStep(false)}
+                        className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
+                      >
+                        No
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Add Direct L1 Downline under this Member */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setQuickAddSponsorId(editingOriginalId);
+                      setShowQuickAddModal(true);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/45 border border-purple-400/40 text-purple-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ Add Downline Here</span>
+                  </button>
+
+                  {/* Focus Tree on this Member */}
+                  {focusedMemberId !== editingOriginalId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFocusedMemberId(editingOriginalId);
+                        setShowEditModal(false);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Crown className="w-3.5 h-3.5" />
+                      <span>Set as Root Head</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-lg"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save & Update Member</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Downline Modal (with Photo Upload) */}
       {showQuickAddModal && (
         <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-slate-900 border-2 border-purple-500/50 rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-4 text-white">
@@ -700,6 +1445,33 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
             </div>
 
             <form onSubmit={handleQuickAddSubmit} className="space-y-3 text-xs">
+              {/* Photo Upload for New Member */}
+              <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-slate-950 border border-slate-800">
+                <img
+                  src={quickAddAvatar}
+                  alt="New Member Preview"
+                  className="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shrink-0"
+                />
+                <div className="flex-1 space-y-1">
+                  <div className="text-[11px] font-bold text-amber-300">Member Profile Photo</div>
+                  <input
+                    ref={quickAddFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleQuickAddPhotoUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => quickAddFileInputRef.current?.click()}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Upload className="w-3 h-3 text-amber-400" />
+                    <span>Upload Photo</span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-bold text-slate-300 mb-1">
                   Direct Upline Sponsor (L1 Parent)

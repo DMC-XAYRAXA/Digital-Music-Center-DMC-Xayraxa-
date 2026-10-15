@@ -100,7 +100,7 @@ interface DmcContextType {
   rejectWithdrawal: (withdrawalId: string, reason: string) => boolean;
   
   // Admin CRUD Management (Add, Edit, Update, Delete)
-  adminAddMember: (data: { name: string; phone: string; email?: string; sponsorId?: string | null; membershipState?: Member['membershipState']; initialHeldLak?: number; initialAvailableLak?: number }) => Member;
+  adminAddMember: (data: { name: string; phone: string; email?: string; avatarUrl?: string; sponsorId?: string | null; membershipState?: Member['membershipState']; initialHeldLak?: number; initialAvailableLak?: number }) => Member;
   adminUpdateMember: (memberId: string, updates: Partial<Member>) => void;
   adminDeleteMember: (memberId: string) => boolean;
   adminAddProduct: (prod: ProductSKU) => void;
@@ -816,7 +816,18 @@ const INITIAL_EVENT_POSTS: EventActivityPost[] = [
 ];
 
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
+  const [members, setMembers] = useState<Member[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_members_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_MEMBERS;
+  });
   const [currentMemberId, setCurrentMemberId] = useState<string>('DMC-LA-00404'); // Default to Khamla (FREE with 1.2M held)
   const [language, setLanguage] = useState<Language>('en');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
@@ -1934,6 +1945,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     name: string;
     phone: string;
     email?: string;
+    avatarUrl?: string;
     sponsorId?: string | null;
     membershipState?: Member['membershipState'];
     initialHeldLak?: number;
@@ -1947,6 +1959,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: data.name,
       phone: data.phone,
       email: data.email,
+      avatarUrl: data.avatarUrl,
       language: language,
       membershipState: data.membershipState || 'FREE_MEMBER',
       sponsorId: data.sponsorId || null,
@@ -1966,7 +1979,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
     };
 
-    setMembers(prev => [...prev, newMember]);
+    setMembers(prev => {
+      const next = [...prev, newMember];
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
 
     // Initial balances if specified
     const newEntries: LedgerEntry[] = [];
@@ -2022,17 +2043,35 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateMember = (memberId: string, updates: Partial<Member>) => {
-    setMembers(prev =>
-      prev.map(m => (m.memberId === memberId ? { ...m, ...updates } : m))
-    );
+    const newId = updates.memberId?.trim();
+    setMembers(prev => {
+      const next = prev.map(m => {
+        if (m.memberId === memberId) {
+          return { ...m, ...updates, memberId: newId || m.memberId };
+        }
+        if (newId && newId !== memberId && m.sponsorId === memberId) {
+          return { ...m, sponsorId: newId };
+        }
+        return m;
+      });
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    if (newId && newId !== memberId && currentMemberId === memberId) {
+      setCurrentMemberId(newId);
+    }
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
         timestamp: new Date().toISOString(),
-        actor: isAdminMode ? 'SUPER_ADMIN' : memberId,
+        actor: isAdminMode || isAdminAuthenticated ? 'SUPER_ADMIN' : memberId,
         action: updates.password ? 'UPDATE_PROFILE_AND_PASSWORD' : 'ADMIN_UPDATE_MEMBER',
         entityType: 'MEMBER',
-        entityId: memberId,
+        entityId: newId || memberId,
         details: updates.password ? { ...updates, password: '***REDACTED***' } : updates,
       },
       ...prev,
@@ -2239,7 +2278,22 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminDeleteMember = (memberId: string): boolean => {
-    setMembers(prev => prev.filter(m => m.memberId !== memberId));
+    const target = members.find(m => m.memberId === memberId);
+    const parentSponsorId = target ? target.sponsorId : null;
+    setMembers(prev => {
+      const remaining = prev
+        .filter(m => m.memberId !== memberId)
+        .map(m => (m.sponsorId === memberId ? { ...m, sponsorId: parentSponsorId } : m));
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(remaining));
+      } catch {
+        // ignore quota errors
+      }
+      if (currentMemberId === memberId && remaining.length > 0) {
+        setCurrentMemberId(remaining[0].memberId);
+      }
+      return remaining;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2248,7 +2302,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         action: 'ADMIN_DELETE_MEMBER',
         entityType: 'MEMBER',
         entityId: memberId,
-        details: { deletedAt: new Date().toISOString() },
+        details: { deletedAt: new Date().toISOString(), reattachedChildrenTo: parentSponsorId },
       },
       ...prev,
     ]);
