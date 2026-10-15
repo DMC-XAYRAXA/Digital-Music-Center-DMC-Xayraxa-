@@ -29,6 +29,7 @@ import {
   LAO_SHIPPING_CARRIERS,
   SuperAdminProfile,
   EventActivityPost,
+  SupportLocationItem,
 } from '../types/dmc';
 
 interface DmcContextType {
@@ -110,6 +111,10 @@ interface DmcContextType {
   adminAddEventPost: (post: Omit<EventActivityPost, 'id' | 'createdAt'>) => EventActivityPost;
   adminUpdateEventPost: (id: string, updates: Partial<EventActivityPost>) => void;
   adminDeleteEventPost: (id: string) => boolean;
+  supportLocations: SupportLocationItem[];
+  adminAddSupportLocation: (item: Omit<SupportLocationItem, 'id' | 'updatedAt'>) => SupportLocationItem;
+  adminUpdateSupportLocation: (id: string, updates: Partial<SupportLocationItem>) => void;
+  adminDeleteSupportLocation: (id: string) => boolean;
   adminAddOrder: (order: Order) => void;
   adminUpdateOrder: (orderId: string, updates: Partial<Order>) => void;
   adminDeleteOrder: (orderId: string) => boolean;
@@ -615,6 +620,18 @@ export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
     isPrimaryForDeposits: false,
     isPrimaryForWithdrawals: false,
   },
+  {
+    id: 'corp-psvb-05',
+    bankName: 'Phongsavanh Bank Ltd (Laos)',
+    bankCode: 'PSVB',
+    accountNumber: '040-12-00998877-001',
+    accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
+    branch: 'Kaysone Phomvihane Ave, Phakhao, Xaythany, Vientiane',
+    swiftCode: 'PSVBLALA',
+    qrPayload: 'PSVB-HIAPP-CORP-DMC-XAYRAXA-99887',
+    isPrimaryForDeposits: false,
+    isPrimaryForWithdrawals: true,
+  },
 ];
 
 // Initial Products
@@ -815,6 +832,44 @@ const INITIAL_EVENT_POSTS: EventActivityPost[] = [
   },
 ];
 
+const INITIAL_SUPPORT_LOCATIONS: SupportLocationItem[] = [
+  {
+    id: 'support-hotline-1',
+    category: 'HOTLINE',
+    label: 'Hotline Phone (Lao PDR)',
+    value: '+856 20 5511 2233',
+    locationAddress: 'Dongdok Campus, Vientiane Capital',
+    mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+    photoUrl: '',
+    notes: 'Official Hotline Assistance (Mon–Sun 08:00–21:00)',
+    updatedAt: '2026-10-15T08:00:00Z',
+  },
+  {
+    id: 'support-whatsapp-1',
+    category: 'WHATSAPP',
+    label: 'WhatsApp Official Support',
+    value: '+856 20 5511 2233',
+    locationAddress: 'Dongdok Campus, Vientiane Capital',
+    mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+    photoUrl: '',
+    notes: '24/7 Official WhatsApp Chat & Member Verification',
+    updatedAt: '2026-10-15T08:00:00Z',
+  },
+  {
+    id: 'support-office-1',
+    category: 'OFFICE_LOCATION',
+    label: 'Head Office & Studios',
+    value: 'Dongdok Campus, Vientiane Capital',
+    locationAddress: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
+    mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
+    photoUrl:
+      'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+    notes: 'Main Recording Studios, Member Service Center & Guitar Showroom',
+    updatedAt: '2026-10-15T08:00:00Z',
+  },
+];
+
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>(() => {
     try {
@@ -869,9 +924,51 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_EVENT_POSTS;
   });
+  const [supportLocations, setSupportLocations] = useState<SupportLocationItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_support_locations_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_SUPPORT_LOCATIONS;
+  });
   const [songs, setSongs] = useState<SongProductionProject[]>(INITIAL_SONGS);
-  const [laoBanks, setLaoBanks] = useState<LaoBankDefinition[]>(DEFAULT_LAO_BANKS);
-  const [corporateBankAccounts, setCorporateBankAccounts] = useState<CorporateBankAccount[]>(INITIAL_CORPORATE_BANKS);
+  const [laoBanks, setLaoBanks] = useState<LaoBankDefinition[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_lao_banks_v2');
+      if (saved) {
+        const parsed: LaoBankDefinition[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasPsvb = parsed.some(b => b.code === 'PSVB');
+          const psvbDefault = DEFAULT_LAO_BANKS.find(b => b.code === 'PSVB');
+          return !hasPsvb && psvbDefault ? [...parsed, psvbDefault] : parsed;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return DEFAULT_LAO_BANKS;
+  });
+  const [corporateBankAccounts, setCorporateBankAccounts] = useState<CorporateBankAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_corporate_banks_v2');
+      if (saved) {
+        const parsed: CorporateBankAccount[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasPsvb = parsed.some(b => b.bankCode === 'PSVB');
+          const psvbDefault = INITIAL_CORPORATE_BANKS.find(b => b.bankCode === 'PSVB');
+          return !hasPsvb && psvbDefault ? [...parsed, psvbDefault] : parsed;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_CORPORATE_BANKS;
+  });
   
   // Commission Awards
   const [awards, setAwards] = useState<CommissionAward[]>([
@@ -2464,6 +2561,90 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  // 2C. Support Contacts, Photos & Map Locations CRUD (with localStorage persistence)
+  const adminAddSupportLocation = (
+    itemData: Omit<SupportLocationItem, 'id' | 'updatedAt'>
+  ): SupportLocationItem => {
+    const newItem: SupportLocationItem = {
+      ...itemData,
+      id: `sup-loc-${Date.now()}`,
+      updatedAt: new Date().toISOString(),
+    };
+    setSupportLocations(prev => {
+      const next = [...prev, newItem];
+      try {
+        localStorage.setItem('dmc_rev26_support_locations_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_ADD_SUPPORT_LOCATION',
+        entityType: 'SUPPORT_LOCATION',
+        entityId: newItem.id,
+        details: { label: newItem.label, value: newItem.value, mapQuery: newItem.mapQuery },
+      },
+      ...prev,
+    ]);
+    return newItem;
+  };
+
+  const adminUpdateSupportLocation = (id: string, updates: Partial<SupportLocationItem>) => {
+    setSupportLocations(prev => {
+      const next = prev.map(item =>
+        item.id === id ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item
+      );
+      try {
+        localStorage.setItem('dmc_rev26_support_locations_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPDATE_SUPPORT_LOCATION',
+        entityType: 'SUPPORT_LOCATION',
+        entityId: id,
+        details: updates,
+      },
+      ...prev,
+    ]);
+  };
+
+  const adminDeleteSupportLocation = (id: string): boolean => {
+    setSupportLocations(prev => {
+      const next = prev.filter(item => item.id !== id);
+      try {
+        localStorage.setItem('dmc_rev26_support_locations_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_DELETE_SUPPORT_LOCATION',
+        entityType: 'SUPPORT_LOCATION',
+        entityId: id,
+        details: { deletedAt: new Date().toISOString() },
+      },
+      ...prev,
+    ]);
+    return true;
+  };
+
   // 3. Orders CRUD
   const adminAddOrder = (order: Order) => {
     setOrders(prev => [order, ...prev]);
@@ -2566,21 +2747,34 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 6. Bank Account & Lao Banks Operations (Users & Administrators)
   const updateMemberBankAccount = (memberId: string, bankDetails: BankAccountInfo) => {
-    setMembers(prev =>
-      prev.map(m => {
+    setMembers(prev => {
+      const next = prev.map(m => {
         if (m.memberId !== memberId) return m;
         const currentAccounts = m.bankAccounts || (m.bankAccount ? [m.bankAccount] : []);
         const exists = currentAccounts.some(b => b.accountNumber === bankDetails.accountNumber);
         const updatedAccounts = exists
-          ? currentAccounts.map(b => (b.accountNumber === bankDetails.accountNumber ? { ...b, ...bankDetails, isDefault: true } : { ...b, isDefault: false }))
-          : [...currentAccounts.map(b => ({ ...b, isDefault: false })), { ...bankDetails, isDefault: true }];
+          ? currentAccounts.map(b =>
+              b.accountNumber === bankDetails.accountNumber
+                ? { ...b, ...bankDetails, isDefault: true }
+                : { ...b, isDefault: false }
+            )
+          : [
+              ...currentAccounts.map(b => ({ ...b, isDefault: false })),
+              { ...bankDetails, isDefault: true },
+            ];
         return {
           ...m,
           bankAccount: { ...bankDetails, isDefault: true },
           bankAccounts: updatedAccounts,
         };
-      })
-    );
+      });
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2598,7 +2792,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const adminAddLaoBank = (bank: Omit<LaoBankDefinition, 'id'>) => {
     const id = `bank-${bank.code.toLowerCase()}-${Date.now()}`;
     const newBank: LaoBankDefinition = { id, ...bank };
-    setLaoBanks(prev => [...prev, newBank]);
+    setLaoBanks(prev => {
+      const next = [...prev, newBank];
+      try {
+        localStorage.setItem('dmc_rev26_lao_banks_v2', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2614,7 +2816,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateLaoBank = (bankId: string, updates: Partial<LaoBankDefinition>) => {
-    setLaoBanks(prev => prev.map(b => (b.id === bankId ? { ...b, ...updates } : b)));
+    setLaoBanks(prev => {
+      const next = prev.map(b => (b.id === bankId ? { ...b, ...updates } : b));
+      try {
+        localStorage.setItem('dmc_rev26_lao_banks_v2', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2630,7 +2840,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminDeleteLaoBank = (bankId: string): boolean => {
-    setLaoBanks(prev => prev.filter(b => b.id !== bankId));
+    setLaoBanks(prev => {
+      const next = prev.filter(b => b.id !== bankId);
+      try {
+        localStorage.setItem('dmc_rev26_lao_banks_v2', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2649,7 +2867,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const adminAddCorporateBankAccount = (account: Omit<CorporateBankAccount, 'id'>) => {
     const id = `corp-${account.bankCode.toLowerCase()}-${Date.now()}`;
     const newCorp: CorporateBankAccount = { id, ...account };
-    setCorporateBankAccounts(prev => [...prev, newCorp]);
+    setCorporateBankAccounts(prev => {
+      const next = [...prev, newCorp];
+      try {
+        localStorage.setItem('dmc_rev26_corporate_banks_v2', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2665,7 +2891,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateCorporateBankAccount = (accountId: string, updates: Partial<CorporateBankAccount>) => {
-    setCorporateBankAccounts(prev => prev.map(c => (c.id === accountId ? { ...c, ...updates } : c)));
+    setCorporateBankAccounts(prev => {
+      const next = prev.map(c => (c.id === accountId ? { ...c, ...updates } : c));
+      try {
+        localStorage.setItem('dmc_rev26_corporate_banks_v2', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2681,7 +2915,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminDeleteCorporateBankAccount = (accountId: string): boolean => {
-    setCorporateBankAccounts(prev => prev.filter(c => c.id !== accountId));
+    setCorporateBankAccounts(prev => {
+      const next = prev.filter(c => c.id !== accountId);
+      try {
+        localStorage.setItem('dmc_rev26_corporate_banks_v2', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -2879,6 +3121,10 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminAddEventPost,
         adminUpdateEventPost,
         adminDeleteEventPost,
+        supportLocations,
+        adminAddSupportLocation,
+        adminUpdateSupportLocation,
+        adminDeleteSupportLocation,
         adminAddOrder,
         adminUpdateOrder,
         adminDeleteOrder,

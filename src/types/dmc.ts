@@ -95,6 +95,7 @@ export interface BankAccountInfo {
   accountNumber: string;
   accountName: string;
   branch?: string;
+  customQrImageUrl?: string;
   isDefault?: boolean;
 }
 
@@ -389,6 +390,7 @@ export interface CorporateBankAccount {
   branch: string;
   swiftCode?: string;
   qrPayload?: string;
+  customQrImageUrl?: string;
   isPrimaryForDeposits: boolean;
   isPrimaryForWithdrawals: boolean;
 }
@@ -445,5 +447,32 @@ export const DEFAULT_LAO_BANKS: LaoBankDefinition[] = [
     isActive: true,
     branchDefault: 'No. 088 Lanexang Avenue, Hatsady, Vientiane',
     routingFormat: '108-XX-XXXXXXX-XXX'
+  },
+  {
+    id: 'bank-psvb',
+    code: 'PSVB',
+    name: 'Phongsavanh Bank Ltd (Laos)',
+    shortName: 'Phongsavanh Bank Laos (PSVB)',
+    swiftCode: 'PSVBLALA',
+    color: 'from-green-600 via-lime-600 to-emerald-800',
+    badgeBg: 'bg-green-500/20 text-green-300 border-green-500/40',
+    logoText: 'PSVB',
+    isActive: true,
+    branchDefault: 'Kaysone Phomvihane Ave, Phakhao, Xaythany, Vientiane',
+    routingFormat: '040-XX-XXXXXXXX-XXX'
   }
 ];
+
+export interface SupportLocationItem {
+  id: string;
+  category: 'HOTLINE' | 'WHATSAPP' | 'OFFICE_LOCATION' | 'STUDIO_BRANCH';
+  label: string;
+  value: string;
+  locationAddress?: string;
+  mapQuery?: string;
+  mapUrl?: string;
+  photoUrl?: string;
+  notes?: string;
+  updatedAt: string;
+}
+

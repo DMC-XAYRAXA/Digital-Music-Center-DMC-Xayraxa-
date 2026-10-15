@@ -24,8 +24,10 @@ import {
   MapPin,
   Wallet,
   KeyRound,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { DmcOfficialLogo } from './DmcLogo';
+import { downloadExcelWorkbook, ExcelSheetData } from '../../utils/excelExport';
 
 interface DownlineOrganizeTreeProps {
   initialRootMemberId?: string;
@@ -401,6 +403,91 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                 <span>My Root ({currentMember.memberId})</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const rows: (string | number)[][] = [];
+                const visited = new Set<string>();
+                const buildTree = (memberId: string, depth: number) => {
+                  if (visited.has(memberId)) return;
+                  const m = allMembers.find((x) => x.memberId === memberId);
+                  if (!m) return;
+                  visited.add(memberId);
+                  const bal = getMemberBalances(m.memberId);
+                  const dl = getDownlines(m.memberId);
+                  const chain = getSponsorChain(m.memberId);
+                  const levelText =
+                    depth === 0
+                      ? 'ROOT (Organize Head)'
+                      : `LEVEL ${depth} (L${depth})`;
+                  const prefix =
+                    depth === 0 ? '👑 ROOT: ' : `${'   '.repeat(depth - 1)}└── L${depth}: `;
+                  rows.push([
+                    rows.length + 1,
+                    levelText,
+                    `${prefix}${m.name} (${m.memberId})`,
+                    m.memberId,
+                    m.name,
+                    m.phone,
+                    m.membershipState === 'ACTIVE_LIFETIME_MEMBER'
+                      ? 'ACTIVE LIFETIME'
+                      : 'FREE MEMBER',
+                    chain.l1 ? `${chain.l1.name} (${chain.l1.memberId})` : 'ROOT HEAD',
+                    chain.l2 ? `${chain.l2.name} (${chain.l2.memberId})` : '-',
+                    chain.l3 ? `${chain.l3.name} (${chain.l3.memberId})` : '-',
+                    dl.l1.length,
+                    dl.l2.length,
+                    dl.l3.length,
+                    dl.l1.length + dl.l2.length + dl.l3.length,
+                    bal.heldForQualification,
+                    bal.available,
+                    m.kycStatus,
+                  ]);
+                  allMembers
+                    .filter((c) => c.sponsorId === m.memberId)
+                    .forEach((c) => buildTree(c.memberId, depth + 1));
+                };
+                buildTree(rootMember.memberId, 0);
+                allMembers.forEach((m) => {
+                  if (!visited.has(m.memberId)) buildTree(m.memberId, 0);
+                });
+                const sheet: ExcelSheetData = {
+                  sheetName: '7_Downline_Organize_Tree',
+                  title: '7/ REPORT DOWN LINE ORGANIZE TREE FILE — DMC XAYRAXA',
+                  subtitle: `Focused Root: ${rootMember.name} (${rootMember.memberId}) • Total Members: ${rows.length}`,
+                  headers: [
+                    'No.',
+                    'Hierarchy Level',
+                    'Visual Organize Tree Path',
+                    'Member ID',
+                    'Full Name',
+                    'Phone (+856)',
+                    'Status',
+                    'Direct Sponsor (L1)',
+                    'L2 Upline',
+                    'L3 Upline',
+                    'L1 Count',
+                    'L2 Count',
+                    'L3 Count',
+                    'Total 3-Level Team',
+                    'Held Qualification (LAK)',
+                    'Available Balance (LAK)',
+                    'KYC Status',
+                  ],
+                  rows,
+                };
+                downloadExcelWorkbook('7_DMC_Report_Downline_Organize_Tree_File.xls', [sheet]);
+                showToast(
+                  'Downloaded Excel File: 7_DMC_Report_Downline_Organize_Tree_File.xls!'
+                );
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1 shadow cursor-pointer"
+              title="Download 7/ Report Down line Organize Tree Excel File (.xls)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>7/ Organize Excel (.xls)</span>
+            </button>
 
             <button
               type="button"

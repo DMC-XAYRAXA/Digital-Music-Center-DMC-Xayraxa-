@@ -49,10 +49,13 @@ import {
   Megaphone,
   Upload,
   Calendar,
-  MapPin
+  MapPin,
+  FileSpreadsheet,
+  Download
 } from 'lucide-react';
 import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
 import { DmcOfficialLogo } from '../common/DmcLogo';
+import { AdminExcelReportHub, AdminReportId } from './AdminExcelReportHub';
 import { 
   Member, 
   ProductSKU, 
@@ -64,7 +67,8 @@ import {
   DEFAULT_LAO_BANKS,
   LaoShippingCarrierId,
   LAO_SHIPPING_CARRIERS,
-  EventActivityPost
+  EventActivityPost,
+  SupportLocationItem
 } from '../../types/dmc';
 
 export const AdminPortal: React.FC = () => {
@@ -113,10 +117,36 @@ export const AdminPortal: React.FC = () => {
     eventPosts,
     adminAddEventPost,
     adminUpdateEventPost,
-    adminDeleteEventPost
+    adminDeleteEventPost,
+    supportLocations,
+    adminAddSupportLocation,
+    adminUpdateSupportLocation,
+    adminDeleteSupportLocation
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('MEMBERS');
+  const [activeAdminTab, setActiveAdminTab] = useState<'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'LOCATIONS' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('EXCEL_REPORTS');
+  const [selectedExcelReport, setSelectedExcelReport] = useState<AdminReportId>('1_MEMBERS');
+  const [adminLocationForm, setAdminLocationForm] = useState<{
+    id: string;
+    category: SupportLocationItem['category'];
+    label: string;
+    value: string;
+    locationAddress: string;
+    mapQuery: string;
+    mapUrl: string;
+    photoUrl: string;
+    notes: string;
+  }>({
+    id: '',
+    category: 'OFFICE_LOCATION',
+    label: 'Head Office & Studios',
+    value: 'Dongdok Campus, Vientiane Capital',
+    locationAddress: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
+    mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
+    photoUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+    notes: 'Main Recording Studios, Member Service Center & Guitar Showroom',
+  });
   const [adminEventForm, setAdminEventForm] = useState({
     id: '' as string,
     headline: '',
@@ -444,13 +474,14 @@ export const AdminPortal: React.FC = () => {
   });
 
   const [newCorpBankForm, setNewCorpBankForm] = useState({
-    bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
-    bankCode: 'BCEL',
+    bankName: 'Phongsavanh Bank Ltd (Laos)',
+    bankCode: 'PSVB',
     accountNumber: '',
     accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
-    branch: 'Head Office Vientiane, Rue Pangkham',
-    swiftCode: 'COEBLALA',
+    branch: 'Head Office Vientiane, Kaysone Phomvihane Ave',
+    swiftCode: 'PSVBLALA',
     qrPayload: '',
+    customQrImageUrl: '',
     isPrimaryForDeposits: false,
     isPrimaryForWithdrawals: false,
   });
@@ -460,6 +491,7 @@ export const AdminPortal: React.FC = () => {
     accountNumber: '',
     accountName: '',
     branch: '',
+    customQrImageUrl: '',
   });
 
   const handleCreateLaoBank = (e: React.FormEvent) => {
@@ -519,22 +551,24 @@ export const AdminPortal: React.FC = () => {
       branch: newCorpBankForm.branch.trim(),
       swiftCode: newCorpBankForm.swiftCode.trim(),
       qrPayload: newCorpBankForm.qrPayload.trim() || `DMC-${newCorpBankForm.bankCode}-${newCorpBankForm.accountNumber}`,
+      customQrImageUrl: newCorpBankForm.customQrImageUrl.trim() || undefined,
       isPrimaryForDeposits: newCorpBankForm.isPrimaryForDeposits,
       isPrimaryForWithdrawals: newCorpBankForm.isPrimaryForWithdrawals,
     });
     setShowAddCorpBankModal(false);
     setNewCorpBankForm({
-      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
-      bankCode: 'BCEL',
+      bankName: 'Phongsavanh Bank Ltd (Laos)',
+      bankCode: 'PSVB',
       accountNumber: '',
       accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
-      branch: 'Head Office Vientiane, Rue Pangkham',
-      swiftCode: 'COEBLALA',
+      branch: 'Head Office Vientiane, Kaysone Phomvihane Ave',
+      swiftCode: 'PSVBLALA',
       qrPayload: '',
+      customQrImageUrl: '',
       isPrimaryForDeposits: false,
       isPrimaryForWithdrawals: false,
     });
-    showNotification(`Added corporate settlement bank account!`);
+    showNotification(`Added corporate settlement bank account & QR Code!`);
   };
 
   const handleSaveCorpBankEdit = (e: React.FormEvent) => {
@@ -542,7 +576,7 @@ export const AdminPortal: React.FC = () => {
     if (!editingCorpBank) return;
     adminUpdateCorporateBankAccount(editingCorpBank.id, editingCorpBank);
     setEditingCorpBank(null);
-    showNotification(`Updated corporate bank account (${editingCorpBank.accountNumber})!`);
+    showNotification(`Updated corporate bank account & QR Code (${editingCorpBank.accountNumber})!`);
   };
 
   const handleDeleteCorpBank = (accId: string, accNum: string) => {
@@ -559,6 +593,7 @@ export const AdminPortal: React.FC = () => {
       accountNumber: member.bankAccount?.accountNumber || '',
       accountName: member.bankAccount?.accountName || member.name.toUpperCase(),
       branch: member.bankAccount?.branch || 'Head Office Vientiane',
+      customQrImageUrl: member.bankAccount?.customQrImageUrl || '',
     });
   };
 
@@ -572,9 +607,10 @@ export const AdminPortal: React.FC = () => {
       accountNumber: memberBankForm.accountNumber.trim(),
       accountName: memberBankForm.accountName.trim().toUpperCase(),
       branch: memberBankForm.branch.trim() || 'Head Office Vientiane',
+      customQrImageUrl: memberBankForm.customQrImageUrl.trim() || undefined,
       isDefault: true,
     });
-    showNotification(`Updated bank account for ${memberForBankEdit.name}!`);
+    showNotification(`Updated bank account & QR Code for ${memberForBankEdit.name}!`);
     setMemberForBankEdit(null);
   };
 
@@ -613,6 +649,15 @@ export const AdminPortal: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => setActiveAdminTab('EXCEL_REPORTS')}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+              title="Open Administrator Excel Report Center (Files 1 - 6)"
+            >
+              <FileSpreadsheet className="w-4 h-4 stroke-[2.5]" />
+              <span>Excel Reports (Files 1–6)</span>
+            </button>
+
+            <button
               onClick={() => setActiveAdminTab('ADMIN_PROFILE')}
               className="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
               title="Update Super Admin or Member Profile, Password & Phone SMS Recovery (+856)"
@@ -639,6 +684,51 @@ export const AdminPortal: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick 7-File Excel Report Strip in Admin Header */}
+        <div className="pt-3 border-t border-slate-800/80">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Administrator Official Excel Report Files (1 – 7):</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('EXCEL_REPORTS')}
+              className="text-[11px] font-bold text-amber-300 hover:underline cursor-pointer"
+            >
+              Open Full Excel Report Center →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            {[
+              { id: '1_MEMBERS' as AdminReportId, label: '1/ Register Member CRUD' },
+              { id: '2_PASSWORDS' as AdminReportId, label: '2/ Admin & User Password' },
+              { id: '3_PRODUCTS' as AdminReportId, label: '3/ Products & SKUs' },
+              { id: '4_ORDERS' as AdminReportId, label: '4/ Orders & Shipping' },
+              { id: '5_SONGS' as AdminReportId, label: '5/ Studio Song File' },
+              { id: '6_PAYMENT_PROVED' as AdminReportId, label: '6/ Payment Proved' },
+              { id: '7_ORGANIZE_TREE' as AdminReportId, label: '7/ Downline Organize Tree' },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setSelectedExcelReport(item.id);
+                  setActiveAdminTab('EXCEL_REPORTS');
+                }}
+                className={`px-2.5 py-2 rounded-xl border text-left text-[11px] font-extrabold flex items-center justify-between gap-1.5 transition-all cursor-pointer ${
+                  activeAdminTab === 'EXCEL_REPORTS' && selectedExcelReport === item.id
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-md'
+                    : 'bg-slate-950/90 hover:bg-slate-800 text-slate-200 border-slate-800 hover:border-emerald-500/50'
+                }`}
+              >
+                <span className="truncate">{item.label}</span>
+                <Download className="w-3 h-3 shrink-0 text-emerald-400" />
+              </button>
+            ))}
+          </div>
+        </div>
+
         {successBanner && (
           <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -650,8 +740,10 @@ export const AdminPortal: React.FC = () => {
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
         {[
+          { id: 'EXCEL_REPORTS', label: 'Excel Reports (1-7)', icon: FileSpreadsheet, count: 7 },
           { id: 'MEMBERS', label: 'Members CRUD', icon: Users, count: allMembers.length },
           { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
+          { id: 'LOCATIONS', label: 'Map & Location / Support', icon: MapPin, count: supportLocations.length },
           { id: 'EVENTS', label: 'Event & Activity Posts', icon: Megaphone, count: eventPosts.length },
           { id: 'ADMIN_PROFILE', label: 'Admin & User SMS Security', icon: Smartphone },
           { id: 'PRODUCTS', label: 'Products & SKUs', icon: Package, count: products.length },
@@ -687,10 +779,399 @@ export const AdminPortal: React.FC = () => {
         })}
       </div>
 
+      {/* ================= TAB: EXCEL REPORTS CENTER (FILES 1 - 6) ================= */}
+      {activeAdminTab === 'EXCEL_REPORTS' && (
+        <AdminExcelReportHub key={selectedExcelReport} initialReport={selectedExcelReport} />
+      )}
+
       {/* ================= TAB: DOWNLINE ORGANIZE TREE ================= */}
       {activeAdminTab === 'ORGANIZE' && (
         <div className="space-y-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-slate-300 font-semibold flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>7/ Report Down line Organize Tree File — Ready for Excel (.xls) & CSV Export</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedExcelReport('7_ORGANIZE_TREE');
+                setActiveAdminTab('EXCEL_REPORTS');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Export Excel (7/ Downline Organize Tree File)</span>
+            </button>
+          </div>
           <DownlineOrganizeTree />
+        </div>
+      )}
+
+      {/* ================= TAB: MAP & LOCATION / SUPPORT CRUD ================= */}
+      {activeAdminTab === 'LOCATIONS' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-amber-400" />
+                <span>Administrator Map & Location, Studio Photo & Support CRUD</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Edit, Update, Delete, Upload Photo, and configure Google Map Locations for Help & Support (Hotline, WhatsApp, and Head Office & Studios).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setAdminLocationForm({
+                  id: '',
+                  category: 'OFFICE_LOCATION',
+                  label: 'DMC Branch / Studio Location',
+                  value: 'Dongdok Campus, Vientiane Capital',
+                  locationAddress: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
+                  mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+                  mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
+                  photoUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+                  notes: 'Open Mon–Sat • 08:30 – 18:00',
+                })
+              }
+              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ New Location / Contact</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Edit / Update / Upload Photo & Map Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const cleanLabel = adminLocationForm.label.trim() || 'Head Office & Studios';
+                const cleanValue = adminLocationForm.value.trim() || 'Dongdok Campus, Vientiane Capital';
+                const cleanAddress = adminLocationForm.locationAddress.trim() || cleanValue;
+                const cleanMapQuery = adminLocationForm.mapQuery.trim() || cleanAddress;
+
+                if (adminLocationForm.id) {
+                  adminUpdateSupportLocation(adminLocationForm.id, {
+                    category: adminLocationForm.category,
+                    label: cleanLabel,
+                    value: cleanValue,
+                    locationAddress: cleanAddress,
+                    mapQuery: cleanMapQuery,
+                    mapUrl: adminLocationForm.mapUrl.trim(),
+                    photoUrl: adminLocationForm.photoUrl.trim(),
+                    notes: adminLocationForm.notes.trim(),
+                  });
+                  showNotification(`Updated Support & Location: "${cleanLabel}"`);
+                } else {
+                  adminAddSupportLocation({
+                    category: adminLocationForm.category,
+                    label: cleanLabel,
+                    value: cleanValue,
+                    locationAddress: cleanAddress,
+                    mapQuery: cleanMapQuery,
+                    mapUrl: adminLocationForm.mapUrl.trim(),
+                    photoUrl: adminLocationForm.photoUrl.trim(),
+                    notes: adminLocationForm.notes.trim(),
+                  });
+                  showNotification(`Added new Support & Location: "${cleanLabel}"`);
+                }
+                setAdminLocationForm({
+                  id: '',
+                  category: 'OFFICE_LOCATION',
+                  label: '',
+                  value: '',
+                  locationAddress: '',
+                  mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+                  mapUrl: '',
+                  photoUrl: '',
+                  notes: '',
+                });
+              }}
+              className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-400 uppercase tracking-wider text-[11px]">
+                  {adminLocationForm.id ? 'Edit / Update Existing Location & Photo' : 'Add New Location, Photo or Contact'}
+                </span>
+                {adminLocationForm.id && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAdminLocationForm({
+                        id: '',
+                        category: 'OFFICE_LOCATION',
+                        label: '',
+                        value: '',
+                        locationAddress: '',
+                        mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+                        mapUrl: '',
+                        photoUrl: '',
+                        notes: '',
+                      })
+                    }
+                    className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                  >
+                    + Switch to New
+                  </button>
+                )}
+              </div>
+
+              {/* Live Photo & Map Preview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="relative h-36 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center">
+                  {adminLocationForm.photoUrl ? (
+                    <>
+                      <img
+                        src={adminLocationForm.photoUrl}
+                        alt="Location Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAdminLocationForm({ ...adminLocationForm, photoUrl: '' })}
+                        className="absolute top-2 right-2 p-1 rounded-lg bg-red-600 text-white shadow cursor-pointer"
+                        title="Delete Photo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[11px] text-slate-500">No Photo Uploaded</span>
+                  )}
+                  <span className="absolute bottom-1.5 left-2 px-2 py-0.5 rounded bg-black/75 text-white text-[9px] font-bold">
+                    PHOTO PREVIEW
+                  </span>
+                </div>
+
+                <div className="relative h-36 rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
+                  <iframe
+                    title="Admin Map Preview"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                      adminLocationForm.mapQuery ||
+                        adminLocationForm.locationAddress ||
+                        adminLocationForm.value ||
+                        'Dongdok Campus, Vientiane Capital, Laos'
+                    )}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                  />
+                  <span className="absolute bottom-1.5 left-2 px-2 py-0.5 rounded bg-black/75 text-amber-300 text-[9px] font-bold">
+                    GOOGLE MAP PREVIEW
+                  </span>
+                </div>
+              </div>
+
+              {/* Upload Photo from Device or Paste URL */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="py-2 px-3 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Photo from Device</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === 'string') {
+                          setAdminLocationForm((prev) => ({
+                            ...prev,
+                            photoUrl: reader.result as string,
+                          }));
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                <input
+                  type="text"
+                  value={adminLocationForm.photoUrl}
+                  onChange={(e) => setAdminLocationForm({ ...adminLocationForm, photoUrl: e.target.value })}
+                  placeholder="Or paste Photo URL (https://...)"
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Category</label>
+                  <select
+                    value={adminLocationForm.category}
+                    onChange={(e) =>
+                      setAdminLocationForm({
+                        ...adminLocationForm,
+                        category: e.target.value as SupportLocationItem['category'],
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  >
+                    <option value="OFFICE_LOCATION">Head Office & Studios</option>
+                    <option value="STUDIO_BRANCH">Studio Branch / Showroom</option>
+                    <option value="HOTLINE">Hotline Phone (Lao PDR)</option>
+                    <option value="WHATSAPP">WhatsApp Official Support</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Title / Label *</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminLocationForm.label}
+                    onChange={(e) => setAdminLocationForm({ ...adminLocationForm, label: e.target.value })}
+                    placeholder="e.g. Head Office & Studios"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Location Name or Phone Number *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminLocationForm.value}
+                  onChange={(e) => setAdminLocationForm({ ...adminLocationForm, value: e.target.value })}
+                  placeholder="e.g. Dongdok Campus, Vientiane Capital or +856 20 5511 2233"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Full Location Address
+                  </label>
+                  <input
+                    type="text"
+                    value={adminLocationForm.locationAddress}
+                    onChange={(e) =>
+                      setAdminLocationForm({ ...adminLocationForm, locationAddress: e.target.value })
+                    }
+                    placeholder="Dongdok Campus, Xaythany District, Vientiane Capital"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Google Map Search / GPS Query
+                  </label>
+                  <input
+                    type="text"
+                    value={adminLocationForm.mapQuery}
+                    onChange={(e) => setAdminLocationForm({ ...adminLocationForm, mapQuery: e.target.value })}
+                    placeholder="Dongdok Campus, Vientiane Capital, Laos"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Notes / Operating Hours
+                </label>
+                <input
+                  type="text"
+                  value={adminLocationForm.notes}
+                  onChange={(e) => setAdminLocationForm({ ...adminLocationForm, notes: e.target.value })}
+                  placeholder="Open Mon–Sat • 08:30 – 18:00"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md cursor-pointer"
+              >
+                {adminLocationForm.id ? 'Update Support, Photo & Location' : 'Save New Support & Location'}
+              </button>
+            </form>
+
+            {/* Right: Existing Support Contacts & Map Locations List */}
+            <div className="space-y-3">
+              <div className="text-xs font-bold text-slate-300">
+                Active Help & Support / Map Locations ({supportLocations.length})
+              </div>
+              <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                {supportLocations.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        {item.photoUrl ? (
+                          <img
+                            src={item.photoUrl}
+                            alt={item.label}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-700"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 text-amber-400">
+                            <MapPin className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase">
+                            {item.category}
+                          </span>
+                          <h4 className="text-xs font-bold text-white truncate mt-1">{item.label}</h4>
+                          <p className="text-xs font-semibold text-emerald-400 truncate">{item.value}</p>
+                          {item.locationAddress && (
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                              📍 {item.locationAddress}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdminLocationForm({
+                              id: item.id,
+                              category: item.category,
+                              label: item.label,
+                              value: item.value,
+                              locationAddress: item.locationAddress || item.value,
+                              mapQuery: item.mapQuery || item.locationAddress || item.value,
+                              mapUrl: item.mapUrl || '',
+                              photoUrl: item.photoUrl || '',
+                              notes: item.notes || '',
+                            })
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Edit / Photo</span>
+                        </button>
+                        {supportLocations.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              adminDeleteSupportLocation(item.id);
+                              showNotification(`Deleted "${item.label}"`);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1682,19 +2163,35 @@ export const AdminPortal: React.FC = () => {
                   className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/70 space-y-3"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          {acc.bankCode}
-                        </span>
-                        <h5 className="font-bold text-white text-xs">{acc.bankName}</h5>
+                    <div className="flex items-start gap-3">
+                      {acc.customQrImageUrl && (
+                        <div
+                          onClick={() => setViewingBankQr(acc)}
+                          className="w-14 h-14 rounded-xl bg-white p-1 border-2 border-amber-400 shrink-0 cursor-pointer overflow-hidden shadow"
+                          title="Click to inspect QR Code"
+                        >
+                          <img src={acc.customQrImageUrl} alt={acc.bankCode} className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {acc.bankCode}
+                          </span>
+                          <h5 className="font-bold text-white text-xs">{acc.bankName}</h5>
+                          {acc.customQrImageUrl && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                              Custom QR Image
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Company: <strong className="text-slate-200">{acc.accountName}</strong>
+                        </p>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Company: <strong className="text-slate-200">{acc.accountName}</strong>
-                      </p>
                     </div>
 
-                    <div className="flex flex-col gap-1 items-end">
+                    <div className="flex flex-col gap-1 items-end shrink-0">
                       {acc.isPrimaryForDeposits && (
                         <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           Primary Deposit
@@ -1725,9 +2222,34 @@ export const AdminPortal: React.FC = () => {
                     <span className="text-slate-500">Branch:</span> {acc.branch}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-slate-500 font-mono">QR: {acc.qrPayload || 'STANDARD_ONEPAY'}</span>
-                    <div className="flex items-center gap-1.5">
+                  <div className="pt-2 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] text-slate-500 font-mono truncate max-w-[160px]">
+                      QR: {acc.qrPayload || 'STANDARD_ONEPAY'}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <label className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-semibold border border-emerald-500/30 flex items-center gap-1 cursor-pointer transition-colors">
+                        <Upload className="w-3 h-3 text-emerald-400" />
+                        <span>{acc.customQrImageUrl ? 'Change QR' : 'Upload QR'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = ev => {
+                              if (typeof ev.target?.result === 'string') {
+                                adminUpdateCorporateBankAccount(acc.id, {
+                                  customQrImageUrl: ev.target.result,
+                                });
+                                showNotification(`Uploaded custom QR Code image for ${acc.bankName}!`);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
                       <button
                         onClick={() => setViewingBankQr(acc)}
                         className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-semibold border border-amber-500/30 flex items-center gap-1 cursor-pointer transition-colors"
@@ -3888,6 +4410,60 @@ export const AdminPortal: React.FC = () => {
                 />
               </div>
 
+              {/* Custom QR Code Image Upload for New Corporate Account */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-300 font-bold block">Custom QR Code Image Upload</label>
+                  {newCorpBankForm.customQrImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setNewCorpBankForm({ ...newCorpBankForm, customQrImageUrl: '' })}
+                      className="text-[10px] text-red-400 hover:text-red-300 font-bold"
+                    >
+                      Remove QR Image
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl bg-white border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                    {newCorpBankForm.customQrImageUrl ? (
+                      <img src={newCorpBankForm.customQrImageUrl} alt="QR" className="w-full h-full object-contain" />
+                    ) : (
+                      <QrCode className="w-7 h-7 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload QR Code Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            if (typeof ev.target?.result === 'string') {
+                              setNewCorpBankForm(prev => ({ ...prev, customQrImageUrl: ev.target!.result as string }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={newCorpBankForm.customQrImageUrl}
+                      onChange={e => setNewCorpBankForm({ ...newCorpBankForm, customQrImageUrl: e.target.value })}
+                      placeholder="Or paste QR image URL..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-[11px] text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="pt-2 border-t border-slate-800 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-slate-300">
                   <input
@@ -3932,11 +4508,11 @@ export const AdminPortal: React.FC = () => {
       {/* 4. EDIT CORPORATE BANK ACCOUNT MODAL */}
       {editingCorpBank && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 text-slate-100 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 text-slate-100 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-slate-800">
               <h3 className="font-bold text-base text-white flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-amber-400" />
-                <span>Edit Corporate Account: {editingCorpBank.accountNumber}</span>
+                <span>Edit Corporate Account & QR: {editingCorpBank.accountNumber}</span>
               </h3>
               <button onClick={() => setEditingCorpBank(null)} className="text-slate-400 hover:text-white p-1">
                 <X className="w-5 h-5" />
@@ -3998,6 +4574,61 @@ export const AdminPortal: React.FC = () => {
                 />
               </div>
 
+              {/* Custom QR Code Image Upload in Edit Corporate Modal */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-300 font-bold block">Custom QR Code Image Upload</label>
+                  {editingCorpBank.customQrImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingCorpBank({ ...editingCorpBank, customQrImageUrl: undefined })}
+                      className="text-[10px] text-red-400 hover:text-red-300 font-bold flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Delete QR Image</span>
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl bg-white border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                    {editingCorpBank.customQrImageUrl ? (
+                      <img src={editingCorpBank.customQrImageUrl} alt="QR" className="w-full h-full object-contain" />
+                    ) : (
+                      <QrCode className="w-7 h-7 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload / Replace QR Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            if (typeof ev.target?.result === 'string') {
+                              setEditingCorpBank(prev => prev ? { ...prev, customQrImageUrl: ev.target!.result as string } : null);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={editingCorpBank.customQrImageUrl || ''}
+                      onChange={e => setEditingCorpBank({ ...editingCorpBank, customQrImageUrl: e.target.value })}
+                      placeholder="Or paste QR image URL..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-[11px] text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="pt-2 border-t border-slate-800 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-slate-300">
                   <input
@@ -4042,12 +4673,12 @@ export const AdminPortal: React.FC = () => {
       {/* 5. DIRECT MEMBER LAO BANK EDIT MODAL */}
       {memberForBankEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-100 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-100 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-slate-800">
               <div>
                 <h3 className="font-bold text-base text-white flex items-center gap-2">
                   <Landmark className="w-5 h-5 text-amber-400" />
-                  <span>Update Member Bank Account</span>
+                  <span>Update Member Bank & QR Code</span>
                 </h3>
                 <p className="text-xs text-slate-400">
                   {memberForBankEdit.name} ({memberForBankEdit.memberId})
@@ -4074,23 +4705,11 @@ export const AdminPortal: React.FC = () => {
                   }}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
                 >
-                  <option value="BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC">
-                    1/ BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC (BCEL)
-                  </option>
-                  <option value="Development Bank CO LTD (LDB)">
-                    2/ Development Bank CO LTD (LDB)
-                  </option>
-                  <option value="Joint Development Bank (JDB)">
-                    3/ Joint Development Bank (JDB)
-                  </option>
-                  <option value="VietinBank Lao | Vientiane">
-                    4/ VietinBank Lao | Vientiane
-                  </option>
-                  {laoBanks
-                    .filter(b => !['bcel', 'ldb', 'jdb', 'vietin'].includes(b.id.replace('bank-', '')))
-                    .map(b => (
-                      <option key={b.id} value={b.name}>{b.name}</option>
-                    ))}
+                  {laoBanks.map((b, idx) => (
+                    <option key={b.id} value={b.name}>
+                      {idx + 1}/ {b.name} ({b.code})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -4099,7 +4718,7 @@ export const AdminPortal: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="160-12-00049281-001"
+                  placeholder="010-12-00998877-001"
                   value={memberBankForm.accountNumber}
                   onChange={e => setMemberBankForm({ ...memberBankForm, accountNumber: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
@@ -4129,6 +4748,60 @@ export const AdminPortal: React.FC = () => {
                 />
               </div>
 
+              {/* Member Custom QR Code Image Upload */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-300 font-bold block">Member QR Code Image Upload</label>
+                  {memberBankForm.customQrImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setMemberBankForm({ ...memberBankForm, customQrImageUrl: '' })}
+                      className="text-[10px] text-red-400 hover:text-red-300 font-bold"
+                    >
+                      Remove QR
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-white border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                    {memberBankForm.customQrImageUrl ? (
+                      <img src={memberBankForm.customQrImageUrl} alt="Member QR" className="w-full h-full object-contain" />
+                    ) : (
+                      <QrCode className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Member QR Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            if (typeof ev.target?.result === 'string') {
+                              setMemberBankForm(prev => ({ ...prev, customQrImageUrl: ev.target!.result as string }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={memberBankForm.customQrImageUrl}
+                      onChange={e => setMemberBankForm({ ...memberBankForm, customQrImageUrl: e.target.value })}
+                      placeholder="Or paste QR image URL..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-[11px] text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-2 pt-3">
                 <button
                   type="button"
@@ -4141,7 +4814,7 @@ export const AdminPortal: React.FC = () => {
                   type="submit"
                   className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
                 >
-                  Update Bank Account
+                  Update Bank & QR
                 </button>
               </div>
             </form>

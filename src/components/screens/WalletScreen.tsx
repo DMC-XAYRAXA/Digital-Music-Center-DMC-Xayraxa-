@@ -686,18 +686,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none"
                   >
                     <optgroup label="Official Core Lao Banks">
-                      <option value="BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC">
-                        1/ BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC (BCEL One)
-                      </option>
-                      <option value="Development Bank CO LTD (LDB)">
-                        2/ Development Bank CO LTD (LDB)
-                      </option>
-                      <option value="Joint Development Bank (JDB)">
-                        3/ Joint Development Bank (JDB)
-                      </option>
-                      <option value="VietinBank Lao | Vientiane">
-                        4/ VietinBank Lao | Vientiane
-                      </option>
+                      {laoBanks.map((b, idx) => (
+                        <option key={b.id} value={b.name}>
+                          {idx + 1}/ {b.name} ({b.code})
+                        </option>
+                      ))}
                     </optgroup>
                     <optgroup label="Other Options">
                       <option value="CUSTOM">+ Add / Use Other Bank</option>

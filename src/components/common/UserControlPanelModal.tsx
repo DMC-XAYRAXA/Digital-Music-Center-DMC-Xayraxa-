@@ -153,6 +153,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
     currentMember.bankAccount?.accountName || currentMember.name.toUpperCase()
   );
   const [branchInput, setBranchInput] = useState(currentMember.bankAccount?.branch || 'Head Office Vientiane');
+  const [customQrImageInput, setCustomQrImageInput] = useState(currentMember.bankAccount?.customQrImageUrl || '');
+  const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
 
   // Keep form in sync when current member changes
   useEffect(() => {
@@ -161,11 +163,13 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
       setAccountNumberInput(currentMember.bankAccount.accountNumber);
       setAccountNameInput(currentMember.bankAccount.accountName);
       setBranchInput(currentMember.bankAccount.branch || 'Head Office Vientiane');
+      setCustomQrImageInput(currentMember.bankAccount.customQrImageUrl || '');
     } else {
       setSelectedBankPreset(DEFAULT_LAO_BANKS[0].name);
       setAccountNumberInput('');
       setAccountNameInput(currentMember.name.toUpperCase());
       setBranchInput('Head Office Vientiane');
+      setCustomQrImageInput('');
     }
     if (profileRoleTarget === 'SUPER_ADMIN') {
       setProfileNameInput(superAdminProfile.name);
@@ -221,31 +225,70 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
   const handleSaveBank = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!accountNumberInput.trim()) {
-      alert('Please enter an account number');
+      setBankSuccessNotice('Please enter an account number.');
       return;
     }
 
     const finalBankName = selectedBankPreset === 'CUSTOM' ? customBankName.trim() : selectedBankPreset;
     if (!finalBankName) {
-      alert('Please enter a bank name');
+      setBankSuccessNotice('Please enter a bank name.');
       return;
     }
 
     const matchedBank = laoBanks.find(b => b.name === finalBankName);
 
     const newAccount: BankAccountInfo = {
+      id: editingBankAccountId || `usr-bank-${Date.now()}`,
       bankName: finalBankName,
       bankCode: matchedBank?.code || 'CUSTOM',
       accountNumber: accountNumberInput.trim(),
       accountName: (accountNameInput.trim() || currentMember.name).toUpperCase(),
       branch: branchInput.trim() || matchedBank?.branchDefault || 'Vientiane',
+      customQrImageUrl: customQrImageInput.trim() || undefined,
       isDefault: true,
     };
 
-    updateMemberBankAccount(currentMember.memberId, newAccount);
+    const existingList =
+      currentMember.bankAccounts && currentMember.bankAccounts.length > 0
+        ? currentMember.bankAccounts
+        : currentMember.bankAccount
+        ? [currentMember.bankAccount]
+        : [];
+
+    if (editingBankAccountId) {
+      const updatedList = existingList.map(acc =>
+        acc.id === editingBankAccountId || acc.accountNumber === editingBankAccountId ? newAccount : acc
+      );
+      adminUpdateMember(currentMember.memberId, {
+        bankAccount: newAccount,
+        bankAccounts: updatedList,
+      });
+    } else {
+      updateMemberBankAccount(currentMember.memberId, newAccount);
+    }
+
     setShowAddBankForm(false);
-    setBankSuccessNotice(`Successfully linked ${finalBankName} account!`);
+    setEditingBankAccountId(null);
+    setBankSuccessNotice(`Successfully updated ${finalBankName} account & QR Code!`);
     setTimeout(() => setBankSuccessNotice(''), 3500);
+  };
+
+  const handleDeleteUserBank = (targetAcc: BankAccountInfo) => {
+    const existingList =
+      currentMember.bankAccounts && currentMember.bankAccounts.length > 0
+        ? currentMember.bankAccounts
+        : currentMember.bankAccount
+        ? [currentMember.bankAccount]
+        : [];
+    const remaining = existingList.filter(
+      acc => acc.accountNumber !== targetAcc.accountNumber || acc.bankName !== targetAcc.bankName
+    );
+    adminUpdateMember(currentMember.memberId, {
+      bankAccount: remaining[0] || undefined,
+      bankAccounts: remaining,
+    });
+    setBankSuccessNotice(`Deleted ${targetAcc.bankName} (${targetAcc.accountNumber}).`);
+    setTimeout(() => setBankSuccessNotice(''), 3000);
   };
 
   const copyToClipboard = (text: string) => {
@@ -956,30 +999,30 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
               <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-1">
                 <div className="font-bold flex items-center gap-2 text-white">
                   <Landmark className="w-4 h-4 text-amber-400" />
-                  <span>Official Lao Banking Integration (Rev 2.6)</span>
+                  <span>Official Lao Banking & Self-Service QR Manager (Rev 2.6)</span>
                 </div>
                 <p className="text-[11px] text-slate-300">
-                  Configure your verified Lao bank account for automated unilevel commissions and instant Maker/Checker payouts.
-                  Supported official Lao institutions include BCEL One, LDB, JDB, and VietinBank Lao.
+                  Add, Edit, Update, Delete your Lao bank accounts and upload your own custom QR Code Image (including BCEL One, LDB, JDB, VietinBank Lao, and Phongsavanh Bank Laos).
                 </p>
               </div>
 
               {/* Supported Lao Banks Carousel / Badges */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Supported Lao Banking Institutions
+                  Supported Lao Banking Institutions (Click to Select / Add)
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEFAULT_LAO_BANKS.map((b, idx) => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {laoBanks.map((b, idx) => (
                     <button
                       key={b.id}
                       type="button"
                       onClick={() => {
+                        setEditingBankAccountId(null);
                         setSelectedBankPreset(b.name);
                         setBranchInput(b.branchDefault || 'Head Office Vientiane');
                         setShowAddBankForm(true);
                       }}
-                      className="p-2.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/70 hover:border-amber-500/60 text-left transition-all group flex flex-col justify-between"
+                      className="p-2.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/70 hover:border-amber-500/60 text-left transition-all group flex flex-col justify-between cursor-pointer"
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-mono font-black text-xs text-amber-300 group-hover:text-amber-200">
@@ -994,7 +1037,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        <span>{b.shortName}</span>
+                        <span className="truncate">{b.shortName}</span>
                       </div>
                     </button>
                   ))}
@@ -1006,15 +1049,20 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                    <span>My Registered Bank Accounts</span>
+                    <span>My Registered Bank Accounts & QR Codes</span>
                   </h4>
                   {!showAddBankForm && (
                     <button
-                      onClick={() => setShowAddBankForm(true)}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 transition-colors"
+                      onClick={() => {
+                        setEditingBankAccountId(null);
+                        setAccountNumberInput('');
+                        setCustomQrImageInput('');
+                        setShowAddBankForm(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Add Bank</span>
+                      <span>+ Add Bank / QR</span>
                     </button>
                   )}
                 </div>
@@ -1024,58 +1072,119 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                   return (
                     <div
                       key={index}
-                      className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700/70 space-y-2 shadow-sm relative overflow-hidden"
+                      className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700/70 space-y-2.5 shadow-sm relative overflow-hidden"
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${bMeta.badgeBg}`}>
-                              {acc.bankCode || 'LAO BANK'}
-                            </span>
-                            <span className="font-bold text-white text-xs">{acc.bankName}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-3">
+                          {acc.customQrImageUrl && (
+                            <div
+                              onClick={() => setViewingUserBankQr(acc)}
+                              className="w-14 h-14 rounded-xl bg-white p-1 border-2 border-amber-400 shrink-0 cursor-pointer overflow-hidden shadow"
+                              title="Click to view custom QR Code"
+                            >
+                              <img
+                                src={acc.customQrImageUrl}
+                                alt="Custom QR"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${bMeta.badgeBg}`}>
+                                {acc.bankCode || 'LAO BANK'}
+                              </span>
+                              <span className="font-bold text-white text-xs">{acc.bankName}</span>
+                              {acc.customQrImageUrl && (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                                  Custom QR Uploaded
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Beneficiary: <strong className="text-slate-200">{acc.accountName}</strong>
+                            </p>
                           </div>
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            Beneficiary: <strong className="text-slate-200">{acc.accountName}</strong>
-                          </p>
                         </div>
 
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shrink-0">
                           <Check className="w-3 h-3" />
                           <span>Primary Payout</span>
                         </span>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                      <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
                         <div className="font-mono text-xs text-amber-300 font-bold">
                           {acc.accountNumber}
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {/* Direct 1-Click Upload QR Image on Card */}
+                          <label className="px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-bold flex items-center gap-1 transition-colors border border-emerald-500/30 cursor-pointer">
+                            <Upload className="w-3 h-3 text-emerald-400" />
+                            <span>{acc.customQrImageUrl ? 'Change QR' : 'Upload QR'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = ev => {
+                                  const dataUrl = ev.target?.result;
+                                  if (typeof dataUrl === 'string') {
+                                    const updatedAcc: BankAccountInfo = {
+                                      ...acc,
+                                      customQrImageUrl: dataUrl,
+                                    };
+                                    updateMemberBankAccount(currentMember.memberId, updatedAcc);
+                                    setBankSuccessNotice(`Uploaded custom QR Code image for ${acc.bankName}!`);
+                                    setTimeout(() => setBankSuccessNotice(''), 3500);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </label>
+
                           <button
                             onClick={() => setViewingUserBankQr(acc)}
-                            className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[10px] flex items-center gap-1 transition-colors border border-amber-500/30 cursor-pointer"
+                            className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[10px] font-bold flex items-center gap-1 transition-colors border border-amber-500/30 cursor-pointer"
                           >
                             <QrCode className="w-3 h-3 text-amber-400" />
                             <span>View QR</span>
                           </button>
+
                           <button
                             onClick={() => copyToClipboard(acc.accountNumber)}
-                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] flex items-center gap-1 transition-colors"
+                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <Copy className="w-3 h-3" />
                             <span>{copiedAccount === acc.accountNumber ? 'Copied' : 'Copy'}</span>
                           </button>
+
                           <button
                             onClick={() => {
+                              setEditingBankAccountId(acc.id || acc.accountNumber);
                               setSelectedBankPreset(acc.bankName);
                               setAccountNumberInput(acc.accountNumber);
                               setAccountNameInput(acc.accountName);
                               setBranchInput(acc.branch || '');
+                              setCustomQrImageInput(acc.customQrImageUrl || '');
                               setShowAddBankForm(true);
                             }}
-                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] flex items-center gap-1 transition-colors"
+                            className="px-2 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <Edit3 className="w-3 h-3" />
                             <span>Edit</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteUserBank(acc)}
+                            className="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       </div>
@@ -1089,7 +1198,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                 })}
               </div>
 
-              {/* Add / Edit Bank Form */}
+              {/* Add / Edit Bank & QR Code Image Form */}
               {showAddBankForm && (
                 <form
                   onSubmit={handleSaveBank}
@@ -1098,12 +1207,15 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                     <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
                       <Landmark className="w-4 h-4 text-amber-400" />
-                      <span>Link Official Lao Bank Account</span>
+                      <span>{editingBankAccountId ? 'Edit / Update Lao Bank Account & QR Code' : 'Add Official Lao Bank Account & QR Code'}</span>
                     </h5>
                     <button
                       type="button"
-                      onClick={() => setShowAddBankForm(false)}
-                      className="text-slate-400 hover:text-white"
+                      onClick={() => {
+                        setShowAddBankForm(false);
+                        setEditingBankAccountId(null);
+                      }}
+                      className="text-slate-400 hover:text-white cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1125,18 +1237,11 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none"
                     >
                       <optgroup label="Official Core Lao Banks">
-                        <option value="BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC">
-                          1/ BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC (BCEL)
-                        </option>
-                        <option value="Development Bank CO LTD (LDB)">
-                          2/ Development Bank CO LTD (LDB)
-                        </option>
-                        <option value="Joint Development Bank (JDB)">
-                          3/ Joint Development Bank (JDB)
-                        </option>
-                        <option value="VietinBank Lao | Vientiane">
-                          4/ VietinBank Lao | Vientiane
-                        </option>
+                        {laoBanks.map((b, i) => (
+                          <option key={b.id} value={b.name}>
+                            {i + 1}/ {b.name} ({b.code})
+                          </option>
+                        ))}
                       </optgroup>
                       <optgroup label="Other Options">
                         <option value="CUSTOM">+ Add Custom / Other Bank</option>
@@ -1152,7 +1257,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Agricultural Promotion Bank (APB)"
+                        placeholder="e.g. Phongsavanh Bank Ltd (Laos) / APB"
                         value={customBankName}
                         onChange={e => setCustomBankName(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white text-xs focus:border-amber-500 focus:outline-none"
@@ -1169,7 +1274,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                       <input
                         type="text"
                         required
-                        placeholder="160-12-00049281-001"
+                        placeholder="010-12-00998877-001"
                         value={accountNumberInput}
                         onChange={e => setAccountNumberInput(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
@@ -1198,18 +1303,79 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Head Office Vientiane, Rue Pangkham"
+                      placeholder="e.g. Kaysone Phomvihane Ave, Vientiane Capital"
                       value={branchInput}
                       onChange={e => setBranchInput(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white text-xs focus:border-amber-500 focus:outline-none"
                     />
                   </div>
 
+                  {/* Custom QR Code Image Upload By User / Admin */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-amber-300 font-bold text-[11px] flex items-center gap-1.5">
+                        <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Custom QR Code Image Upload (Optional)</span>
+                      </label>
+                      {customQrImageInput && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomQrImageInput('')}
+                          className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 font-bold cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove QR Image</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-xl bg-white border-2 border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                        {customQrImageInput ? (
+                          <img src={customQrImageInput} alt="QR Preview" className="w-full h-full object-contain" />
+                        ) : (
+                          <QrCode className="w-7 h-7 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer transition-colors">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Upload QR Code Image</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => {
+                                if (typeof ev.target?.result === 'string') {
+                                  setCustomQrImageInput(ev.target.result);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                        <input
+                          type="text"
+                          value={customQrImageInput}
+                          onChange={e => setCustomQrImageInput(e.target.value)}
+                          placeholder="Or paste QR image URL..."
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-[10px] text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowAddBankForm(false)}
-                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
+                      onClick={() => {
+                        setShowAddBankForm(false);
+                        setEditingBankAccountId(null);
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -1218,7 +1384,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                       className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center justify-center gap-1.5 transition-colors shadow-md cursor-pointer"
                     >
                       <Check className="w-4 h-4" />
-                      <span>Save Bank Account</span>
+                      <span>{editingBankAccountId ? 'Update Bank & QR' : 'Save Bank & QR'}</span>
                     </button>
                   </div>
                 </form>

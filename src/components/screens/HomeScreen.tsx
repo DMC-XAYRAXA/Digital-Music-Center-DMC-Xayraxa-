@@ -70,7 +70,12 @@ import { LaoShippingCarrierModal } from '../common/LaoShippingCarrierModal';
 import { UserControlPanelModal } from '../common/UserControlPanelModal';
 import { AuthPortalModal } from '../common/AuthPortalModal';
 import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
-import { LaoShippingCarrierId, ProductSKU, EventActivityPost } from '../../types/dmc';
+import {
+  LaoShippingCarrierId,
+  ProductSKU,
+  EventActivityPost,
+  SupportLocationItem,
+} from '../../types/dmc';
 
 interface HomeScreenProps {
   onNavigate: (tab: any) => void;
@@ -105,6 +110,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     adminAddEventPost,
     adminUpdateEventPost,
     adminDeleteEventPost,
+    supportLocations,
+    adminAddSupportLocation,
+    adminUpdateSupportLocation,
+    adminDeleteSupportLocation,
     isAdminMode,
     isAdminAuthenticated,
     setIsAdminAuthenticated,
@@ -125,6 +134,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const [showNotificationToast, setShowNotificationToast] = useState(false);
   const [showPromotionsModal, setShowPromotionsModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportModalMode, setSupportModalMode] = useState<'LIST' | 'EDIT' | 'CREATE'>('LIST');
+  const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
+  const [expandedMapItemId, setExpandedMapItemId] = useState<string | null>('support-office-1');
+  const [supportForm, setSupportForm] = useState<{
+    category: SupportLocationItem['category'];
+    label: string;
+    value: string;
+    locationAddress: string;
+    mapQuery: string;
+    mapUrl: string;
+    photoUrl: string;
+    notes: string;
+  }>({
+    category: 'OFFICE_LOCATION',
+    label: 'Head Office & Studios',
+    value: 'Dongdok Campus, Vientiane Capital',
+    locationAddress: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
+    mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
+    photoUrl: '',
+    notes: 'Main Recording Studios, Member Service Center & Guitar Showroom',
+  });
   const [redemptionNotice, setRedemptionNotice] = useState<string | null>(null);
   const [showDirectPayQr, setShowDirectPayQr] = useState(false);
   const [selectedBannerProductForQr, setSelectedBannerProductForQr] = useState<ProductSKU | null>(null);
@@ -1785,60 +1816,728 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Support Modal */}
+      {/* Support, Photo & Location Modal (Administrator Edit, Delete, Update, Upload Photo & Location) */}
       {showSupportModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-purple-50 text-[#2e1d87]">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-md bg-white rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 animate-in zoom-in-95 text-slate-900 max-h-[92vh] overflow-y-auto my-auto">
+            {/* Top Header */}
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-2 rounded-xl bg-purple-50 text-[#2e1d87] shrink-0">
                   <HelpCircle className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{t.quickSupport}</h4>
-                  <span className="text-[10px] text-slate-500">Official Assistance & Inquiries</span>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-black text-slate-900 truncate">{t.quickSupport}</h4>
+                  <span className="text-[10px] text-slate-500 block truncate">
+                    Official Assistance, Studio Photo & Map Location
+                  </span>
                 </div>
               </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSupportModalMode('CREATE');
+                    setEditingSupportId(null);
+                    setSupportForm({
+                      category: 'OFFICE_LOCATION',
+                      label: 'DMC Branch / Studio Location',
+                      value: 'Dongdok Campus, Vientiane Capital',
+                      locationAddress: 'Vientiane Capital, Lao PDR',
+                      mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+                      mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
+                      photoUrl:
+                        'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+                      notes: 'Open Mon–Sat • 08:30 – 18:00',
+                    });
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
+                  title="Administrator: Add New Location, Photo or Support Contact"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Add Location</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSupportModalMode('LIST');
+                    setShowSupportModal(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Mode & Item Switcher Bar */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
               <button
-                onClick={() => setShowSupportModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                type="button"
+                onClick={() => setSupportModalMode('LIST')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer ${
+                  supportModalMode === 'LIST'
+                    ? 'bg-[#2e1d87] text-white shadow'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
-                <X className="w-4 h-4" />
+                All Contacts & Map ({supportLocations.length})
               </button>
+              {supportLocations.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSupportModalMode('EDIT');
+                    setEditingSupportId(item.id);
+                    setSupportForm({
+                      category: item.category,
+                      label: item.label,
+                      value: item.value,
+                      locationAddress: item.locationAddress || item.value,
+                      mapQuery: item.mapQuery || item.locationAddress || item.value,
+                      mapUrl: item.mapUrl || '',
+                      photoUrl: item.photoUrl || '',
+                      notes: item.notes || '',
+                    });
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer flex items-center gap-1 max-w-[140px] truncate ${
+                    supportModalMode === 'EDIT' && editingSupportId === item.id
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Pencil className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              ))}
             </div>
 
-            <div className="space-y-2.5 text-xs text-slate-700">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div>
-                  <span className="text-[10px] text-slate-500 block">Hotline Phone (Lao PDR)</span>
-                  <strong className="text-slate-900 font-mono">+856 20 5511 2233</strong>
-                </div>
-              </div>
+            {supportModalMode === 'LIST' ? (
+              <div className="space-y-3 text-xs text-slate-700">
+                {supportLocations.map((item) => {
+                  const isLocationType =
+                    item.category === 'OFFICE_LOCATION' || item.category === 'STUDIO_BRANCH';
+                  const hasMapOrLocation = Boolean(
+                    isLocationType || item.mapQuery || item.locationAddress
+                  );
+                  const isMapExpanded =
+                    expandedMapItemId === item.id ||
+                    (expandedMapItemId === null && isLocationType);
+                  const mapSearchQuery =
+                    item.mapQuery?.trim() ||
+                    item.locationAddress?.trim() ||
+                    item.value?.trim() ||
+                    'Dongdok Campus, Vientiane Capital, Laos';
+                  const googleMapsExternalUrl =
+                    item.mapUrl?.trim() ||
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      mapSearchQuery
+                    )}`;
 
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div>
-                  <span className="text-[10px] text-slate-500 block">WhatsApp Official Support</span>
-                  <strong className="text-slate-900 font-mono">+856 20 5511 2233</strong>
-                </div>
-              </div>
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl bg-slate-50 border border-slate-200/90 overflow-hidden shadow-xs transition-all"
+                    >
+                      {/* Top Info Row + Admin Edit / Upload Photo / Location / Delete Controls */}
+                      <div className="p-3 flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          <div
+                            className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                              item.category === 'HOTLINE' || item.category === 'WHATSAPP'
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/60'
+                                : 'bg-blue-50 text-[#1268e8] border border-blue-200/60'
+                            }`}
+                          >
+                            {item.category === 'HOTLINE' ? (
+                              <Phone className="w-4 h-4" />
+                            ) : item.category === 'WHATSAPP' ? (
+                              <MessageCircle className="w-4 h-4" />
+                            ) : (
+                              <MapPin className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] text-slate-500 font-semibold block truncate">
+                              {item.label}
+                            </span>
+                            <strong
+                              className={`text-slate-900 block break-words ${
+                                item.category === 'HOTLINE' || item.category === 'WHATSAPP'
+                                  ? 'font-mono text-xs sm:text-sm'
+                                  : 'font-bold text-xs sm:text-sm'
+                              }`}
+                            >
+                              {item.value}
+                            </strong>
+                            {item.locationAddress && item.locationAddress !== item.value && (
+                              <span className="text-[10px] text-slate-600 flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-2.5 h-2.5 text-[#df1c2d] shrink-0" />
+                                <span className="truncate">{item.locationAddress}</span>
+                              </span>
+                            )}
+                            {item.notes && (
+                              <span className="text-[9px] text-slate-400 block mt-0.5">
+                                {item.notes}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                <ExternalLink className="w-4 h-4 text-[#1268e8] shrink-0" />
-                <div>
-                  <span className="text-[10px] text-slate-500 block">Head Office & Studios</span>
-                  <span className="text-slate-800 font-medium">Dongdok Campus, Vientiane Capital</span>
-                </div>
-              </div>
-            </div>
+                        {/* Administrator Action Bar on Each Item: Edit, Photo Upload, Location, Delete */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Quick Direct Upload Photo Button */}
+                          <label
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/80 cursor-pointer transition-colors"
+                            title="Upload Photo from Device"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  if (typeof reader.result === 'string') {
+                                    adminUpdateSupportLocation(item.id, {
+                                      photoUrl: reader.result,
+                                    });
+                                    setRedemptionNotice(`Uploaded photo for "${item.label}"!`);
+                                    setTimeout(() => setRedemptionNotice(null), 3500);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </label>
 
-            <button
-              onClick={() => setShowSupportModal(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
-            >
-              Close
-            </button>
+                          {/* Toggle Map & Location Preview */}
+                          {hasMapOrLocation && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedMapItemId(isMapExpanded ? '__NONE__' : item.id)
+                              }
+                              className={`p-1.5 rounded-lg border cursor-pointer transition-colors ${
+                                isMapExpanded
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200/80'
+                              }`}
+                              title="Show / Hide Map & Location"
+                            >
+                              <MapPin className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Edit / Update Item, Photo & Location */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSupportModalMode('EDIT');
+                              setEditingSupportId(item.id);
+                              setSupportForm({
+                                category: item.category,
+                                label: item.label,
+                                value: item.value,
+                                locationAddress: item.locationAddress || item.value,
+                                mapQuery: item.mapQuery || item.locationAddress || item.value,
+                                mapUrl: item.mapUrl || '',
+                                photoUrl: item.photoUrl || '',
+                                notes: item.notes || '',
+                              });
+                            }}
+                            className="px-2 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                            title="Edit / Update Photo, Location & Details"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* Delete Item */}
+                          {supportLocations.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                adminDeleteSupportLocation(item.id);
+                                setRedemptionNotice(`Deleted "${item.label}" from Support & Locations.`);
+                                setTimeout(() => setRedemptionNotice(null), 3500);
+                              }}
+                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200/80 cursor-pointer"
+                              title="Delete Item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Uploaded Photo Display (with Upload / Replace / Delete Photo controls) */}
+                      {item.photoUrl && (
+                        <div className="px-3 pb-2.5">
+                          <div className="relative h-36 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200 group">
+                            <img
+                              src={item.photoUrl}
+                              alt={item.label}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25" />
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/65 text-amber-300 text-[9px] font-bold uppercase flex items-center gap-1">
+                              <ImageIcon className="w-2.5 h-2.5" />
+                              <span>Location / Studio Photo</span>
+                            </span>
+                            <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+                              <label className="px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-slate-900 text-[9px] font-bold flex items-center gap-1 shadow cursor-pointer">
+                                <Upload className="w-2.5 h-2.5 text-[#df1c2d]" />
+                                <span>Change Photo</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      if (typeof reader.result === 'string') {
+                                        adminUpdateSupportLocation(item.id, {
+                                          photoUrl: reader.result,
+                                        });
+                                        setRedemptionNotice(`Updated photo for "${item.label}"!`);
+                                        setTimeout(() => setRedemptionNotice(null), 3500);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  adminUpdateSupportLocation(item.id, { photoUrl: '' });
+                                  setRedemptionNotice(`Removed photo from "${item.label}".`);
+                                  setTimeout(() => setRedemptionNotice(null), 3500);
+                                }}
+                                className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
+                                title="Delete Photo"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Interactive Map & Location Embed (for Head Office / Studio / Expanded Location) */}
+                      {hasMapOrLocation && isMapExpanded && (
+                        <div className="px-3 pb-3 space-y-2">
+                          <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-36 relative">
+                            <iframe
+                              title={`Map - ${item.label}`}
+                              src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                                mapSearchQuery
+                              )}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                              className="w-full h-full border-0"
+                              loading="lazy"
+                              referrerPolicy="no-referrer-when-downgrade"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between gap-2 text-[10px]">
+                            <a
+                              href={googleMapsExternalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#1268e8] hover:underline font-bold flex items-center gap-1 truncate"
+                            >
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                              <span className="truncate">Open Location in Google Maps</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSupportModalMode('EDIT');
+                                setEditingSupportId(item.id);
+                                setSupportForm({
+                                  category: item.category,
+                                  label: item.label,
+                                  value: item.value,
+                                  locationAddress: item.locationAddress || item.value,
+                                  mapQuery: item.mapQuery || item.locationAddress || item.value,
+                                  mapUrl: item.mapUrl || '',
+                                  photoUrl: item.photoUrl || '',
+                                  notes: item.notes || '',
+                                });
+                              }}
+                              className="text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                            >
+                              <MapPin className="w-3 h-3 text-[#df1c2d]" />
+                              <span>Update Location</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Administrator Edit / Update / Delete / Upload Photo & Location Form */
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleanLabel = supportForm.label.trim() || 'Head Office & Studios';
+                  const cleanValue =
+                    supportForm.value.trim() || 'Dongdok Campus, Vientiane Capital';
+                  const cleanAddress = supportForm.locationAddress.trim() || cleanValue;
+                  const cleanMapQuery = supportForm.mapQuery.trim() || cleanAddress;
+
+                  if (supportModalMode === 'EDIT' && editingSupportId) {
+                    adminUpdateSupportLocation(editingSupportId, {
+                      category: supportForm.category,
+                      label: cleanLabel,
+                      value: cleanValue,
+                      locationAddress: cleanAddress,
+                      mapQuery: cleanMapQuery,
+                      mapUrl: supportForm.mapUrl.trim(),
+                      photoUrl: supportForm.photoUrl.trim(),
+                      notes: supportForm.notes.trim(),
+                    });
+                    setRedemptionNotice(`Updated "${cleanLabel}" (${cleanValue})!`);
+                  } else {
+                    const created = adminAddSupportLocation({
+                      category: supportForm.category,
+                      label: cleanLabel,
+                      value: cleanValue,
+                      locationAddress: cleanAddress,
+                      mapQuery: cleanMapQuery,
+                      mapUrl: supportForm.mapUrl.trim(),
+                      photoUrl: supportForm.photoUrl.trim(),
+                      notes: supportForm.notes.trim(),
+                    });
+                    setExpandedMapItemId(created.id);
+                    setRedemptionNotice(`Added new Support & Location "${cleanLabel}"!`);
+                  }
+                  setTimeout(() => setRedemptionNotice(null), 3500);
+                  setSupportModalMode('LIST');
+                }}
+                className="space-y-3 text-xs"
+              >
+                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200/70 flex items-center justify-between">
+                  <span className="text-[11px] font-black text-[#2e1d87]">
+                    {supportModalMode === 'EDIT'
+                      ? 'Edit, Update, Upload Photo & Location'
+                      : 'Add New Support Contact / Studio Location'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-[#2e1d87] text-white text-[9px] font-bold uppercase">
+                    Admin CRUD
+                  </span>
+                </div>
+
+                {/* Live Photo + Map Preview Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Photo Preview Box */}
+                  <div className="relative h-28 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 flex items-center justify-center">
+                    {supportForm.photoUrl ? (
+                      <>
+                        <img
+                          src={supportForm.photoUrl}
+                          alt="Location Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSupportForm({ ...supportForm, photoUrl: '' })}
+                          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-red-600 text-white shadow cursor-pointer"
+                          title="Remove Photo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-center p-2 text-slate-400">
+                        <Camera className="w-5 h-5 mx-auto mb-1 opacity-70" />
+                        <span className="text-[10px] block">No Photo Uploaded</span>
+                      </div>
+                    )}
+                    <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[8px] font-bold">
+                      PHOTO PREVIEW
+                    </span>
+                  </div>
+
+                  {/* Map Preview Box */}
+                  <div className="relative h-28 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                    <iframe
+                      title="Location Map Preview"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                        supportForm.mapQuery ||
+                          supportForm.locationAddress ||
+                          supportForm.value ||
+                          'Dongdok Campus, Vientiane Capital, Laos'
+                      )}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                      className="w-full h-full border-0"
+                      loading="lazy"
+                    />
+                    <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-amber-300 text-[8px] font-bold">
+                      MAP LOCATION PREVIEW
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upload Photo from Device or URL */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="py-2 px-3 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Photo from Device</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') {
+                            setSupportForm((prev) => ({
+                              ...prev,
+                              photoUrl: reader.result as string,
+                            }));
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    value={supportForm.photoUrl}
+                    onChange={(e) => setSupportForm({ ...supportForm, photoUrl: e.target.value })}
+                    placeholder="Or paste Photo URL (https://...)"
+                    className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+
+                {/* Category & Title / Label */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                      Type / Category
+                    </label>
+                    <select
+                      value={supportForm.category}
+                      onChange={(e) =>
+                        setSupportForm({
+                          ...supportForm,
+                          category: e.target.value as SupportLocationItem['category'],
+                        })
+                      }
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-semibold"
+                    >
+                      <option value="OFFICE_LOCATION">Head Office & Studios</option>
+                      <option value="STUDIO_BRANCH">Studio Branch / Showroom</option>
+                      <option value="HOTLINE">Hotline Phone (Lao PDR)</option>
+                      <option value="WHATSAPP">WhatsApp Official Support</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                      Title / Label *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportForm.label}
+                      onChange={(e) => setSupportForm({ ...supportForm, label: e.target.value })}
+                      placeholder="e.g. Head Office & Studios"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Main Display Value (Location Name or Phone Number) */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Location Name or Phone Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={supportForm.value}
+                    onChange={(e) => setSupportForm({ ...supportForm, value: e.target.value })}
+                    placeholder="e.g. Dongdok Campus, Vientiane Capital or +856 20 5511 2233"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                {/* Detailed Address & Map Location Query */}
+                <div className="space-y-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#df1c2d]" />
+                      <span>Map & Location Settings</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if ('geolocation' in navigator) {
+                          navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                              const coords = `${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`;
+                              setSupportForm((prev) => ({
+                                ...prev,
+                                mapQuery: coords,
+                                mapUrl: `https://www.google.com/maps/search/?api=1&query=${coords}`,
+                              }));
+                            },
+                            () => {
+                              setSupportForm((prev) => ({
+                                ...prev,
+                                mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
+                              }));
+                            }
+                          );
+                        }
+                      }}
+                      className="px-2 py-0.5 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-800 text-[9px] font-bold cursor-pointer"
+                    >
+                      📍 Use Current GPS
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                      Full Address / Campus / District / Province
+                    </label>
+                    <input
+                      type="text"
+                      value={supportForm.locationAddress}
+                      onChange={(e) =>
+                        setSupportForm({ ...supportForm, locationAddress: e.target.value })
+                      }
+                      placeholder="e.g. Dongdok Campus, Xaythany District, Vientiane Capital"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                      Google Maps Pin / Search Query or GPS Coordinates
+                    </label>
+                    <input
+                      type="text"
+                      value={supportForm.mapQuery}
+                      onChange={(e) => setSupportForm({ ...supportForm, mapQuery: e.target.value })}
+                      placeholder="e.g. Dongdok Campus, Vientiane Capital, Laos"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900"
+                    />
+                    {/* Quick Lao Location Presets */}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {[
+                        'Dongdok Campus, Vientiane Capital',
+                        'That Luang, Vientiane Capital',
+                        'Luang Prabang Studio Hub',
+                        'Pakse Champasak Hub',
+                        'Savannakhet Hub',
+                      ].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() =>
+                            setSupportForm((prev) => ({
+                              ...prev,
+                              value:
+                                prev.category === 'OFFICE_LOCATION' ||
+                                prev.category === 'STUDIO_BRANCH'
+                                  ? preset
+                                  : prev.value,
+                              locationAddress: `${preset}, Lao PDR`,
+                              mapQuery: `${preset}, Laos`,
+                            }))
+                          }
+                          className="px-2 py-0.5 rounded-md bg-slate-200/80 hover:bg-amber-300 text-slate-800 text-[9px] font-semibold cursor-pointer"
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                      Google Maps Link URL (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={supportForm.mapUrl}
+                      onChange={(e) => setSupportForm({ ...supportForm, mapUrl: e.target.value })}
+                      placeholder="https://maps.google.com/..."
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Notes / Operating Hours */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Notes / Operating Hours
+                  </label>
+                  <input
+                    type="text"
+                    value={supportForm.notes}
+                    onChange={(e) => setSupportForm({ ...supportForm, notes: e.target.value })}
+                    placeholder="e.g. Open Mon–Sat 08:30–18:00 • Main Studio & Service Center"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+
+                {/* Save / Update / Delete Action Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  {supportModalMode === 'EDIT' &&
+                    editingSupportId &&
+                    supportLocations.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          adminDeleteSupportLocation(editingSupportId);
+                          setSupportModalMode('LIST');
+                          setRedemptionNotice('Deleted item from Support & Locations.');
+                          setTimeout(() => setRedemptionNotice(null), 3500);
+                        }}
+                        className="px-3 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    )}
+                  <button
+                    type="button"
+                    onClick={() => setSupportModalMode('LIST')}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md cursor-pointer"
+                  >
+                    {supportModalMode === 'EDIT' ? 'Update & Save' : 'Save Location'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {supportModalMode === 'LIST' && (
+              <button
+                type="button"
+                onClick={() => setShowSupportModal(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            )}
           </div>
         </div>
       )}
