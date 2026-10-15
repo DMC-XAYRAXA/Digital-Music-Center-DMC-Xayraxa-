@@ -56,6 +56,11 @@ import {
 import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
 import { DmcOfficialLogo } from '../common/DmcLogo';
 import { AdminExcelReportHub, AdminReportId } from './AdminExcelReportHub';
+import { AdminCompanyProfilePdfHub } from './AdminCompanyProfilePdfHub';
+import {
+  DEFAULT_COMPANY_PROFILE_DATA,
+  downloadCompanyProfilePdf,
+} from '../../utils/companyProfilePdfGenerator';
 import { 
   Member, 
   ProductSKU, 
@@ -117,36 +122,11 @@ export const AdminPortal: React.FC = () => {
     eventPosts,
     adminAddEventPost,
     adminUpdateEventPost,
-    adminDeleteEventPost,
-    supportLocations,
-    adminAddSupportLocation,
-    adminUpdateSupportLocation,
-    adminDeleteSupportLocation
+    adminDeleteEventPost
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'LOCATIONS' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('EXCEL_REPORTS');
+  const [activeAdminTab, setActiveAdminTab] = useState<'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('COMPANY_PROFILE_PDF');
   const [selectedExcelReport, setSelectedExcelReport] = useState<AdminReportId>('1_MEMBERS');
-  const [adminLocationForm, setAdminLocationForm] = useState<{
-    id: string;
-    category: SupportLocationItem['category'];
-    label: string;
-    value: string;
-    locationAddress: string;
-    mapQuery: string;
-    mapUrl: string;
-    photoUrl: string;
-    notes: string;
-  }>({
-    id: '',
-    category: 'OFFICE_LOCATION',
-    label: 'Head Office & Studios',
-    value: 'Dongdok Campus, Vientiane Capital',
-    locationAddress: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
-    mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
-    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
-    photoUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
-    notes: 'Main Recording Studios, Member Service Center & Guitar Showroom',
-  });
   const [adminEventForm, setAdminEventForm] = useState({
     id: '' as string,
     headline: '',
@@ -649,12 +629,21 @@ export const AdminPortal: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => setActiveAdminTab('COMPANY_PROFILE_PDF')}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+              title="Open 1/ Company Profile Digital Music Center PDF File Hub"
+            >
+              <FileText className="w-4 h-4 stroke-[2.5]" />
+              <span>1/ Company Profile DMC (.PDF)</span>
+            </button>
+
+            <button
               onClick={() => setActiveAdminTab('EXCEL_REPORTS')}
               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              title="Open Administrator Excel Report Center (Files 1 - 6)"
+              title="Open Administrator Excel Report Center (Files 1 - 7)"
             >
               <FileSpreadsheet className="w-4 h-4 stroke-[2.5]" />
-              <span>Excel Reports (Files 1–6)</span>
+              <span>Excel Reports (Files 1–7)</span>
             </button>
 
             <button
@@ -684,9 +673,123 @@ export const AdminPortal: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick 7-File Excel Report Strip in Admin Header */}
-        <div className="pt-3 border-t border-slate-800/80">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        {/* Official PDF Dossier & Quick 7-File Excel Report Strip in Admin Header */}
+        <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+          {/* Featured 1/ Company Profile Digital Music Center PDF Strip */}
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-white">
+                    1/ Company Profile — Digital Music Center (DMC) Official PDF File (ພາສາລາວ & English)
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    LAO & EN 4-PAGE A4 .PDF
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  ໂປຣໄຟລ໌ບໍລິສັດ ສະບັບພາສາລາວ ແລະ ພາສາອັງກິດ • Statutory Registration, 5-Stage Music Studio, 1.6M LAK Package & Lao Banks
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('COMPANY_PROFILE_PDF')}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Preview & Edit PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  let savedProfile = DEFAULT_COMPANY_PROFILE_DATA;
+                  try {
+                    const raw = localStorage.getItem('dmc_company_profile_pdf_v28');
+                    if (raw) savedProfile = { ...DEFAULT_COMPANY_PROFILE_DATA, ...JSON.parse(raw) };
+                  } catch {
+                    // ignore
+                  }
+                  const activeLifetimeMembers = allMembers.filter(
+                    m => m.membershipState === 'ACTIVE_LIFETIME_MEMBER'
+                  ).length;
+                  const totalSongs = allMembers.reduce(
+                    (sum, m) => sum + getMemberSongs(m.memberId).length,
+                    0
+                  );
+                  downloadCompanyProfilePdf(
+                    savedProfile,
+                    {
+                      totalMembers: allMembers.length,
+                      activeLifetimeMembers,
+                      totalProducts: products.length,
+                      totalOrders: orders.length,
+                      totalSongs,
+                      totalBanks: laoBanks.length,
+                      supportedBanksList: laoBanks.map(b => `${b.code} (${b.name})`),
+                      shippingCarriersList: LAO_SHIPPING_CARRIERS.map(c => c.name),
+                    },
+                    '1_DMC_Company_Profile_Lao_Version.pdf',
+                    'LO'
+                  );
+                  showNotification(
+                    'ດາວໂຫຼດ ໂປຣໄຟລ໌ບໍລິສັດ ສະບັບພາສາລາວ (1_DMC_Company_Profile_Lao_Version.pdf) ສຳເລັດແລ້ວ!'
+                  );
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>🇱🇦 PDF ພາສາລາວ (.pdf)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  let savedProfile = DEFAULT_COMPANY_PROFILE_DATA;
+                  try {
+                    const raw = localStorage.getItem('dmc_company_profile_pdf_v28');
+                    if (raw) savedProfile = { ...DEFAULT_COMPANY_PROFILE_DATA, ...JSON.parse(raw) };
+                  } catch {
+                    // ignore
+                  }
+                  const activeLifetimeMembers = allMembers.filter(
+                    m => m.membershipState === 'ACTIVE_LIFETIME_MEMBER'
+                  ).length;
+                  const totalSongs = allMembers.reduce(
+                    (sum, m) => sum + getMemberSongs(m.memberId).length,
+                    0
+                  );
+                  downloadCompanyProfilePdf(
+                    savedProfile,
+                    {
+                      totalMembers: allMembers.length,
+                      activeLifetimeMembers,
+                      totalProducts: products.length,
+                      totalOrders: orders.length,
+                      totalSongs,
+                      totalBanks: laoBanks.length,
+                      supportedBanksList: laoBanks.map(b => `${b.code} (${b.name})`),
+                      shippingCarriersList: LAO_SHIPPING_CARRIERS.map(c => c.name),
+                    },
+                    '1_DMC_Company_Profile_English_Version.pdf',
+                    'EN'
+                  );
+                  showNotification(
+                    'Downloaded English Company Profile PDF (1_DMC_Company_Profile_English_Version.pdf)!'
+                  );
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>🇬🇧 PDF English (.pdf)</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Administrator Official Excel Report Files (1 – 7):</span>
@@ -740,10 +843,10 @@ export const AdminPortal: React.FC = () => {
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
         {[
+          { id: 'COMPANY_PROFILE_PDF', label: '1/ Company Profile PDF', icon: FileText, count: 4 },
           { id: 'EXCEL_REPORTS', label: 'Excel Reports (1-7)', icon: FileSpreadsheet, count: 7 },
           { id: 'MEMBERS', label: 'Members CRUD', icon: Users, count: allMembers.length },
           { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
-          { id: 'LOCATIONS', label: 'Map & Location / Support', icon: MapPin, count: supportLocations.length },
           { id: 'EVENTS', label: 'Event & Activity Posts', icon: Megaphone, count: eventPosts.length },
           { id: 'ADMIN_PROFILE', label: 'Admin & User SMS Security', icon: Smartphone },
           { id: 'PRODUCTS', label: 'Products & SKUs', icon: Package, count: products.length },
@@ -779,7 +882,12 @@ export const AdminPortal: React.FC = () => {
         })}
       </div>
 
-      {/* ================= TAB: EXCEL REPORTS CENTER (FILES 1 - 6) ================= */}
+      {/* ================= TAB: 1/ COMPANY PROFILE DIGITAL MUSIC CENTER PDF ================= */}
+      {activeAdminTab === 'COMPANY_PROFILE_PDF' && (
+        <AdminCompanyProfilePdfHub />
+      )}
+
+      {/* ================= TAB: EXCEL REPORTS CENTER (FILES 1 - 7) ================= */}
       {activeAdminTab === 'EXCEL_REPORTS' && (
         <AdminExcelReportHub key={selectedExcelReport} initialReport={selectedExcelReport} />
       )}
@@ -805,373 +913,6 @@ export const AdminPortal: React.FC = () => {
             </button>
           </div>
           <DownlineOrganizeTree />
-        </div>
-      )}
-
-      {/* ================= TAB: MAP & LOCATION / SUPPORT CRUD ================= */}
-      {activeAdminTab === 'LOCATIONS' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-amber-400" />
-                <span>Administrator Map & Location, Studio Photo & Support CRUD</span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Edit, Update, Delete, Upload Photo, and configure Google Map Locations for Help & Support (Hotline, WhatsApp, and Head Office & Studios).
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                setAdminLocationForm({
-                  id: '',
-                  category: 'OFFICE_LOCATION',
-                  label: 'DMC Branch / Studio Location',
-                  value: 'Dongdok Campus, Vientiane Capital',
-                  locationAddress: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
-                  mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
-                  mapUrl: 'https://www.google.com/maps/search/?api=1&query=Dongdok+Campus+Vientiane+Capital+Laos',
-                  photoUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
-                  notes: 'Open Mon–Sat • 08:30 – 18:00',
-                })
-              }
-              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ New Location / Contact</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Edit / Update / Upload Photo & Map Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const cleanLabel = adminLocationForm.label.trim() || 'Head Office & Studios';
-                const cleanValue = adminLocationForm.value.trim() || 'Dongdok Campus, Vientiane Capital';
-                const cleanAddress = adminLocationForm.locationAddress.trim() || cleanValue;
-                const cleanMapQuery = adminLocationForm.mapQuery.trim() || cleanAddress;
-
-                if (adminLocationForm.id) {
-                  adminUpdateSupportLocation(adminLocationForm.id, {
-                    category: adminLocationForm.category,
-                    label: cleanLabel,
-                    value: cleanValue,
-                    locationAddress: cleanAddress,
-                    mapQuery: cleanMapQuery,
-                    mapUrl: adminLocationForm.mapUrl.trim(),
-                    photoUrl: adminLocationForm.photoUrl.trim(),
-                    notes: adminLocationForm.notes.trim(),
-                  });
-                  showNotification(`Updated Support & Location: "${cleanLabel}"`);
-                } else {
-                  adminAddSupportLocation({
-                    category: adminLocationForm.category,
-                    label: cleanLabel,
-                    value: cleanValue,
-                    locationAddress: cleanAddress,
-                    mapQuery: cleanMapQuery,
-                    mapUrl: adminLocationForm.mapUrl.trim(),
-                    photoUrl: adminLocationForm.photoUrl.trim(),
-                    notes: adminLocationForm.notes.trim(),
-                  });
-                  showNotification(`Added new Support & Location: "${cleanLabel}"`);
-                }
-                setAdminLocationForm({
-                  id: '',
-                  category: 'OFFICE_LOCATION',
-                  label: '',
-                  value: '',
-                  locationAddress: '',
-                  mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
-                  mapUrl: '',
-                  photoUrl: '',
-                  notes: '',
-                });
-              }}
-              className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-amber-400 uppercase tracking-wider text-[11px]">
-                  {adminLocationForm.id ? 'Edit / Update Existing Location & Photo' : 'Add New Location, Photo or Contact'}
-                </span>
-                {adminLocationForm.id && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAdminLocationForm({
-                        id: '',
-                        category: 'OFFICE_LOCATION',
-                        label: '',
-                        value: '',
-                        locationAddress: '',
-                        mapQuery: 'Dongdok Campus, Vientiane Capital, Laos',
-                        mapUrl: '',
-                        photoUrl: '',
-                        notes: '',
-                      })
-                    }
-                    className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
-                  >
-                    + Switch to New
-                  </button>
-                )}
-              </div>
-
-              {/* Live Photo & Map Preview */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="relative h-36 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center">
-                  {adminLocationForm.photoUrl ? (
-                    <>
-                      <img
-                        src={adminLocationForm.photoUrl}
-                        alt="Location Preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setAdminLocationForm({ ...adminLocationForm, photoUrl: '' })}
-                        className="absolute top-2 right-2 p-1 rounded-lg bg-red-600 text-white shadow cursor-pointer"
-                        title="Delete Photo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-[11px] text-slate-500">No Photo Uploaded</span>
-                  )}
-                  <span className="absolute bottom-1.5 left-2 px-2 py-0.5 rounded bg-black/75 text-white text-[9px] font-bold">
-                    PHOTO PREVIEW
-                  </span>
-                </div>
-
-                <div className="relative h-36 rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
-                  <iframe
-                    title="Admin Map Preview"
-                    src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                      adminLocationForm.mapQuery ||
-                        adminLocationForm.locationAddress ||
-                        adminLocationForm.value ||
-                        'Dongdok Campus, Vientiane Capital, Laos'
-                    )}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
-                    className="w-full h-full border-0"
-                    loading="lazy"
-                  />
-                  <span className="absolute bottom-1.5 left-2 px-2 py-0.5 rounded bg-black/75 text-amber-300 text-[9px] font-bold">
-                    GOOGLE MAP PREVIEW
-                  </span>
-                </div>
-              </div>
-
-              {/* Upload Photo from Device or Paste URL */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <label className="py-2 px-3 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload Photo from Device</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        if (typeof reader.result === 'string') {
-                          setAdminLocationForm((prev) => ({
-                            ...prev,
-                            photoUrl: reader.result as string,
-                          }));
-                        }
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                    className="hidden"
-                  />
-                </label>
-                <input
-                  type="text"
-                  value={adminLocationForm.photoUrl}
-                  onChange={(e) => setAdminLocationForm({ ...adminLocationForm, photoUrl: e.target.value })}
-                  placeholder="Or paste Photo URL (https://...)"
-                  className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Category</label>
-                  <select
-                    value={adminLocationForm.category}
-                    onChange={(e) =>
-                      setAdminLocationForm({
-                        ...adminLocationForm,
-                        category: e.target.value as SupportLocationItem['category'],
-                      })
-                    }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  >
-                    <option value="OFFICE_LOCATION">Head Office & Studios</option>
-                    <option value="STUDIO_BRANCH">Studio Branch / Showroom</option>
-                    <option value="HOTLINE">Hotline Phone (Lao PDR)</option>
-                    <option value="WHATSAPP">WhatsApp Official Support</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Title / Label *</label>
-                  <input
-                    type="text"
-                    required
-                    value={adminLocationForm.label}
-                    onChange={(e) => setAdminLocationForm({ ...adminLocationForm, label: e.target.value })}
-                    placeholder="e.g. Head Office & Studios"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Location Name or Phone Number *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={adminLocationForm.value}
-                  onChange={(e) => setAdminLocationForm({ ...adminLocationForm, value: e.target.value })}
-                  placeholder="e.g. Dongdok Campus, Vientiane Capital or +856 20 5511 2233"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                    Full Location Address
-                  </label>
-                  <input
-                    type="text"
-                    value={adminLocationForm.locationAddress}
-                    onChange={(e) =>
-                      setAdminLocationForm({ ...adminLocationForm, locationAddress: e.target.value })
-                    }
-                    placeholder="Dongdok Campus, Xaythany District, Vientiane Capital"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                    Google Map Search / GPS Query
-                  </label>
-                  <input
-                    type="text"
-                    value={adminLocationForm.mapQuery}
-                    onChange={(e) => setAdminLocationForm({ ...adminLocationForm, mapQuery: e.target.value })}
-                    placeholder="Dongdok Campus, Vientiane Capital, Laos"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Notes / Operating Hours
-                </label>
-                <input
-                  type="text"
-                  value={adminLocationForm.notes}
-                  onChange={(e) => setAdminLocationForm({ ...adminLocationForm, notes: e.target.value })}
-                  placeholder="Open Mon–Sat • 08:30 – 18:00"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md cursor-pointer"
-              >
-                {adminLocationForm.id ? 'Update Support, Photo & Location' : 'Save New Support & Location'}
-              </button>
-            </form>
-
-            {/* Right: Existing Support Contacts & Map Locations List */}
-            <div className="space-y-3">
-              <div className="text-xs font-bold text-slate-300">
-                Active Help & Support / Map Locations ({supportLocations.length})
-              </div>
-              <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-                {supportLocations.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        {item.photoUrl ? (
-                          <img
-                            src={item.photoUrl}
-                            alt={item.label}
-                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-700"
-                          />
-                        ) : (
-                          <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 text-amber-400">
-                            <MapPin className="w-5 h-5" />
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase">
-                            {item.category}
-                          </span>
-                          <h4 className="text-xs font-bold text-white truncate mt-1">{item.label}</h4>
-                          <p className="text-xs font-semibold text-emerald-400 truncate">{item.value}</p>
-                          {item.locationAddress && (
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                              📍 {item.locationAddress}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setAdminLocationForm({
-                              id: item.id,
-                              category: item.category,
-                              label: item.label,
-                              value: item.value,
-                              locationAddress: item.locationAddress || item.value,
-                              mapQuery: item.mapQuery || item.locationAddress || item.value,
-                              mapUrl: item.mapUrl || '',
-                              photoUrl: item.photoUrl || '',
-                              notes: item.notes || '',
-                            })
-                          }
-                          className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Edit / Photo</span>
-                        </button>
-                        {supportLocations.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              adminDeleteSupportLocation(item.id);
-                              showNotification(`Deleted "${item.label}"`);
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Delete</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
