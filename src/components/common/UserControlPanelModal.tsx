@@ -64,6 +64,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
     getMemberBalances,
     isAdminMode,
     setIsAdminMode,
+    isAdminAuthenticated,
+    setIsAdminAuthenticated,
     language,
     setLanguage,
     adminUpdateMember,
@@ -203,6 +205,10 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
 
     if (found) {
       setCurrentMemberId(found.memberId);
+      if (found.memberId !== 'DMC-LA-00001') {
+        setIsAdminMode(false);
+        setIsAdminAuthenticated(false);
+      }
       setLoginSuccess(`Successfully authenticated as ${found.name} (${found.memberId})!`);
       setTimeout(() => {
         setLoginSuccess('');
@@ -215,6 +221,10 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
 
   const handleQuickLogin = (memberId: string) => {
     setCurrentMemberId(memberId);
+    if (memberId !== 'DMC-LA-00001') {
+      setIsAdminMode(false);
+      setIsAdminAuthenticated(false);
+    }
     setLoginSuccess(`Switched active session to ${memberId}!`);
     setTimeout(() => {
       setLoginSuccess('');
@@ -342,22 +352,24 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Super Admin Fast Switch */}
-            <button
-              onClick={() => {
-                setIsAdminMode(!isAdminMode);
-                if (!isAdminMode) onClose();
-              }}
-              className={`px-2.5 py-1.5 rounded-xl font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer ${
-                isAdminMode
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'bg-red-500/20 hover:bg-red-500/30 text-amber-300 border border-amber-500/40'
-              }`}
-              title="Open Super Admin Control Portal"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{isAdminMode ? 'Exit Super Admin' : 'Super Admin'}</span>
-            </button>
+            {/* Super Admin Fast Switch — Only visible when authenticated as Administrator */}
+            {isAdminAuthenticated && (
+              <button
+                onClick={() => {
+                  setIsAdminMode(!isAdminMode);
+                  if (!isAdminMode) onClose();
+                }}
+                className={`px-2.5 py-1.5 rounded-xl font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer ${
+                  isAdminMode
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'bg-red-500/20 hover:bg-red-500/30 text-amber-300 border border-amber-500/40'
+                }`}
+                title="Open Super Admin Control Portal"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>{isAdminMode ? 'Exit Super Admin' : 'Super Admin'}</span>
+              </button>
+            )}
 
             {/* Sign Out / Switch Session Button */}
             <button

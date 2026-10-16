@@ -104,23 +104,23 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
             </div>
           )}
 
-          {/* Super Admin Switcher Toggle */}
-          <button
-            onClick={() => {
-              const nextAdmin = !isAdminMode;
-              setIsAdminMode(nextAdmin);
-              setIsAdminAuthenticated(true);
-              if (nextAdmin) setIsLoggedOut(false);
-            }}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              isAdminMode || isAdminAuthenticated
-                ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{isAdminMode ? 'Home App (Admin Active)' : t.navAdmin}</span>
-          </button>
+          {/* Admin / User Active Status Badge */}
+          {isAdminAuthenticated || isAdminMode ? (
+            <button
+              onClick={() => {
+                setIsAdminMode(!isAdminMode);
+              }}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer bg-emerald-500 text-slate-950 shadow-sm"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-950" />
+              <span>{isAdminMode ? 'Home App (Admin Active)' : t.navAdmin}</span>
+            </button>
+          ) : (
+            <div className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-emerald-500 text-slate-950 shadow-sm select-none">
+              <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+              <span>Home App (User Active)</span>
+            </div>
+          )}
 
           {/* Drop Down List: Sign In / Sign Out & Profile Hub */}
           <div className="relative">
@@ -303,6 +303,10 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
                           key={m.memberId}
                           onClick={() => {
                             setCurrentMemberId(m.memberId);
+                            if (m.memberId !== 'DMC-LA-00001') {
+                              setIsAdminMode(false);
+                              setIsAdminAuthenticated(false);
+                            }
                             setShowPersonaMenu(false);
                           }}
                           className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
