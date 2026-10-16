@@ -559,9 +559,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Right Header Controls: Drop Down List Login / Log Out + Bell + Language Selector */}
+          {/* Right Header Controls: Drop Down List Sign In / Sign Out + Bell + Language Selector */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* 1/ DROP DOWN LIST: LOGIN / LOG OUT */}
+            {/* 1/ DROP DOWN LIST: SIGN IN / SIGN OUT */}
             <div className="shrink-0">
               <button
                 type="button"
@@ -570,11 +570,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   setShowLanguagePicker(false);
                 }}
                 className="px-2 py-1.5 rounded-xl border border-amber-300/80 bg-black/50 hover:bg-black/70 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-md"
-                title="Drop Down List: Log In / Log Out"
+                title="Drop Down List: Sign In / Sign Out"
               >
                 <LogIn className="w-3 h-3 text-amber-400 shrink-0" />
                 <span className="font-extrabold text-amber-300 whitespace-nowrap leading-none">
-                  Login / Out
+                  Sign In / Out
                 </span>
                 <ChevronDown
                   className={`w-3 h-3 text-amber-200 shrink-0 transition-transform ${
@@ -593,7 +593,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-72 top-full mt-2 bg-slate-900/98 backdrop-blur-xl border-2 border-amber-400/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-3 z-[100] space-y-2 animate-in fade-in zoom-in-95 text-slate-100">
                     {/* Dropdown Title Bar */}
                     <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 border-b border-slate-800 flex items-center justify-between">
-                      <span>Login / Log Out Menu</span>
+                      <span>Sign In / Sign Out Menu</span>
                       <span
                         className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
                           isLoggedOut
@@ -601,7 +601,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                             : 'bg-emerald-500/20 text-emerald-300'
                         }`}
                       >
-                        {isLoggedOut ? 'LOGGED OUT' : 'ONLINE'}
+                        {isLoggedOut ? 'SIGNED OUT' : 'ONLINE'}
                       </span>
                     </div>
 
@@ -622,9 +622,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       </div>
                     </div>
 
-                    {/* PRIMARY DROP DOWN OPTIONS: 1. LOG IN & 2. LOG OUT */}
+                    {/* PRIMARY DROP DOWN OPTIONS: 1. SIGN IN & 2. SIGN OUT */}
                     <div className="grid grid-cols-1 gap-1.5 pt-0.5">
-                      {/* 1. Log In */}
+                      {/* 1. Sign In */}
                       <button
                         type="button"
                         onClick={() => {
@@ -636,12 +636,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       >
                         <span className="flex items-center gap-2">
                           <LogIn className="w-4 h-4 text-slate-950 shrink-0 stroke-[2.5]" />
-                          <span>1. {t.logIn} (Member Login)</span>
+                          <span>1. {t.logIn} (Member Sign In)</span>
                         </span>
                         <ChevronRight className="w-4 h-4 text-slate-900" />
                       </button>
 
-                      {/* 2. Log Out */}
+                      {/* 2. Sign Out */}
                       <button
                         type="button"
                         onClick={() => {
@@ -653,7 +653,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       >
                         <span className="flex items-center gap-2">
                           <LogOut className="w-4 h-4 text-rose-400 shrink-0 stroke-[2.5]" />
-                          <span>2. {t.logOut} (Sign Out)</span>
+                          <span>2. {t.logOut}</span>
                         </span>
                         <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-200">
                           Exit

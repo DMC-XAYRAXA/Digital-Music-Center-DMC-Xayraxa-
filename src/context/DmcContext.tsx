@@ -3,7 +3,7 @@
  * Central Context & Authoritative Financial / Unilevel Engine
  */
 
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import {
   Member,
   MemberBalances,
@@ -32,6 +32,8 @@ import {
   SupportLocationItem,
 } from '../types/dmc';
 
+export const FOUR_HOURS_INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 Hours (14,400,000 ms)
+
 interface DmcContextType {
   // Active member / persona
   currentMember: Member;
@@ -45,6 +47,9 @@ interface DmcContextType {
   setIsAdminAuthenticated: (adminAuth: boolean) => void;
   isLoggedOut: boolean;
   setIsLoggedOut: (loggedOut: boolean) => void;
+  sessionExpiredNotice: string | null;
+  setSessionExpiredNotice: (notice: string | null) => void;
+  lastActivityAt: number;
   superAdminProfile: SuperAdminProfile;
   updateSuperAdminProfile: (updates: Partial<SuperAdminProfile>) => void;
   sendSmsRecoveryOtp: (
@@ -887,7 +892,73 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [language, setLanguage] = useState<Language>('en');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
-  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(false);
+  // Default Startup requires User or Administrator to Sign In first (Active: Signed Out)
+  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(true);
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState<string | null>(null);
+  const [lastActivityAt, setLastActivityAt] = useState<number>(() => Date.now());
+  const lastActivityRef = useRef<number>(Date.now());
+
+  // 4-Hour Automatic Inactivity Session Sign-Out for both User and Administrator
+  useEffect(() => {
+    if (isLoggedOut) return;
+
+    const recordActivity = () => {
+      const now = Date.now();
+      lastActivityRef.current = now;
+      // Throttle state updates to once every 15 seconds while active
+      setLastActivityAt((prev) => (now - prev > 15000 ? now : prev));
+      try {
+        localStorage.setItem('dmc_rev26_last_activity_ts', String(now));
+      } catch {
+        // ignore storage errors
+      }
+    };
+
+    // Initialize activity timestamp upon sign-in
+    recordActivity();
+
+    const checkInactivityTimeout = () => {
+      const now = Date.now();
+      const elapsed = now - lastActivityRef.current;
+      if (elapsed >= FOUR_HOURS_INACTIVITY_MS) {
+        setIsAdminMode(false);
+        setIsAdminAuthenticated(false);
+        setIsLoggedOut(true);
+        setSessionExpiredNotice(
+          'Session Expired: Automatically signed out after 4 hours of inactivity. Please sign in again.'
+        );
+      }
+    };
+
+    const activityEvents: (keyof WindowEventMap)[] = [
+      'mousedown',
+      'mousemove',
+      'keydown',
+      'touchstart',
+      'scroll',
+      'click',
+      'pointerdown',
+    ];
+
+    activityEvents.forEach((evt) =>
+      window.addEventListener(evt, recordActivity, { passive: true })
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkInactivityTimeout();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const intervalId = window.setInterval(checkInactivityTimeout, 15000);
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, recordActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(intervalId);
+    };
+  }, [isLoggedOut]);
   const [superAdminProfile, setSuperAdminProfile] = useState<SuperAdminProfile>({
     operatorId: 'SUPER-ADMIN-LAO',
     name: 'Xayraxa Master Administrator',
@@ -3086,6 +3157,9 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAdminAuthenticated,
         isLoggedOut,
         setIsLoggedOut,
+        sessionExpiredNotice,
+        setSessionExpiredNotice,
+        lastActivityAt,
         superAdminProfile,
         updateSuperAdminProfile,
         sendSmsRecoveryOtp,

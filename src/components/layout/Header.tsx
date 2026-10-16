@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
             <span>{isAdminMode ? 'Home App (Admin Active)' : t.navAdmin}</span>
           </button>
 
-          {/* Drop Down List: Login / Log Out & Profile Hub */}
+          {/* Drop Down List: Sign In / Sign Out & Profile Hub */}
           <div className="relative">
             <button
               onClick={() => {
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
                 setShowNotifications(false);
               }}
               className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/15 to-red-500/15 hover:from-amber-500/25 hover:to-red-500/25 border border-amber-500/40 text-xs transition-all cursor-pointer shadow-sm"
-              title="Drop Down List: Login / Log Out"
+              title="Drop Down List: Sign In / Sign Out"
             >
               <div className="relative w-7 h-7 min-w-[28px] min-h-[28px] shrink-0">
                 <img
@@ -148,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
               </div>
               <div className="text-left">
                 <div className="text-[9px] text-amber-400 leading-none font-bold uppercase">
-                  Login / Log Out
+                  Sign In / Sign Out
                 </div>
                 <div className="font-bold text-white text-xs truncate max-w-[100px]">
                   {currentMember.name.split(' ')[0]}
@@ -169,11 +169,11 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
                 />
                 <div className="absolute right-0 mt-2 w-64 bg-slate-900 border-2 border-amber-500/50 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1.5 animate-in fade-in zoom-in-95">
                   <div className="px-2.5 py-1.5 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-amber-300 flex justify-between items-center">
-                    <span>Login / Log Out Menu</span>
+                    <span>Sign In / Sign Out Menu</span>
                     <span className="font-mono text-emerald-400">{currentMember.memberId}</span>
                   </div>
 
-                  {/* 1. Log In */}
+                  {/* 1. Sign In */}
                   <button
                     onClick={() => {
                       setShowLoginMenu(false);
@@ -184,11 +184,11 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
                   >
                     <span className="flex items-center gap-2">
                       <LogIn className="w-4 h-4 text-slate-950" />
-                      <span>1. {t.logIn} (Member Login)</span>
+                      <span>1. {t.logIn} (Member Sign In)</span>
                     </span>
                   </button>
 
-                  {/* 2. Log Out */}
+                  {/* 2. Sign Out */}
                   <button
                     onClick={() => {
                       setShowLoginMenu(false);
@@ -200,7 +200,7 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
                   >
                     <span className="flex items-center gap-2">
                       <LogOut className="w-4 h-4 text-rose-400" />
-                      <span>2. {t.logOut} (Sign Out)</span>
+                      <span>2. {t.logOut}</span>
                     </span>
                     <span className="text-[9px] font-mono uppercase text-rose-300">Exit</span>
                   </button>

@@ -59,6 +59,8 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     sendSmsRecoveryOtp,
     resetPasswordWithSmsOtp,
     registerMember,
+    sessionExpiredNotice,
+    setSessionExpiredNotice,
   } = useDmc();
 
   const [loginMode, setLoginMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>(initialMode);
@@ -355,15 +357,15 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
             </h2>
             <div className="w-24 h-[1px] bg-gradient-to-r from-transparent via-[#E5C158] to-transparent my-1.5" />
             <p className="text-xs font-medium tracking-widest uppercase text-amber-100/90">
-              {loginMode === 'MEMBER' && 'Member User Login'}
-              {loginMode === 'ADMIN' && 'Administrator Login'}
+              {loginMode === 'MEMBER' && 'Member User Sign In'}
+              {loginMode === 'ADMIN' && 'Administrator Sign In'}
               {loginMode === 'REGISTER' && 'New Member Registration'}
               {loginMode === 'RECOVERY' && 'Password Recovery & Profile'}
             </p>
           </div>
         </div>
 
-        {/* 2. CLASSIC 2-TAB SWITCHER (USER LOGIN vs ADMINISTRATOR LOGIN) */}
+        {/* 2. CLASSIC 2-TAB SWITCHER (USER SIGN IN vs ADMINISTRATOR SIGN IN) */}
         {(loginMode === 'MEMBER' || loginMode === 'ADMIN') && (
           <div className="grid grid-cols-2 bg-[#E8E2D5] border-b border-[#C8BFA8]">
             <button
@@ -379,7 +381,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               }`}
             >
               <User className="w-4 h-4" />
-              <span>User Login</span>
+              <span>User Sign In</span>
             </button>
 
             <button
@@ -412,7 +414,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               className="text-xs font-bold text-[#6B0816] hover:underline flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Login</span>
+              <span>Back to Sign In</span>
             </button>
             <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
               {loginMode === 'REGISTER' ? 'Free Member Sign Up' : 'SMS OTP & Profile'}
@@ -423,6 +425,22 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         {/* 3. MAIN CLASSIC FORM BODY */}
         <div className="p-6 space-y-4">
           {/* Status Alerts */}
+          {sessionExpiredNotice && !errorMsg && !successMsg && (
+            <div className="p-3 rounded border border-amber-500 bg-amber-50 flex items-start justify-between gap-2.5 text-xs text-amber-900 font-semibold">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>{sessionExpiredNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSessionExpiredNotice(null)}
+                className="text-amber-700 hover:text-amber-950 font-bold"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="p-3 rounded border border-red-400 bg-red-50 flex items-start gap-2.5 text-xs text-red-800 font-medium">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -706,7 +724,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                   }}
                   className="font-semibold text-slate-700 hover:text-slate-900 hover:underline cursor-pointer"
                 >
-                  Switch to Member Login →
+                  Switch to Member Sign In →
                 </button>
               </div>
             </form>

@@ -331,7 +331,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
             <DmcOfficialLogo size={38} rounded="xl" withGoldRing={true} className="shrink-0" />
             <div>
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <span>User Control Panel & Login Hub</span>
+                <span>User Control Panel & Sign In Hub</span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
                   Rev 2.6
                 </span>
@@ -359,17 +359,17 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
               <span>{isAdminMode ? 'Exit Super Admin' : 'Super Admin'}</span>
             </button>
 
-            {/* Log Out / Switch Session Button */}
+            {/* Sign Out / Switch Session Button */}
             <button
               onClick={() => {
                 setActiveTab('LOGIN');
                 setLoginSuccess('Session signed out. Please sign in or select an account below.');
               }}
               className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-red-500/20 hover:text-red-300 border border-slate-700 hover:border-red-500/40 text-slate-300 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
-              title="Log Out / Sign In to another account"
+              title="Sign Out / Sign In to another account"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Log Out</span>
+              <span>Sign Out</span>
             </button>
 
             <button

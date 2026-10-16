@@ -28,6 +28,16 @@ function AppContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>('MEMBER');
 
+  // Default Startup Gate & 4-Hour Automatic Session Sign-Out Gate:
+  // Users and Administrators must sign in first before accessing the website.
+  if (isLoggedOut) {
+    return (
+      <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center font-sans selection:bg-amber-500/30 selection:text-amber-200">
+        <AuthPortalModal isOpen={true} initialMode="MEMBER" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Top Main Navigation Header (Hidden on mobile when on Home screen since HomeScreen has its own full mobile header) */}
@@ -97,7 +107,7 @@ function AppContent() {
 
       {/* Dedicated User & Super Admin Log In / Log Out Portal Modal */}
       <AuthPortalModal
-        isOpen={showAuthModal || isLoggedOut}
+        isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         initialMode={authModalMode}
       />
