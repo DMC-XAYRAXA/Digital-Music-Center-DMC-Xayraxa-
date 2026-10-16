@@ -5,7 +5,7 @@
 
 export type Language = 'en' | 'lo' | 'th' | 'vi' | 'zh' | 'ko';
 
-export type LaoShippingCarrierId = 'ANOUSITH' | 'HAL_EXPRESS' | 'LOCAL_DELIVERY';
+export type LaoShippingCarrierId = 'ANOUSITH' | 'HAL_EXPRESS' | 'LOCAL_DELIVERY' | string;
 
 export interface LaoShippingCarrier {
   id: LaoShippingCarrierId;

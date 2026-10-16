@@ -45,6 +45,7 @@ import {
   ProductSKU,
   Order,
   LaoShippingCarrierId,
+  LaoShippingCarrier,
   LAO_SHIPPING_CARRIERS,
 } from '../../types/dmc';
 
@@ -82,6 +83,11 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
     language,
     adminUpdateProduct,
     adminUpdateMember,
+    shippingCarriers,
+    adminAddShippingCarrier,
+    adminUpdateShippingCarrier,
+    adminDeleteShippingCarrier,
+    adminResetShippingCarriers,
     setIsAdminMode,
     isAdminMode,
     isAdminAuthenticated,
@@ -136,12 +142,128 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
   }, [currentMember.memberId]);
 
   const selectedCarrier =
-    LAO_SHIPPING_CARRIERS.find((c) => c.id === selectedCarrierId) || LAO_SHIPPING_CARRIERS[0];
+    shippingCarriers.find((c) => c.id === selectedCarrierId) ||
+    shippingCarriers[0] ||
+    LAO_SHIPPING_CARRIERS[0];
+
+  // Administrator Shipping Carrier & Price CRUD Modal state
+  const [isShippingAdminModalOpen, setIsShippingAdminModalOpen] = useState(false);
+  const [shippingAdminMode, setShippingAdminMode] = useState<'EDIT' | 'CREATE'>('EDIT');
+  const [editingCarrierId, setEditingCarrierId] = useState<string>('ANOUSITH');
+  const [shippingForm, setShippingForm] = useState({
+    id: 'ANOUSITH',
+    name: 'Anousith Logistics',
+    nameLao: 'ອານຸສິດ ຂົນສົ່ງ (Anousith Logistics)',
+    badge: 'Nationwide Network • 18 Provinces',
+    estimatedDays: '1-2 Days',
+    baseFeeLak: 35000,
+    trackingPrefix: 'ANS-LA',
+    hotline: '1668 / +856 20 5511 8899',
+    logoColor: '#e11d48',
+    description:
+      'Largest door-to-door parcel delivery & branch network covering all 18 provinces in Lao PDR.',
+  });
+
+  const openAdminEditShipping = (carrier: LaoShippingCarrier) => {
+    if (!isAdmin) return;
+    setShippingAdminMode('EDIT');
+    setEditingCarrierId(carrier.id);
+    setShippingForm({
+      id: carrier.id,
+      name: carrier.name,
+      nameLao: carrier.nameLao,
+      badge: carrier.badge,
+      estimatedDays: carrier.estimatedDays,
+      baseFeeLak: carrier.baseFeeLak,
+      trackingPrefix: carrier.trackingPrefix,
+      hotline: carrier.hotline,
+      logoColor: carrier.logoColor || '#f59e0b',
+      description: carrier.description,
+    });
+    setIsShippingAdminModalOpen(true);
+  };
+
+  const openAdminCreateShipping = () => {
+    if (!isAdmin) return;
+    setShippingAdminMode('CREATE');
+    setEditingCarrierId('');
+    setShippingForm({
+      id: `CARRIER_${Date.now().toString().slice(-4)}`,
+      name: '',
+      nameLao: '',
+      badge: 'Nationwide Express • 18 Provinces',
+      estimatedDays: '1-2 Days',
+      baseFeeLak: 30000,
+      trackingPrefix: 'LAO-EXP',
+      hotline: '+856 20 5500 9988',
+      logoColor: '#3b82f6',
+      description: 'Door-to-door and provincial branch delivery across Lao PDR.',
+    });
+    setIsShippingAdminModalOpen(true);
+  };
+
+  const handleSaveAdminShipping = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    const cleanName = shippingForm.name.trim() || 'Lao Express Carrier';
+    const cleanNameLao = shippingForm.nameLao.trim() || cleanName;
+    const cleanPrice = Math.max(0, Math.round(Number(shippingForm.baseFeeLak) || 0));
+
+    if (shippingAdminMode === 'EDIT' && editingCarrierId) {
+      adminUpdateShippingCarrier(editingCarrierId, {
+        name: cleanName,
+        nameLao: cleanNameLao,
+        badge: shippingForm.badge.trim() || 'Nationwide Delivery',
+        estimatedDays: shippingForm.estimatedDays.trim() || '1-2 Days',
+        baseFeeLak: cleanPrice,
+        trackingPrefix: shippingForm.trackingPrefix.trim().toUpperCase() || 'DMC-EXP',
+        hotline: shippingForm.hotline.trim() || '+856 20 5511 2233',
+        logoColor: shippingForm.logoColor || '#f59e0b',
+        description: shippingForm.description.trim(),
+      });
+      setShippingSavedToast(
+        `Updated shipping carrier "${cleanName}" price to ${formatLak(cleanPrice)}!`
+      );
+    } else {
+      const created = adminAddShippingCarrier({
+        id: shippingForm.id,
+        name: cleanName,
+        nameLao: cleanNameLao,
+        badge: shippingForm.badge.trim() || 'Nationwide Delivery',
+        estimatedDays: shippingForm.estimatedDays.trim() || '1-2 Days',
+        baseFeeLak: cleanPrice,
+        trackingPrefix: shippingForm.trackingPrefix.trim().toUpperCase() || 'DMC-EXP',
+        hotline: shippingForm.hotline.trim() || '+856 20 5511 2233',
+        logoColor: shippingForm.logoColor || '#3b82f6',
+        description: shippingForm.description.trim(),
+      });
+      setSelectedCarrierId(created.id);
+      setShippingSavedToast(
+        `Added new shipping carrier "${created.name}" (${formatLak(created.baseFeeLak)})!`
+      );
+    }
+    setTimeout(() => setShippingSavedToast(null), 4000);
+    setIsShippingAdminModalOpen(false);
+  };
+
+  const handleDeleteAdminShipping = (carrier: LaoShippingCarrier) => {
+    if (!isAdmin || shippingCarriers.length <= 1) return;
+    adminDeleteShippingCarrier(carrier.id);
+    if (selectedCarrierId === carrier.id) {
+      const remaining = shippingCarriers.filter((c) => c.id !== carrier.id);
+      if (remaining[0]) setSelectedCarrierId(remaining[0].id);
+    }
+    setShippingSavedToast(`Deleted shipping carrier "${carrier.name}"!`);
+    setTimeout(() => setShippingSavedToast(null), 3500);
+    setIsShippingAdminModalOpen(false);
+  };
 
   const handleMemberSelectCarrier = (carrierId: LaoShippingCarrierId) => {
     setSelectedCarrierId(carrierId);
     const carrierObj =
-      LAO_SHIPPING_CARRIERS.find((c) => c.id === carrierId) || LAO_SHIPPING_CARRIERS[0];
+      shippingCarriers.find((c) => c.id === carrierId) ||
+      shippingCarriers[0] ||
+      LAO_SHIPPING_CARRIERS[0];
     adminUpdateMember(currentMember.memberId, {
       preferredCarrierId: carrierId,
       deliveryAddress,
@@ -420,66 +542,120 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsCartOpen(true)}
-            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline flex items-center gap-1 cursor-pointer"
-          >
-            <MapPin className="w-3.5 h-3.5" />
-            <span>Edit Delivery Address</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={openAdminCreateShipping}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer shadow-xs"
+                  title="Administrator: Add New Shipping Carrier"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Shipping</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAdminEditShipping(selectedCarrier)}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer shadow-xs"
+                  title="Administrator: Edit, Update or Delete Shipping & Price"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Edit / Update Price</span>
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline flex items-center gap-1 cursor-pointer"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Edit Delivery Address</span>
+            </button>
+          </div>
         </div>
 
-        {/* 3 Interactive Shipping Carrier Cards */}
+        {/* Interactive Shipping Carrier Cards (With Admin Add / Edit / Update Price / Delete Controls) */}
         <div className="grid grid-cols-1 @xl:grid-cols-3 gap-2.5">
-          {LAO_SHIPPING_CARRIERS.map((carrier) => {
+          {shippingCarriers.map((carrier) => {
             const isSelected = selectedCarrierId === carrier.id;
             return (
-              <button
+              <div
                 key={carrier.id}
-                type="button"
                 onClick={() => handleMemberSelectCarrier(carrier.id)}
-                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                   isSelected
                     ? 'bg-amber-500/15 border-amber-400 text-white shadow-md ring-1 ring-amber-400/50'
                     : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:bg-slate-800/80 hover:border-slate-700'
                 }`}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: carrier.logoColor }}
-                    />
-                    <span className="font-extrabold text-xs text-white truncate">
-                      {carrier.name}
-                    </span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: carrier.logoColor }}
+                      />
+                      <span className="font-extrabold text-xs text-white truncate">
+                        {carrier.name}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-amber-200/90 font-medium truncate mt-0.5">
+                      {carrier.nameLao}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[10px]">
+                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {carrier.estimatedDays}
+                      </span>
+                      <span className="text-slate-500">•</span>
+                      <span className="font-mono font-bold text-amber-300">
+                        {formatLak(carrier.baseFeeLak)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-amber-200/90 font-medium truncate mt-0.5">
-                    {carrier.nameLao}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-[10px]">
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {carrier.estimatedDays}
-                    </span>
-                    <span className="text-slate-500">•</span>
-                    <span className="font-mono font-bold text-amber-300">
-                      {formatLak(carrier.baseFeeLak)}
-                    </span>
+
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border ${
+                      isSelected
+                        ? 'bg-amber-400 border-amber-300 text-slate-950'
+                        : 'border-slate-700 bg-slate-900 text-transparent'
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
                   </div>
                 </div>
 
-                <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border ${
-                    isSelected
-                      ? 'bg-amber-400 border-amber-300 text-slate-950'
-                      : 'border-slate-700 bg-slate-900 text-transparent'
-                  }`}
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </div>
-              </button>
+                {/* Administrator Quick Edit Price / Update / Delete Bar on Each Shipping Card */}
+                {isAdmin && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="pt-2 border-t border-slate-800/90 flex items-center justify-between gap-1.5"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openAdminEditShipping(carrier)}
+                      className="flex-1 py-1 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Edit / Price</span>
+                    </button>
+                    {shippingCarriers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAdminShipping(carrier)}
+                        className="py-1 px-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer"
+                        title="Delete Shipping Carrier"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -772,10 +948,12 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                         type="button"
                         onClick={() => {
                           const nextIdx =
-                            (LAO_SHIPPING_CARRIERS.findIndex((c) => c.id === selectedCarrierId) +
+                            (shippingCarriers.findIndex((c) => c.id === selectedCarrierId) +
                               1) %
-                            LAO_SHIPPING_CARRIERS.length;
-                          handleMemberSelectCarrier(LAO_SHIPPING_CARRIERS[nextIdx].id);
+                            shippingCarriers.length;
+                          if (shippingCarriers[nextIdx]) {
+                            handleMemberSelectCarrier(shippingCarriers[nextIdx].id);
+                          }
                         }}
                         className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] shrink-0 cursor-pointer border border-slate-700"
                         title="Click to switch Shipping Carrier"
@@ -1153,16 +1331,28 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                     </p>
                   </div>
 
-                  <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs">
-                    {hasPhysical
-                      ? `Shipping Fee: ${formatLak(shippingFee)}`
-                      : '0 LAK (Studio Package)'}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => openAdminEditShipping(selectedCarrier)}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Admin: Add / Edit Shipping Price</span>
+                      </button>
+                    )}
+                    <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs">
+                      {hasPhysical
+                        ? `Shipping Fee: ${formatLak(shippingFee)}`
+                        : '0 LAK (Studio Package)'}
+                    </span>
+                  </div>
                 </div>
 
-                {/* 3 Carrier Radio Cards */}
+                {/* Dynamic Carrier Radio Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {LAO_SHIPPING_CARRIERS.map((carrier) => {
+                  {shippingCarriers.map((carrier) => {
                     const isSelected = selectedCarrierId === carrier.id;
                     return (
                       <button
@@ -1680,6 +1870,322 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                 >
                   Save Changes to Core Product
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ADMINISTRATOR SHIPPING CARRIER & PRICE CRUD MODAL (ADD, EDIT, UPDATE, DELETE) ================= */}
+      {isAdmin && isShippingAdminModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-2xl w-full p-5 sm:p-6 text-slate-100 shadow-2xl max-h-[92vh] overflow-y-auto space-y-4 my-auto">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-base text-white">
+                      {shippingAdminMode === 'EDIT'
+                        ? `Edit / Update Shipping & Price: ${shippingForm.name}`
+                        : 'Add New Shipping Carrier & Price'}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                      ADMIN CRUD
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Add, Edit, Delete, or Update shipping carriers and delivery prices when rates change.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShippingAdminModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Switcher Strip: Existing Shipping Carriers + Add New */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold uppercase tracking-wider text-slate-400">
+                  Select Carrier to Edit or Add New ({shippingCarriers.length} Active):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    adminResetShippingCarriers();
+                    setShippingSavedToast('Reset shipping carriers & prices to default!');
+                    setTimeout(() => setShippingSavedToast(null), 3500);
+                    setIsShippingAdminModalOpen(false);
+                  }}
+                  className="text-[11px] text-amber-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Reset Default Carriers
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={openAdminCreateShipping}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border cursor-pointer transition-all ${
+                    shippingAdminMode === 'CREATE'
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-md'
+                      : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-emerald-500/40'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add New Shipping</span>
+                </button>
+                {shippingCarriers.map((c) => {
+                  const isCurrentEdit =
+                    shippingAdminMode === 'EDIT' && editingCarrierId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => openAdminEditShipping(c)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer transition-all ${
+                        isCurrentEdit
+                          ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-md'
+                          : 'bg-slate-950 hover:bg-slate-800 text-slate-200 border-slate-800'
+                      }`}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: c.logoColor }}
+                      />
+                      <span>{c.name}</span>
+                      <span
+                        className={`font-mono text-[10px] ${
+                          isCurrentEdit ? 'text-slate-900 font-black' : 'text-amber-300'
+                        }`}
+                      >
+                        ({formatLakCompact(c.baseFeeLak)})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Shipping CRUD Form */}
+            <form onSubmit={handleSaveAdminShipping} className="space-y-4 text-xs">
+              {/* 1. Shipping Price (LAK) with Quick Price Change Chips */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-amber-300 uppercase tracking-wider text-xs">
+                    1. Shipping Fee / Delivery Price (ລາຄາຄ່າຂົນສົ່ງ LAK) *
+                  </span>
+                  <span className="font-mono font-black text-sm text-emerald-400">
+                    Active Price: {formatLak(shippingForm.baseFeeLak)}
+                  </span>
+                </div>
+
+                <BeautifulNumberInput
+                  label="Shipping Price (Integer LAK)"
+                  placeholder="e.g. 25,000 or 35,000 or 40,000"
+                  value={shippingForm.baseFeeLak}
+                  onChange={(num) => setShippingForm({ ...shippingForm, baseFeeLak: num })}
+                  required
+                  theme="amber"
+                  presetChips={[0, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 60000]}
+                  showMaxButton={false}
+                  showKBadge={true}
+                />
+              </div>
+
+              {/* 2. Carrier Names & Details */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <span className="font-black text-amber-300 uppercase tracking-wider text-xs block">
+                  2. Shipping Company Identity & Delivery Details
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Shipping Name (English) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={shippingForm.name}
+                      onChange={(e) =>
+                        setShippingForm({ ...shippingForm, name: e.target.value })
+                      }
+                      placeholder="e.g. Anousith Logistics / ZTO Express"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-400 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Shipping Name (Lao / ຊື່ພາສາລາວ) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={shippingForm.nameLao}
+                      onChange={(e) =>
+                        setShippingForm({ ...shippingForm, nameLao: e.target.value })
+                      }
+                      placeholder="e.g. ອານຸສິດ ຂົນສົ່ງ (Anousith Logistics)"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-400 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Estimated Delivery Time *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={shippingForm.estimatedDays}
+                      onChange={(e) =>
+                        setShippingForm({ ...shippingForm, estimatedDays: e.target.value })
+                      }
+                      placeholder="e.g. 1-2 Days or Same-Day (2-4 hrs)"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-emerald-300 font-semibold focus:border-amber-400 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Waybill Tracking Prefix *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={shippingForm.trackingPrefix}
+                      onChange={(e) =>
+                        setShippingForm({ ...shippingForm, trackingPrefix: e.target.value })
+                      }
+                      placeholder="e.g. ANS-LA or HAL-LA"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-mono font-bold focus:border-amber-400 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Hotline Phone (+856) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={shippingForm.hotline}
+                      onChange={(e) =>
+                        setShippingForm({ ...shippingForm, hotline: e.target.value })
+                      }
+                      placeholder="e.g. 1668 / +856 20 5511 8899"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono focus:border-amber-400 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Coverage / Service Badge
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingForm.badge}
+                      onChange={(e) =>
+                        setShippingForm({ ...shippingForm, badge: e.target.value })
+                      }
+                      placeholder="e.g. Nationwide Network • 18 Provinces"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-400 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">
+                      Brand Badge Color
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={shippingForm.logoColor}
+                        onChange={(e) =>
+                          setShippingForm({ ...shippingForm, logoColor: e.target.value })
+                        }
+                        className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer p-1"
+                      />
+                      <input
+                        type="text"
+                        value={shippingForm.logoColor}
+                        onChange={(e) =>
+                          setShippingForm({ ...shippingForm, logoColor: e.target.value })
+                        }
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Service Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={shippingForm.description}
+                    onChange={(e) =>
+                      setShippingForm({ ...shippingForm, description: e.target.value })
+                    }
+                    placeholder="Describe provincial coverage, branch pickup, or same-day courier terms..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-400 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons: Delete, Cancel, Save / Update */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2">
+                {shippingAdminMode === 'EDIT' && shippingCarriers.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = shippingCarriers.find((c) => c.id === editingCarrierId);
+                      if (target) handleDeleteAdminShipping(target);
+                    }}
+                    className="px-4 py-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Carrier</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2.5 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsShippingAdminModalOpen(false)}
+                    className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                    <span>
+                      {shippingAdminMode === 'EDIT'
+                        ? `Update Shipping & Price (${formatLak(shippingForm.baseFeeLak)})`
+                        : `Add Shipping Carrier (${formatLak(shippingForm.baseFeeLak)})`}
+                    </span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

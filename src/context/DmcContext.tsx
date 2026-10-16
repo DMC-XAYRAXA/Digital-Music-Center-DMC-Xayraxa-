@@ -123,6 +123,11 @@ interface DmcContextType {
   adminAddOrder: (order: Order) => void;
   adminUpdateOrder: (orderId: string, updates: Partial<Order>) => void;
   adminDeleteOrder: (orderId: string) => boolean;
+  shippingCarriers: LaoShippingCarrier[];
+  adminAddShippingCarrier: (carrier: Omit<LaoShippingCarrier, 'id'> & { id?: string }) => LaoShippingCarrier;
+  adminUpdateShippingCarrier: (carrierId: string, updates: Partial<LaoShippingCarrier>) => void;
+  adminDeleteShippingCarrier: (carrierId: string) => boolean;
+  adminResetShippingCarriers: () => void;
   adminAddSong: (song: SongProductionProject) => void;
   adminUpdateSong: (songId: string, updates: Partial<SongProductionProject>) => void;
   adminDeleteSong: (songId: string) => boolean;
@@ -1007,6 +1012,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_SUPPORT_LOCATIONS;
   });
+  const [shippingCarriers, setShippingCarriers] = useState<LaoShippingCarrier[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_shipping_carriers_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return LAO_SHIPPING_CARRIERS;
+  });
   const [songs, setSongs] = useState<SongProductionProject[]>(INITIAL_SONGS);
   const [laoBanks, setLaoBanks] = useState<LaoBankDefinition[]>(() => {
     try {
@@ -1683,7 +1700,10 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const subtotal = orderItems.reduce((acc, i) => acc + i.totalLak, 0);
     const hasPhysical = orderItems.some(i => i.itemType === 'PHYSICAL');
-    const selectedCarrier = LAO_SHIPPING_CARRIERS.find(c => c.id === carrierId) || LAO_SHIPPING_CARRIERS[0];
+    const selectedCarrier =
+      shippingCarriers.find(c => c.id === carrierId) ||
+      shippingCarriers[0] ||
+      LAO_SHIPPING_CARRIERS[0];
     const shippingFee = hasPhysical ? selectedCarrier.baseFeeLak : 0;
     const total = subtotal + shippingFee;
 
@@ -2760,6 +2780,122 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  // 3B. Shipping Carriers & Price CRUD (Add, Edit, Update, Delete with localStorage persistence)
+  const adminAddShippingCarrier = (
+    carrierData: Omit<LaoShippingCarrier, 'id'> & { id?: string }
+  ): LaoShippingCarrier => {
+    const cleanId =
+      carrierData.id?.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_') ||
+      `CARRIER_${Date.now().toString().slice(-5)}`;
+    const newCarrier: LaoShippingCarrier = {
+      ...carrierData,
+      id: cleanId,
+      baseFeeLak: Math.max(0, Math.round(Number(carrierData.baseFeeLak) || 0)),
+    };
+    setShippingCarriers(prev => {
+      const next = [...prev, newCarrier];
+      try {
+        localStorage.setItem('dmc_rev26_shipping_carriers_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_ADD_SHIPPING_CARRIER',
+        entityType: 'SHIPPING_CARRIER',
+        entityId: newCarrier.id,
+        details: {
+          name: newCarrier.name,
+          nameLao: newCarrier.nameLao,
+          baseFeeLak: newCarrier.baseFeeLak,
+        },
+      },
+      ...prev,
+    ]);
+    return newCarrier;
+  };
+
+  const adminUpdateShippingCarrier = (
+    carrierId: string,
+    updates: Partial<LaoShippingCarrier>
+  ) => {
+    setShippingCarriers(prev => {
+      const next = prev.map(item =>
+        item.id === carrierId
+          ? {
+              ...item,
+              ...updates,
+              baseFeeLak:
+                updates.baseFeeLak !== undefined
+                  ? Math.max(0, Math.round(Number(updates.baseFeeLak) || 0))
+                  : item.baseFeeLak,
+            }
+          : item
+      );
+      try {
+        localStorage.setItem('dmc_rev26_shipping_carriers_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPDATE_SHIPPING_CARRIER',
+        entityType: 'SHIPPING_CARRIER',
+        entityId: carrierId,
+        details: updates,
+      },
+      ...prev,
+    ]);
+  };
+
+  const adminDeleteShippingCarrier = (carrierId: string): boolean => {
+    setShippingCarriers(prev => {
+      if (prev.length <= 1) return prev; // Keep at least 1 active carrier
+      const next = prev.filter(item => item.id !== carrierId);
+      try {
+        localStorage.setItem('dmc_rev26_shipping_carriers_v1', JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_DELETE_SHIPPING_CARRIER',
+        entityType: 'SHIPPING_CARRIER',
+        entityId: carrierId,
+        details: { deletedAt: new Date().toISOString() },
+      },
+      ...prev,
+    ]);
+    return true;
+  };
+
+  const adminResetShippingCarriers = () => {
+    setShippingCarriers(LAO_SHIPPING_CARRIERS);
+    try {
+      localStorage.setItem(
+        'dmc_rev26_shipping_carriers_v1',
+        JSON.stringify(LAO_SHIPPING_CARRIERS)
+      );
+    } catch {
+      // ignore
+    }
+  };
+
   // 4. Songs CRUD
   const adminAddSong = (song: SongProductionProject) => {
     setSongs(prev => [...prev, song]);
@@ -3202,6 +3338,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminAddOrder,
         adminUpdateOrder,
         adminDeleteOrder,
+        shippingCarriers,
+        adminAddShippingCarrier,
+        adminUpdateShippingCarrier,
+        adminDeleteShippingCarrier,
+        adminResetShippingCarriers,
         adminAddSong,
         adminUpdateSong,
         adminDeleteSong,

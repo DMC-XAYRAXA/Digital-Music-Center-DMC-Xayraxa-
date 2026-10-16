@@ -78,6 +78,7 @@ import {
   BankAccountInfo,
   DEFAULT_LAO_BANKS,
   LaoShippingCarrierId,
+  LaoShippingCarrier,
   LAO_SHIPPING_CARRIERS,
   EventActivityPost,
   SupportLocationItem
@@ -129,7 +130,12 @@ export const AdminPortal: React.FC = () => {
     eventPosts,
     adminAddEventPost,
     adminUpdateEventPost,
-    adminDeleteEventPost
+    adminDeleteEventPost,
+    shippingCarriers,
+    adminAddShippingCarrier,
+    adminUpdateShippingCarrier,
+    adminDeleteShippingCarrier,
+    adminResetShippingCarriers
   } = useDmc();
 
   const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
@@ -338,7 +344,10 @@ export const AdminPortal: React.FC = () => {
 
     const qty = Number(newOrderForm.quantity);
     const subtotal = targetProd.priceLak * qty;
-    const carrier = LAO_SHIPPING_CARRIERS.find(c => c.id === newOrderForm.carrierId) || LAO_SHIPPING_CARRIERS[0];
+    const carrier =
+      shippingCarriers.find(c => c.id === newOrderForm.carrierId) ||
+      shippingCarriers[0] ||
+      LAO_SHIPPING_CARRIERS[0];
     const shipping = targetProd.itemType === 'PHYSICAL' ? carrier.baseFeeLak : 0;
     const total = subtotal + shipping;
 
@@ -388,6 +397,101 @@ export const AdminPortal: React.FC = () => {
       adminDeleteOrder(orderId);
       showNotification(`Deleted order ${orderId}.`);
     }
+  };
+
+  // ---------------- SHIPPING CARRIERS & PRICE CRUD STATE ----------------
+  const [showShippingCrudModal, setShowShippingCrudModal] = useState(false);
+  const [shippingCrudMode, setShippingCrudMode] = useState<'CREATE' | 'EDIT'>('EDIT');
+  const [editingCarrierId, setEditingCarrierId] = useState<string>('ANOUSITH');
+  const [shippingCarrierForm, setShippingCarrierForm] = useState({
+    id: 'ANOUSITH',
+    name: 'Anousith Logistics',
+    nameLao: 'ອານຸສິດ ຂົນສົ່ງ (Anousith Logistics)',
+    badge: 'Nationwide Network • 18 Provinces',
+    estimatedDays: '1-2 Days',
+    baseFeeLak: 35000,
+    trackingPrefix: 'ANS-LA',
+    hotline: '1668 / +856 20 5511 8899',
+    logoColor: '#e11d48',
+    description:
+      'Largest door-to-door parcel delivery & branch network covering all 18 provinces in Lao PDR.',
+  });
+
+  const handleOpenEditShippingCarrier = (carrier: LaoShippingCarrier) => {
+    setShippingCrudMode('EDIT');
+    setEditingCarrierId(carrier.id);
+    setShippingCarrierForm({
+      id: carrier.id,
+      name: carrier.name,
+      nameLao: carrier.nameLao,
+      badge: carrier.badge,
+      estimatedDays: carrier.estimatedDays,
+      baseFeeLak: carrier.baseFeeLak,
+      trackingPrefix: carrier.trackingPrefix,
+      hotline: carrier.hotline,
+      logoColor: carrier.logoColor || '#f59e0b',
+      description: carrier.description,
+    });
+    setShowShippingCrudModal(true);
+  };
+
+  const handleOpenCreateShippingCarrier = () => {
+    setShippingCrudMode('CREATE');
+    setEditingCarrierId('');
+    setShippingCarrierForm({
+      id: `CARRIER_${Date.now().toString().slice(-4)}`,
+      name: '',
+      nameLao: '',
+      badge: 'Nationwide Express • 18 Provinces',
+      estimatedDays: '1-2 Days',
+      baseFeeLak: 30000,
+      trackingPrefix: 'LAO-EXP',
+      hotline: '+856 20 5500 9988',
+      logoColor: '#3b82f6',
+      description: 'Door-to-door and provincial branch delivery across Lao PDR.',
+    });
+    setShowShippingCrudModal(true);
+  };
+
+  const handleSaveShippingCarrier = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = shippingCarrierForm.name.trim() || 'Lao Express Carrier';
+    const cleanNameLao = shippingCarrierForm.nameLao.trim() || cleanName;
+    const cleanFee = Math.max(0, Math.round(Number(shippingCarrierForm.baseFeeLak) || 0));
+
+    if (shippingCrudMode === 'EDIT' && editingCarrierId) {
+      adminUpdateShippingCarrier(editingCarrierId, {
+        name: cleanName,
+        nameLao: cleanNameLao,
+        badge: shippingCarrierForm.badge.trim() || 'Nationwide Delivery',
+        estimatedDays: shippingCarrierForm.estimatedDays.trim() || '1-2 Days',
+        baseFeeLak: cleanFee,
+        trackingPrefix: shippingCarrierForm.trackingPrefix.trim().toUpperCase() || 'DMC-EXP',
+        hotline: shippingCarrierForm.hotline.trim() || '+856 20 5511 2233',
+        logoColor: shippingCarrierForm.logoColor || '#f59e0b',
+        description: shippingCarrierForm.description.trim(),
+      });
+      showNotification(
+        `Updated shipping carrier "${cleanName}" price to ${formatLak(cleanFee)}!`
+      );
+    } else {
+      const created = adminAddShippingCarrier({
+        id: shippingCarrierForm.id,
+        name: cleanName,
+        nameLao: cleanNameLao,
+        badge: shippingCarrierForm.badge.trim() || 'Nationwide Delivery',
+        estimatedDays: shippingCarrierForm.estimatedDays.trim() || '1-2 Days',
+        baseFeeLak: cleanFee,
+        trackingPrefix: shippingCarrierForm.trackingPrefix.trim().toUpperCase() || 'DMC-EXP',
+        hotline: shippingCarrierForm.hotline.trim() || '+856 20 5511 2233',
+        logoColor: shippingCarrierForm.logoColor || '#3b82f6',
+        description: shippingCarrierForm.description.trim(),
+      });
+      showNotification(
+        `Added new shipping carrier "${created.name}" (${formatLak(created.baseFeeLak)})!`
+      );
+    }
+    setShowShippingCrudModal(false);
   };
 
   // ---------------- SONGS CRUD MODALS ----------------
@@ -856,7 +960,7 @@ export const AdminPortal: React.FC = () => {
                       totalSongs,
                       totalBanks: laoBanks.length,
                       supportedBanksList: laoBanks.map(b => `${b.code} (${b.name})`),
-                      shippingCarriersList: LAO_SHIPPING_CARRIERS.map(c => c.name),
+                      shippingCarriersList: shippingCarriers.map(c => c.name),
                     },
                     '1_DMC_Company_Profile_Lao_Version.pdf',
                     'LO'
@@ -897,7 +1001,7 @@ export const AdminPortal: React.FC = () => {
                       totalSongs,
                       totalBanks: laoBanks.length,
                       supportedBanksList: laoBanks.map(b => `${b.code} (${b.name})`),
-                      shippingCarriersList: LAO_SHIPPING_CARRIERS.map(c => c.name),
+                      shippingCarriersList: shippingCarriers.map(c => c.name),
                     },
                     '1_DMC_Company_Profile_English_Version.pdf',
                     'EN'
@@ -1581,31 +1685,183 @@ export const AdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* ================= TAB 3: ORDERS CRUD ================= */}
+      {/* ================= TAB 3: ORDERS & SHIPPING CRUD ================= */}
       {activeAdminTab === 'ORDERS' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Truck className="w-5 h-5 text-amber-400" />
-                <span>Orders & Logistics Management (CRUD)</span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Create manual member orders, update fulfillment statuses (triggers commission clearance upon Delivery), or cancel orders.
-              </p>
+        <div className="space-y-6 animate-in fade-in">
+          {/* SECTION 1: SHIPPING CARRIERS & PRICE MANAGEMENT (ADD, EDIT, UPDATE, DELETE) */}
+          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-amber-400" />
+                  <span>
+                    Lao Shipping Carriers & Price Control (Add, Edit, Delete, Update Shipping Price)
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Manage shipping companies and adjust shipping prices (LAK) anytime carrier rates change.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    adminResetShippingCarriers();
+                    showNotification('Reset shipping carriers and prices to default!');
+                  }}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-xs cursor-pointer"
+                >
+                  Reset Defaults
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateShippingCarrier}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Add Shipping Carrier</span>
+                </button>
+              </div>
             </div>
 
-            <button
-              onClick={() => setShowAddOrderModal(true)}
-              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Manual Order</span>
-            </button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+              {shippingCarriers.map((carrier) => (
+                <div
+                  key={carrier.id}
+                  className="p-4 rounded-2xl bg-slate-800/45 border border-slate-700/70 hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ backgroundColor: carrier.logoColor }}
+                          />
+                          <h4 className="font-black text-sm text-white truncate">
+                            {carrier.name}
+                          </h4>
+                        </div>
+                        <div className="text-[11px] text-amber-200 font-medium mt-0.5">
+                          {carrier.nameLao}
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 font-mono text-[10px] text-amber-300 shrink-0">
+                        {carrier.trackingPrefix}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">
+                          Current Shipping Price
+                        </span>
+                        <span className="font-mono font-black text-sm text-amber-300">
+                          {formatLak(carrier.baseFeeLak)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block">Delivery Time</span>
+                        <span className="text-emerald-400 font-bold text-xs">
+                          {carrier.estimatedDays}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                      <span className="truncate">{carrier.badge}</span>
+                      <span className="font-mono text-slate-300 shrink-0">{carrier.hotline}</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Price Adjust & Edit / Delete Buttons */}
+                  <div className="pt-2.5 border-t border-slate-700/60 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextFee = Math.max(0, carrier.baseFeeLak - 5000);
+                          adminUpdateShippingCarrier(carrier.id, { baseFeeLak: nextFee });
+                          showNotification(
+                            `Updated ${carrier.name} shipping price to ${formatLak(nextFee)}!`
+                          );
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold text-[10px] cursor-pointer"
+                        title="Decrease price by 5,000 LAK"
+                      >
+                        -5K
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextFee = carrier.baseFeeLak + 5000;
+                          adminUpdateShippingCarrier(carrier.id, { baseFeeLak: nextFee });
+                          showNotification(
+                            `Updated ${carrier.name} shipping price to ${formatLak(nextFee)}!`
+                          );
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-mono font-bold text-[10px] cursor-pointer"
+                        title="Increase price by 5,000 LAK"
+                      >
+                        +5K
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditShippingCarrier(carrier)}
+                        className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Edit / Update Price</span>
+                      </button>
+
+                      {shippingCarriers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            adminDeleteShippingCarrier(carrier.id);
+                            showNotification(`Deleted shipping carrier "${carrier.name}"!`);
+                          }}
+                          className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 cursor-pointer"
+                          title="Delete Shipping Carrier"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {orders.map(order => (
+          {/* SECTION 2: ORDERS & LOGISTICS MANAGEMENT */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-amber-400" />
+                  <span>Orders & Logistics Management (CRUD)</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Create manual member orders, update fulfillment statuses (triggers commission clearance upon Delivery), or cancel orders.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddOrderModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Manual Order</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {orders.map(order => (
               <div
                 key={order.id}
                 className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-3 text-xs"
@@ -1675,6 +1931,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
           </div>
         </div>
       )}
@@ -3685,7 +3942,7 @@ export const AdminPortal: React.FC = () => {
                   onChange={e => setNewOrderForm({ ...newOrderForm, carrierId: e.target.value as any })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
                 >
-                  {LAO_SHIPPING_CARRIERS.map(c => (
+                  {shippingCarriers.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({formatLak(c.baseFeeLak)} • {c.estimatedDays})
                     </option>
@@ -3706,6 +3963,171 @@ export const AdminPortal: React.FC = () => {
                   className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
                 >
                   Settle & Place Order
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6B. ADD / EDIT SHIPPING CARRIER & PRICE MODAL */}
+      {showShippingCrudModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-lg w-full p-6 text-slate-100 shadow-2xl space-y-4 my-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+              <h3 className="font-bold text-base text-white flex items-center gap-2">
+                <Truck className="w-5 h-5 text-amber-400" />
+                <span>
+                  {shippingCrudMode === 'EDIT'
+                    ? `Edit / Update Shipping & Price: ${shippingCarrierForm.name}`
+                    : 'Add New Shipping Carrier & Price'}
+                </span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowShippingCrudModal(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveShippingCarrier} className="space-y-3.5 text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/40 space-y-2.5">
+                <BeautifulNumberInput
+                  label="Shipping Fee / Price (Integer LAK)"
+                  placeholder="e.g. 25,000 or 35,000 or 40,000"
+                  value={shippingCarrierForm.baseFeeLak}
+                  onChange={num =>
+                    setShippingCarrierForm({ ...shippingCarrierForm, baseFeeLak: num })
+                  }
+                  required
+                  theme="amber"
+                  presetChips={[0, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 60000]}
+                  showMaxButton={false}
+                  showKBadge={true}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">
+                    Shipping Name (English) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={shippingCarrierForm.name}
+                    onChange={e =>
+                      setShippingCarrierForm({ ...shippingCarrierForm, name: e.target.value })
+                    }
+                    placeholder="e.g. Anousith Logistics"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">
+                    Shipping Name (Lao / ຊື່ພາສາລາວ) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={shippingCarrierForm.nameLao}
+                    onChange={e =>
+                      setShippingCarrierForm({
+                        ...shippingCarrierForm,
+                        nameLao: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. ອານຸສິດ ຂົນສົ່ງ"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">
+                    Estimated Delivery *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={shippingCarrierForm.estimatedDays}
+                    onChange={e =>
+                      setShippingCarrierForm({
+                        ...shippingCarrierForm,
+                        estimatedDays: e.target.value,
+                      })
+                    }
+                    placeholder="1-2 Days"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-emerald-300 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">
+                    Tracking Prefix *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={shippingCarrierForm.trackingPrefix}
+                    onChange={e =>
+                      setShippingCarrierForm({
+                        ...shippingCarrierForm,
+                        trackingPrefix: e.target.value,
+                      })
+                    }
+                    placeholder="ANS-LA"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">Hotline *</label>
+                  <input
+                    type="text"
+                    required
+                    value={shippingCarrierForm.hotline}
+                    onChange={e =>
+                      setShippingCarrierForm({
+                        ...shippingCarrierForm,
+                        hotline: e.target.value,
+                      })
+                    }
+                    placeholder="1668 / +856 20..."
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-medium block mb-1">Coverage Badge</label>
+                <input
+                  type="text"
+                  value={shippingCarrierForm.badge}
+                  onChange={e =>
+                    setShippingCarrierForm({ ...shippingCarrierForm, badge: e.target.value })
+                  }
+                  placeholder="Nationwide Network • 18 Provinces"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowShippingCrudModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black cursor-pointer"
+                >
+                  {shippingCrudMode === 'EDIT'
+                    ? `Update Shipping (${formatLak(shippingCarrierForm.baseFeeLak)})`
+                    : `Add Shipping (${formatLak(shippingCarrierForm.baseFeeLak)})`}
                 </button>
               </div>
             </form>
@@ -3748,7 +4170,7 @@ export const AdminPortal: React.FC = () => {
                   value={editingOrder.carrierId || 'ANOUSITH'}
                   onChange={e => {
                     const cid = e.target.value as LaoShippingCarrierId;
-                    const c = LAO_SHIPPING_CARRIERS.find(x => x.id === cid);
+                    const c = shippingCarriers.find(x => x.id === cid);
                     setEditingOrder({ 
                       ...editingOrder, 
                       carrierId: cid, 
@@ -3757,7 +4179,7 @@ export const AdminPortal: React.FC = () => {
                   }}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
                 >
-                  {LAO_SHIPPING_CARRIERS.map(c => (
+                  {shippingCarriers.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.nameLao})
                     </option>
@@ -3772,7 +4194,10 @@ export const AdminPortal: React.FC = () => {
                     type="button"
                     onClick={() => {
                       const cid = editingOrder.carrierId || 'ANOUSITH';
-                      const c = LAO_SHIPPING_CARRIERS.find(x => x.id === cid) || LAO_SHIPPING_CARRIERS[0];
+                      const c =
+                        shippingCarriers.find(x => x.id === cid) ||
+                        shippingCarriers[0] ||
+                        LAO_SHIPPING_CARRIERS[0];
                       setEditingOrder({
                         ...editingOrder,
                         trackingNumber: `${c.trackingPrefix}-${Date.now().toString().slice(-6)}`

@@ -45,7 +45,7 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
   initialCarrierId = 'ANOUSITH',
   initialTrackingCode = ''
 }) => {
-  const { currentMember, language, adminUpdateMember } = useDmc();
+  const { currentMember, language, adminUpdateMember, shippingCarriers } = useDmc();
   const [selectedCarrierId, setSelectedCarrierId] = useState<LaoShippingCarrierId>(
     currentMember.preferredCarrierId || initialCarrierId
   );
@@ -56,7 +56,10 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
 
   if (!isOpen) return null;
 
-  const selectedCarrier = LAO_SHIPPING_CARRIERS.find(c => c.id === selectedCarrierId) || LAO_SHIPPING_CARRIERS[0];
+  const selectedCarrier =
+    shippingCarriers.find(c => c.id === selectedCarrierId) ||
+    shippingCarriers[0] ||
+    LAO_SHIPPING_CARRIERS[0];
 
   const getCarrierDisplayName = (carrier: LaoShippingCarrier) => {
     if (language === 'lo') return carrier.nameLao;
@@ -75,7 +78,7 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
 
   const handleSetPreferredCarrier = (carrierId: LaoShippingCarrierId) => {
     setSelectedCarrierId(carrierId);
-    const chosen = LAO_SHIPPING_CARRIERS.find(c => c.id === carrierId) || selectedCarrier;
+    const chosen = shippingCarriers.find(c => c.id === carrierId) || selectedCarrier;
     adminUpdateMember(currentMember.memberId, { preferredCarrierId: carrierId });
     setPreferredSavedNotice(`Saved ${chosen.name} (${chosen.nameLao}) as your preferred shipping carrier!`);
     setTimeout(() => setPreferredSavedNotice(null), 3000);
@@ -199,7 +202,7 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
                   Lao Shipping Carriers & Express Logistics
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
-                  3 Carriers
+                  {shippingCarriers.length} Carriers
                 </span>
               </div>
               <p className="text-xs text-slate-400">
@@ -215,10 +218,10 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
           </button>
         </div>
 
-        {/* 3 Carrier Selector Bar */}
+        {/* Carrier Selector Bar */}
         <div className="p-3 bg-slate-950/80 border-b border-slate-800">
           <div className="grid grid-cols-3 gap-2">
-            {LAO_SHIPPING_CARRIERS.map(carrier => {
+            {shippingCarriers.map(carrier => {
               const isSelected = selectedCarrierId === carrier.id;
               return (
                 <button

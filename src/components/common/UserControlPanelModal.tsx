@@ -75,7 +75,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
     superAdminProfile,
     updateSuperAdminProfile,
     sendSmsRecoveryOtp,
-    resetPasswordWithSmsOtp
+    resetPasswordWithSmsOtp,
+    shippingCarriers
   } = useDmc();
 
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'BANK' | 'SHIPPING' | 'PRESETS' | 'LOGIN' | 'SECURITY'>('PROFILE');
@@ -978,9 +979,9 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                   ))}
                 </div>
 
-                {/* 3 Lao Carriers Quick Selector */}
+                {/* Lao Carriers Quick Selector */}
                 <div className="grid grid-cols-3 gap-1.5 pt-1">
-                  {LAO_SHIPPING_CARRIERS.map((c) => {
+                  {shippingCarriers.map((c) => {
                     const isSelected = preferredCarrier === c.id;
                     return (
                       <button
@@ -1485,7 +1486,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
                 </div>
 
                 <div className="space-y-2.5">
-                  {LAO_SHIPPING_CARRIERS.map((carrier) => {
+                  {shippingCarriers.map((carrier) => {
                     const isSelected = preferredCarrier === carrier.id;
                     return (
                       <div
