@@ -10,7 +10,7 @@
  * - Banner Products Showcase (Interactive Hero Product Banner Carousel + 4 Product Banner Cards)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDmc } from '../../context/DmcContext';
 import {
   translations,
@@ -61,6 +61,10 @@ import {
   MapPin,
   Megaphone,
   Image as ImageIcon,
+  Search,
+  Truck,
+  Briefcase,
+  ArrowRight,
 } from 'lucide-react';
 import { QrCodeModal } from '../common/QrCodeModal';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
@@ -71,11 +75,17 @@ import { UserControlPanelModal } from '../common/UserControlPanelModal';
 import { AuthPortalModal } from '../common/AuthPortalModal';
 import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
 import { MemberRegistrationTutorialGuide } from '../common/MemberRegistrationTutorialGuide';
+import { DmcPricingStructureCard } from '../common/DmcPricingStructureCard';
 import {
   LaoShippingCarrierId,
   ProductSKU,
   EventActivityPost,
   SupportLocationItem,
+  StaffPosition,
+  DMC_STAFF_POSITIONS,
+  DmcStaffMember,
+  DmcPromotionItem,
+  DMC_STANDARD_PRICING,
 } from '../../types/dmc';
 
 interface HomeScreenProps {
@@ -115,6 +125,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     adminAddSupportLocation,
     adminUpdateSupportLocation,
     adminDeleteSupportLocation,
+    staffMembers,
+    adminAddStaffMember,
+    adminUpdateStaffMember,
+    adminDeleteStaffMember,
+    adminResetStaffMembers,
+    adminUpgradeMemberToStaff,
+    adminDowngradeStaffToMember,
+    promotions,
+    adminAddPromotion,
+    adminUpdatePromotion,
+    adminDeletePromotion,
+    adminResetPromotions,
+    customHomeIcons,
+    adminUpdateHomeIcon,
+    shippingCarriers,
     isAdminMode,
     isAdminAuthenticated,
     setIsAdminAuthenticated,
@@ -131,9 +156,174 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const totalMyDownlines =
     myDownlines.l1.length + myDownlines.l2.length + myDownlines.l3.length;
 
+  // Home Header Search Box state (placed right below Member Profile Header & above Event section)
+  const [homeSearchQuery, setHomeSearchQuery] = useState('');
+  const [isHomeSearchOpen, setIsHomeSearchOpen] = useState(false);
+  const [homeSearchCategory, setHomeSearchCategory] = useState<
+    'ALL' | 'PRODUCTS' | 'STAFF' | 'SHIPPING' | 'EVENTS' | 'MEMBERS'
+  >('ALL');
+
+  const normalizedHomeQuery = homeSearchQuery.trim().toLowerCase();
+
+  const homeSearchResults = useMemo(() => {
+    const q = normalizedHomeQuery;
+
+    const matchedProducts = products.filter((p) => {
+      if (!q) return true;
+      const loc = getLocalizedProduct(p, language);
+      return (
+        p.sku.toLowerCase().includes(q) ||
+        p.titleEn.toLowerCase().includes(q) ||
+        (p.titleLo && p.titleLo.toLowerCase().includes(q)) ||
+        (p.titleTh && p.titleTh.toLowerCase().includes(q)) ||
+        loc.title.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        String(p.priceLak).includes(q)
+      );
+    });
+
+    const matchedStaff = staffMembers.filter((s) => {
+      if (!q) return true;
+      return (
+        s.fullName.toLowerCase().includes(q) ||
+        s.position.toLowerCase().includes(q) ||
+        s.staffCode.toLowerCase().includes(q) ||
+        s.phone.toLowerCase().includes(q) ||
+        s.branch.toLowerCase().includes(q) ||
+        s.bioOrDuty.toLowerCase().includes(q)
+      );
+    });
+
+    const matchedShipping = shippingCarriers.filter((c) => {
+      if (!q) return true;
+      return (
+        c.nameEn.toLowerCase().includes(q) ||
+        c.nameLo.toLowerCase().includes(q) ||
+        c.shortName.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q) ||
+        String(c.baseFeeLak).includes(q)
+      );
+    });
+
+    const matchedEvents = eventPosts.filter((e) => {
+      if (!q) return true;
+      return (
+        e.title.toLowerCase().includes(q) ||
+        e.headline.toLowerCase().includes(q) ||
+        e.location.toLowerCase().includes(q) ||
+        e.information.toLowerCase().includes(q)
+      );
+    });
+
+    const matchedSupport = supportLocations.filter((loc) => {
+      if (!q) return true;
+      return (
+        loc.label.toLowerCase().includes(q) ||
+        loc.value.toLowerCase().includes(q) ||
+        (loc.locationAddress && loc.locationAddress.toLowerCase().includes(q))
+      );
+    });
+
+    const matchedMembers = allMembers.filter((m) => {
+      if (!q) return true;
+      return (
+        m.name.toLowerCase().includes(q) ||
+        m.memberId.toLowerCase().includes(q) ||
+        m.phone.toLowerCase().includes(q) ||
+        (m.email && m.email.toLowerCase().includes(q))
+      );
+    });
+
+    return {
+      products: matchedProducts,
+      staff: matchedStaff,
+      shipping: matchedShipping,
+      events: matchedEvents,
+      support: matchedSupport,
+      members: matchedMembers,
+      totalCount:
+        matchedProducts.length +
+        matchedStaff.length +
+        matchedShipping.length +
+        matchedEvents.length +
+        matchedSupport.length +
+        matchedMembers.length,
+    };
+  }, [
+    normalizedHomeQuery,
+    products,
+    staffMembers,
+    shippingCarriers,
+    eventPosts,
+    supportLocations,
+    allMembers,
+    language,
+  ]);
+
   const [activeQrModal, setActiveQrModal] = useState<'MEMBER' | 'REFERRAL' | null>(null);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
   const [showPromotionsModal, setShowPromotionsModal] = useState(false);
+  const [promotionModalMode, setPromotionModalMode] = useState<'LIST' | 'CREATE' | 'EDIT'>('LIST');
+  const [editingPromotionId, setEditingPromotionId] = useState<string | null>(null);
+  const [promotionForm, setPromotionForm] = useState<{
+    code: string;
+    badge: string;
+    title: string;
+    titleLo: string;
+    description: string;
+    priceLak: number;
+    originalPriceLak: number;
+    bonusPoolLak: number;
+    validUntil: string;
+    imageUrl: string;
+    targetTab: DmcPromotionItem['targetTab'];
+    targetSku: string;
+    status: DmcPromotionItem['status'];
+  }>({
+    code: 'PROMO-DMC-004',
+    badge: 'SPECIAL MUSIC INCENTIVE',
+    title: '',
+    titleLo: '',
+    description: '',
+    priceLak: 1600000,
+    originalPriceLak: 2000000,
+    bonusPoolLak: 700000,
+    validUntil: '31 Dec 2026',
+    imageUrl:
+      'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
+    targetTab: 'musichub',
+    targetSku: 'MUSIC_SINGLE_1600',
+    status: 'ACTIVE',
+  });
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [selectedStaffPositionFilter, setSelectedStaffPositionFilter] = useState<StaffPosition | 'ALL'>('ALL');
+  const [staffModalMode, setStaffModalMode] = useState<'LIST' | 'CREATE' | 'EDIT' | 'ICONS' | 'UPGRADE_MEMBER'>('LIST');
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [selectedMemberToUpgradeId, setSelectedMemberToUpgradeId] = useState<string>('');
+  const [memberUpgradeFilterQuery, setMemberUpgradeFilterQuery] = useState<string>('');
+  const [staffForm, setStaffForm] = useState<{
+    staffCode: string;
+    fullName: string;
+    position: StaffPosition;
+    phone: string;
+    email: string;
+    branch: string;
+    avatarUrl: string;
+    customIconUrl: string;
+    bioOrDuty: string;
+    status: DmcStaffMember['status'];
+  }>({
+    staffCode: 'DMC-STF-009',
+    fullName: '',
+    position: 'Teacher',
+    phone: '+856 20 ',
+    email: '',
+    branch: 'Dongdok Campus Studio Hub, Vientiane',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+    customIconUrl: '',
+    bioOrDuty: '',
+    status: 'ACTIVE',
+  });
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportModalMode, setSupportModalMode] = useState<
     'REGISTER_VIDEO_GUIDE' | 'LIST' | 'EDIT' | 'CREATE'
@@ -298,8 +488,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     titleLo: string;
     titleTh: string;
     descriptionEn: string;
+    marketPriceLak: number;
     priceLak: number;
+    memberDiscountLak: number;
     commissionPoolLak: number;
+    l1Share: number;
+    l2Share: number;
+    l3Share: number;
     stockSellable: number;
     itemType: ProductSKU['itemType'];
     imageUrl: string;
@@ -310,8 +505,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     titleLo: '',
     titleTh: '',
     descriptionEn: '',
-    priceLak: 1600000,
-    commissionPoolLak: 300000,
+    marketPriceLak: DMC_STANDARD_PRICING.marketPriceLak,
+    priceLak: DMC_STANDARD_PRICING.memberPriceLak,
+    memberDiscountLak: DMC_STANDARD_PRICING.memberDiscountLak,
+    commissionPoolLak: DMC_STANDARD_PRICING.commissionPoolLak,
+    l1Share: DMC_STANDARD_PRICING.l1Percent,
+    l2Share: DMC_STANDARD_PRICING.l2Percent,
+    l3Share: DMC_STANDARD_PRICING.l3Percent,
     stockSellable: 20,
     itemType: 'PHYSICAL',
     imageUrl: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
@@ -331,8 +531,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       titleLo: '',
       titleTh: '',
       descriptionEn: '',
-      priceLak: 1800000,
-      commissionPoolLak: 300000,
+      marketPriceLak: DMC_STANDARD_PRICING.marketPriceLak,
+      priceLak: DMC_STANDARD_PRICING.memberPriceLak,
+      memberDiscountLak: DMC_STANDARD_PRICING.memberDiscountLak,
+      commissionPoolLak: DMC_STANDARD_PRICING.commissionPoolLak,
+      l1Share: DMC_STANDARD_PRICING.l1Percent,
+      l2Share: DMC_STANDARD_PRICING.l2Percent,
+      l3Share: DMC_STANDARD_PRICING.l3Percent,
       stockSellable: 25,
       itemType: 'PHYSICAL',
       imageUrl: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
@@ -347,6 +552,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       return;
     }
     setProductModalMode('EDIT');
+    const marketPrice =
+      prod.marketPriceLak ??
+      (prod.sku === 'MUSIC_SINGLE_1600' ? prod.priceLak : DMC_STANDARD_PRICING.marketPriceLak);
+    const memberDiscount =
+      prod.memberDiscountLak ?? Math.max(0, marketPrice - prod.priceLak);
     setProductForm({
       sku: prod.sku,
       category: prod.category,
@@ -354,8 +564,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       titleLo: prod.titleLo || prod.titleEn,
       titleTh: prod.titleTh || prod.titleEn,
       descriptionEn: prod.descriptionEn,
+      marketPriceLak: marketPrice,
       priceLak: prod.priceLak,
+      memberDiscountLak: memberDiscount,
       commissionPoolLak: prod.commissionPoolLak,
+      l1Share:
+        prod.splitRule.ruleType === 'POOL_PERCENTAGE'
+          ? prod.splitRule.l1Share
+          : DMC_STANDARD_PRICING.l1Percent,
+      l2Share:
+        prod.splitRule.ruleType === 'POOL_PERCENTAGE'
+          ? prod.splitRule.l2Share
+          : DMC_STANDARD_PRICING.l2Percent,
+      l3Share:
+        prod.splitRule.ruleType === 'POOL_PERCENTAGE'
+          ? prod.splitRule.l3Share
+          : DMC_STANDARD_PRICING.l3Percent,
       stockSellable: prod.stockSellable,
       itemType: prod.itemType,
       imageUrl: prod.imageUrl,
@@ -379,6 +603,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     e.preventDefault();
     const cleanSku = productForm.sku.trim().toUpperCase() || `DMC-PROD-${Date.now().toString().slice(-4)}`;
     const titleEn = productForm.titleEn.trim() || 'DMC Official Product';
+    const marketPrice = Number(productForm.marketPriceLak) >= 0 ? Number(productForm.marketPriceLak) : DMC_STANDARD_PRICING.marketPriceLak;
+    const memberPrice = Number(productForm.priceLak) >= 0 ? Number(productForm.priceLak) : DMC_STANDARD_PRICING.memberPriceLak;
+    const memberDiscount =
+      Number(productForm.memberDiscountLak) >= 0
+        ? Number(productForm.memberDiscountLak)
+        : Math.max(0, marketPrice - memberPrice);
+    const commPool = Number(productForm.commissionPoolLak) >= 0 ? Number(productForm.commissionPoolLak) : DMC_STANDARD_PRICING.commissionPoolLak;
+    const l1 = Number(productForm.l1Share) >= 0 ? Number(productForm.l1Share) : 50;
+    const l2 = Number(productForm.l2Share) >= 0 ? Number(productForm.l2Share) : 30;
+    const l3 = Number(productForm.l3Share) >= 0 ? Number(productForm.l3Share) : 20;
+
     if (productModalMode === 'EDIT') {
       adminUpdateProduct(cleanSku, {
         category: productForm.category,
@@ -386,8 +621,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         titleLo: productForm.titleLo.trim() || titleEn,
         titleTh: productForm.titleTh.trim() || titleEn,
         descriptionEn: productForm.descriptionEn.trim(),
-        priceLak: Number(productForm.priceLak) || 0,
-        commissionPoolLak: Number(productForm.commissionPoolLak) || 0,
+        marketPriceLak: marketPrice,
+        priceLak: memberPrice,
+        memberDiscountLak: memberDiscount,
+        commissionPoolLak: commPool,
+        splitRule: {
+          ruleType: 'POOL_PERCENTAGE',
+          l1Share: l1,
+          l2Share: l2,
+          l3Share: l3,
+        },
         stockSellable: Number(productForm.stockSellable) || 0,
         itemType: productForm.itemType,
         imageUrl: productForm.imageUrl.trim(),
@@ -401,13 +644,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         titleLo: productForm.titleLo.trim() || titleEn,
         titleTh: productForm.titleTh.trim() || titleEn,
         descriptionEn: productForm.descriptionEn.trim() || 'Official DMC Xayraxa product.',
-        priceLak: Number(productForm.priceLak) || 1500000,
-        commissionPoolLak: Number(productForm.commissionPoolLak) || 300000,
+        marketPriceLak: marketPrice,
+        priceLak: memberPrice,
+        memberDiscountLak: memberDiscount,
+        commissionPoolLak: commPool,
         splitRule: {
           ruleType: 'POOL_PERCENTAGE',
-          l1Share: 50,
-          l2Share: 30,
-          l3Share: 20,
+          l1Share: l1,
+          l2Share: l2,
+          l3Share: l3,
         },
         stockSellable: Number(productForm.stockSellable) || 20,
         stockReserved: 0,
@@ -548,8 +793,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               <div className="text-[10px] text-red-200 font-mono leading-tight mt-0.5 truncate">
                 ID: {currentMember.memberId || 'DM000123'}
               </div>
-              <div className="text-[9px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-0.5 truncate flex items-center gap-1">
+              <div className="text-[9px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-0.5 truncate flex items-center gap-1 flex-wrap">
                 <span>{isActive ? t.activeMember : t.freeMember}</span>
+                {(currentMember.isStaff || staffMembers.some((s) => s.memberId === currentMember.memberId)) && (
+                  <span className="px-1.5 py-0.2 rounded bg-sky-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
+                    Staff: {currentMember.staffPosition || staffMembers.find((s) => s.memberId === currentMember.memberId)?.position}
+                  </span>
+                )}
                 {isAdmin && (
                   <span className="px-1 py-0.2 rounded bg-emerald-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
                     Admin
@@ -835,8 +1085,436 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
 
+        {/* 1B/ HOME SEARCH BOX & SEARCH BUTTON (Placed right below Profile Header & above Event Section) */}
+        <div className="relative mt-3 mb-3.5">
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 text-slate-900 shadow-md border-2 transition-all ${
+              isHomeSearchOpen
+                ? 'border-amber-400 ring-2 ring-amber-300/40'
+                : 'border-amber-300/90 hover:border-amber-400'
+            }`}
+          >
+            <Search className="w-4 h-4 text-[#850818] shrink-0 stroke-[2.5]" />
+            <input
+              type="text"
+              value={homeSearchQuery}
+              onFocus={() => {
+                setIsHomeSearchOpen(true);
+                setShowLoginDropdown(false);
+                setShowLanguagePicker(false);
+              }}
+              onChange={(e) => {
+                setHomeSearchQuery(e.target.value);
+                if (!isHomeSearchOpen) setIsHomeSearchOpen(true);
+              }}
+              placeholder="Search products, music, staff, shipping, events..."
+              className="w-full bg-transparent text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none"
+            />
+            {homeSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setHomeSearchQuery('')}
+                className="p-0.5 rounded-full hover:bg-slate-200 text-slate-500 hover:text-slate-900 cursor-pointer shrink-0"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsHomeSearchOpen(!isHomeSearchOpen)}
+              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#850818] to-[#b80d22] hover:from-[#69030e] hover:to-[#990c1e] text-amber-300 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer shrink-0 border border-amber-400/50"
+            >
+              <Search className="w-2.5 h-2.5 text-amber-300 stroke-[2.5]" />
+              <span>Search</span>
+            </button>
+          </div>
+
+          {/* Instant Search Dropdown Results Panel */}
+          {isHomeSearchOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-[85]"
+                onClick={() => setIsHomeSearchOpen(false)}
+              />
+              <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900/98 backdrop-blur-xl border-2 border-amber-400/80 rounded-2xl shadow-[0_22px_55px_rgba(0,0,0,0.9)] p-3 z-[95] space-y-2.5 animate-in fade-in zoom-in-95 text-slate-100">
+                {/* Search Dropdown Header */}
+                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-800">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-300 uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>
+                      {normalizedHomeQuery
+                        ? `Search Results (${homeSearchResults.totalCount})`
+                        : 'Quick Search Directory'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsHomeSearchOpen(false)}
+                    className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Category Filter Pills */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
+                  {(
+                    [
+                      { id: 'ALL', label: 'All' },
+                      { id: 'PRODUCTS', label: `Products (${homeSearchResults.products.length})` },
+                      { id: 'STAFF', label: `Staff (${homeSearchResults.staff.length})` },
+                      { id: 'SHIPPING', label: `Shipping (${homeSearchResults.shipping.length})` },
+                      { id: 'EVENTS', label: `Events (${homeSearchResults.events.length})` },
+                      { id: 'MEMBERS', label: `Members (${homeSearchResults.members.length})` },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setHomeSearchCategory(tab.id)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${
+                        homeSearchCategory === tab.id
+                          ? 'bg-amber-500 text-slate-950 font-black shadow'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Scrollable Search Results */}
+                <div className="max-h-72 overflow-y-auto space-y-2.5 pr-1">
+                  {/* 1. Products & Music Packages */}
+                  {(homeSearchCategory === 'ALL' || homeSearchCategory === 'PRODUCTS') &&
+                    homeSearchResults.products.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Package className="w-3 h-3 text-rose-400" />
+                            <span>Products & Music Packages</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsHomeSearchOpen(false);
+                              onNavigate('musichub');
+                            }}
+                            className="text-amber-400 hover:underline text-[10px] cursor-pointer"
+                          >
+                            Open Shop →
+                          </button>
+                        </div>
+                        {homeSearchResults.products
+                          .slice(0, homeSearchCategory === 'PRODUCTS' ? 10 : 3)
+                          .map((prod) => {
+                            const loc = getLocalizedProduct(prod, language);
+                            return (
+                              <button
+                                key={prod.sku}
+                                type="button"
+                                onClick={() => {
+                                  setIsHomeSearchOpen(false);
+                                  setSelectedBannerProductForQr(prod);
+                                }}
+                                className="w-full text-left p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 flex items-center justify-between gap-2.5 transition-colors cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <img
+                                    src={prod.imageUrl}
+                                    alt={loc.title}
+                                    className="w-9 h-9 rounded-lg object-cover border border-slate-700 shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-white group-hover:text-amber-300 truncate">
+                                      {loc.title}
+                                    </div>
+                                    <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5">
+                                      <span>{prod.sku}</span>
+                                      <span>•</span>
+                                      <span className="text-amber-400 font-bold">
+                                        {formatNumberWithCommas(prod.priceLak)} LAK
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-black shrink-0">
+                                  Buy / View
+                                </span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    )}
+
+                  {/* 2. DMC Staff (8 Positions) */}
+                  {(homeSearchCategory === 'ALL' || homeSearchCategory === 'STAFF') &&
+                    homeSearchResults.staff.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Briefcase className="w-3 h-3 text-sky-400" />
+                            <span>DMC Staff (8 Positions)</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsHomeSearchOpen(false);
+                              setSelectedStaffPositionFilter('ALL');
+                              setStaffModalMode('LIST');
+                              setShowStaffModal(true);
+                            }}
+                            className="text-sky-400 hover:underline text-[10px] cursor-pointer"
+                          >
+                            All Staff →
+                          </button>
+                        </div>
+                        {homeSearchResults.staff
+                          .slice(0, homeSearchCategory === 'STAFF' ? 12 : 3)
+                          .map((stf) => (
+                            <button
+                              key={stf.id}
+                              type="button"
+                              onClick={() => {
+                                setIsHomeSearchOpen(false);
+                                setSelectedStaffPositionFilter(stf.position);
+                                setStaffModalMode('LIST');
+                                setShowStaffModal(true);
+                              }}
+                              className="w-full text-left p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 flex items-center justify-between gap-2.5 transition-colors cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={stf.avatarUrl}
+                                  alt={stf.fullName}
+                                  className="w-8 h-8 rounded-full object-cover border border-sky-400/50 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                                    <span className="truncate">{stf.fullName}</span>
+                                    <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[9px] font-black shrink-0">
+                                      {stf.position}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] font-mono text-slate-400 truncate">
+                                    {stf.staffCode} • {stf.phone}
+                                  </div>
+                                </div>
+                              </div>
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-sky-400 shrink-0" />
+                            </button>
+                          ))}
+                      </div>
+                    )}
+
+                  {/* 3. Lao Shipping Carriers */}
+                  {(homeSearchCategory === 'ALL' || homeSearchCategory === 'SHIPPING') &&
+                    homeSearchResults.shipping.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Truck className="w-3 h-3 text-amber-400" />
+                            <span>Lao Shipping Carriers</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsHomeSearchOpen(false);
+                              setShowShippingModal(true);
+                            }}
+                            className="text-amber-400 hover:underline text-[10px] cursor-pointer"
+                          >
+                            Manage Shipping →
+                          </button>
+                        </div>
+                        {homeSearchResults.shipping
+                          .slice(0, homeSearchCategory === 'SHIPPING' ? 10 : 2)
+                          .map((car) => (
+                            <button
+                              key={car.id}
+                              type="button"
+                              onClick={() => {
+                                setIsHomeSearchOpen(false);
+                                setShowShippingModal(true);
+                              }}
+                              className="w-full text-left p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 flex items-center justify-between gap-2.5 transition-colors cursor-pointer group"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-white group-hover:text-amber-300 truncate">
+                                  {car.nameEn} ({car.nameLo})
+                                </div>
+                                <div className="text-[10px] font-mono text-slate-400">
+                                  {car.code} • {car.estimatedDays}
+                                </div>
+                              </div>
+                              <span className="text-[11px] font-mono font-black text-amber-400 shrink-0">
+                                {formatNumberWithCommas(car.baseFeeLak)} LAK
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+
+                  {/* 4. Events & Support Locations */}
+                  {(homeSearchCategory === 'ALL' || homeSearchCategory === 'EVENTS') &&
+                    (homeSearchResults.events.length > 0 ||
+                      homeSearchResults.support.length > 0) && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-purple-400" />
+                          <span>Events & Support Locations</span>
+                        </div>
+                        {homeSearchResults.events.slice(0, 3).map((evt) => (
+                          <button
+                            key={evt.id}
+                            type="button"
+                            onClick={() => {
+                              setIsHomeSearchOpen(false);
+                              setViewingEventDetail(evt);
+                            }}
+                            className="w-full text-left p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate">
+                                {evt.title}
+                              </div>
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate">
+                                <MapPin className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                                <span className="truncate">
+                                  {evt.eventDate} • {evt.location}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                  {/* 5. Members & Network */}
+                  {(homeSearchCategory === 'ALL' || homeSearchCategory === 'MEMBERS') &&
+                    homeSearchResults.members.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3 text-emerald-400" />
+                            <span>Members & Network</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsHomeSearchOpen(false);
+                              setShowOrganizeModal(true);
+                            }}
+                            className="text-emerald-400 hover:underline text-[10px] cursor-pointer"
+                          >
+                            Organize Tree →
+                          </button>
+                        </div>
+                        {homeSearchResults.members
+                          .slice(0, homeSearchCategory === 'MEMBERS' ? 10 : 3)
+                          .map((mem) => {
+                            const existingStaffRecord = staffMembers.find(
+                              (s) => s.memberId === mem.memberId
+                            );
+                            const isMemberStaff = Boolean(mem.isStaff || existingStaffRecord);
+                            const memberStaffPos =
+                              mem.staffPosition || existingStaffRecord?.position;
+                            return (
+                              <div
+                                key={mem.memberId}
+                                className="w-full text-left p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 flex items-center justify-between gap-2 transition-colors group"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsHomeSearchOpen(false);
+                                    setShowOrganizeModal(true);
+                                  }}
+                                  className="min-w-0 flex-1 text-left cursor-pointer"
+                                >
+                                  <div className="text-xs font-bold text-white group-hover:text-emerald-300 truncate flex items-center gap-1.5">
+                                    <span className="truncate">{mem.name}</span>
+                                    {isMemberStaff && (
+                                      <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[8px] font-black uppercase shrink-0">
+                                        Staff: {memberStaffPos}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5">
+                                    <span>{mem.memberId}</span>
+                                    <span>•</span>
+                                    <span>{mem.phone}</span>
+                                  </div>
+                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setIsHomeSearchOpen(false);
+                                        setSelectedMemberToUpgradeId(mem.memberId);
+                                        setStaffForm((prev) => ({
+                                          ...prev,
+                                          staffCode:
+                                            existingStaffRecord?.staffCode ||
+                                            mem.staffCode ||
+                                            `DMC-STF-${mem.memberId}`,
+                                          fullName: mem.name.replace(/\s*\(.*?\)\s*/g, ''),
+                                          position: memberStaffPos || 'Teacher',
+                                          phone: mem.phone,
+                                          email: mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                                          branch:
+                                            existingStaffRecord?.branch ||
+                                            mem.staffBranch ||
+                                            'Dongdok Campus Studio Hub, Vientiane',
+                                          avatarUrl: mem.avatarUrl || prev.avatarUrl,
+                                          bioOrDuty:
+                                            existingStaffRecord?.bioOrDuty ||
+                                            mem.staffBioOrDuty ||
+                                            '',
+                                        }));
+                                        setStaffModalMode('UPGRADE_MEMBER');
+                                        setShowStaffModal(true);
+                                      }}
+                                      className="px-2 py-1 rounded-lg bg-gradient-to-r from-[#0088ff] to-[#0066cc] hover:from-sky-500 hover:to-blue-600 text-white text-[9px] font-black uppercase cursor-pointer shadow-xs"
+                                      title="Administrator: Upgrade Member to Staff"
+                                    >
+                                      {isMemberStaff ? 'Edit Staff Role' : '↑ Upgrade to Staff'}
+                                    </button>
+                                  )}
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
+                                      mem.membershipState === 'ACTIVE_LIFETIME_MEMBER'
+                                        ? 'bg-emerald-500/20 text-emerald-300'
+                                        : 'bg-amber-500/20 text-amber-300'
+                                    }`}
+                                  >
+                                    {mem.membershipState === 'ACTIVE_LIFETIME_MEMBER'
+                                      ? 'ACTIVE'
+                                      : 'FREE'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+
+                  {/* Empty state */}
+                  {homeSearchResults.totalCount === 0 && (
+                    <div className="py-5 text-center text-xs text-slate-400">
+                      No matching items found for "{homeSearchQuery}". Try searching for Guitar, Music, Staff, Anousith, or Member ID.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* 2A/ HEAD LINE EVENT AND ACTIVITY SLIDE SHOW (Administrator Only Post) */}
-        <div className="mb-2 rounded-lg bg-white text-[#850818] px-2.5 py-1.5 shadow-md border border-amber-300/80 flex items-center justify-between gap-2">
+        <div className="mt-1 mb-2.5 rounded-lg bg-white text-[#850818] px-2.5 py-1.5 shadow-md border border-amber-300/80 flex items-center justify-between gap-2">
           <div
             onClick={() => {
               if (currentEvent) {
@@ -1286,56 +1964,133 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Row 2: 4 Colorful Cards (Cyan, Sky Blue, Pink, Deep Purple) */}
-          <div className="grid grid-cols-4 gap-2">
-            {/* Button 4: Academy (Cyan Gradient) */}
+          {/* Row 2: 5 Colorful Cards (Academy, Music Hub, Staff, Promotions, Support) with Clean White Icons */}
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+            {/* Button 4: Academy (Cyan Gradient with Clean White Graduation Cap Icon) */}
             <button
               onClick={() => onNavigate('academy')}
-              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl p-2.5 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
-              <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <BookOpen className="w-4 h-4 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
+                {customHomeIcons.academy ? (
+                  <img
+                    src={customHomeIcons.academy}
+                    alt="Academy"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  /* Clean White Mortarboard Graduation Cap Icon */
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
+                    <path d="M12 3L1 8.5L12 14L21 9.5V16H23V8.5L12 3ZM5 12.18V16.18C5 18.4 8.13 20.5 12 20.5C15.87 20.5 19 18.4 19 16.18V12.18L12 15.68L5 12.18Z" />
+                  </svg>
+                )}
               </div>
-              <span className="text-[10px] font-bold text-white mt-0.5 leading-tight line-clamp-1">
+              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
                 {t.btnAcademy}
               </span>
             </button>
 
-            {/* Button 5: Music Hub (Electric Sky Blue Gradient) */}
+            {/* Button 5: Music Hub (Electric Sky Blue Gradient with Clean White Headphones Icon — Placed between Academy and Staff) */}
             <button
               onClick={() => onNavigate('musichub')}
-              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl p-2.5 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
-              <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <Headphones className="w-4 h-4 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
+                {customHomeIcons.musicHub ? (
+                  <img
+                    src={customHomeIcons.musicHub}
+                    alt="Music Hub"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Headphones className="w-4 h-4 text-white stroke-[2.2]" />
+                )}
               </div>
-              <span className="text-[10px] font-bold text-white mt-0.5 leading-tight line-clamp-1">
+              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
                 {t.btnMusicHub}
               </span>
             </button>
 
-            {/* Button 6: Promotions (Hot Pink Gradient) */}
+            {/* Button 6: Staff (Electric Sky Blue Gradient with Clean White 3-People Team Icon — Opens DMC Staff & 8 Positions Modal) */}
             <button
-              onClick={() => setShowPromotionsModal(true)}
-              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl p-2.5 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              onClick={() => {
+                setStaffModalMode('LIST');
+                setShowStaffModal(true);
+              }}
+              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
+              title="DMC Staff & 8 Positions (Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time)"
             >
-              <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <Sparkles className="w-4 h-4 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
+                {customHomeIcons.staff ? (
+                  <img
+                    src={customHomeIcons.staff}
+                    alt="DMC Staff"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  /* Clean White 3-People Staff Team Icon */
+                  <svg viewBox="0 0 28 22" className="w-5 h-5 text-white" fill="currentColor">
+                    {/* Left Person */}
+                    <circle cx="6.5" cy="7.5" r="2.7" opacity="0.9" />
+                    <path d="M1.5 18C1.5 14.3 3.7 12.5 6.5 12.5C7.4 12.5 8.2 12.7 8.9 13.1C7.8 14.3 7.2 16 7.2 18H1.5Z" opacity="0.9" />
+                    {/* Right Person */}
+                    <circle cx="21.5" cy="7.5" r="2.7" opacity="0.9" />
+                    <path d="M26.5 18C26.5 14.3 24.3 12.5 21.5 12.5C20.6 12.5 19.8 12.7 19.1 13.1C20.2 14.3 20.8 16 20.8 18H26.5Z" opacity="0.9" />
+                    {/* Center Leader Person */}
+                    <circle cx="14" cy="5.8" r="3.4" />
+                    <path d="M8.5 18.5C8.5 14.2 10.9 11.8 14 11.8C17.1 11.8 19.5 14.2 19.5 18.5H8.5Z" />
+                  </svg>
+                )}
               </div>
-              <span className="text-[10px] font-bold text-white mt-0.5 leading-tight line-clamp-1">
-                {t.btnPromotions}
+              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
+                Staff ({staffMembers.length})
+              </span>
+            </button>
+
+            {/* Button 6: Promotions (Hot Pink Gradient with Clean White Guitar Icon) */}
+            <button
+              onClick={() => {
+                setPromotionModalMode('LIST');
+                setShowPromotionsModal(true);
+              }}
+              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+            >
+              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
+                {customHomeIcons.promotions ? (
+                  <img
+                    src={customHomeIcons.promotions}
+                    alt="Promotions"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  /* Clean White Acoustic Guitar Icon (Larger & Fuller Proportion) */
+                  <svg viewBox="2.5 0.2 19.8 20.2" className="w-6 h-6 text-white" fill="currentColor">
+                    <path d="M19.8 2.2L21.8 4.2C22.2 4.6 22.2 5.2 21.8 5.6L19.9 7.5L18.5 6.1L14.2 10.4C15.3 11.8 15.4 13.7 14.2 15.2C13.6 15.9 12.8 16.4 12 16.6C11.8 17.5 11.3 18.3 10.6 19C8.9 20.6 6.1 20.4 4.4 18.7L5.3 17.8C3.6 16.1 3.4 13.3 5 11.6C5.7 10.9 6.5 10.4 7.4 10.2C7.6 9.4 8.1 8.6 8.8 8C10.3 6.8 12.2 6.9 13.6 8L17.9 3.7L16.5 2.3L18.4 0.4C18.8 0 19.4 0 19.8 2.2ZM9.6 12.6C8.8 13.4 8.8 14.7 9.6 15.5C10.4 16.3 11.7 16.3 12.5 15.5C13.3 14.7 13.3 13.4 12.5 12.6C11.7 11.8 10.4 11.8 9.6 12.6ZM6.4 15.3L8.7 17.6L7.5 18.8L5.2 16.5L6.4 15.3Z" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
+                {t.btnPromotions} ({promotions.length})
               </span>
             </button>
 
             {/* Button 7: Support (Deep Purple Gradient) */}
             <button
               onClick={() => setShowSupportModal(true)}
-              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl p-2.5 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
-              <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <HelpCircle className="w-4 h-4 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
+                {customHomeIcons.support ? (
+                  <img
+                    src={customHomeIcons.support}
+                    alt="Support"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <HelpCircle className="w-4 h-4 text-white stroke-[2.2]" />
+                )}
               </div>
-              <span className="text-[10px] font-bold text-white mt-0.5 leading-tight line-clamp-1">
+              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
                 {t.btnSupport}
               </span>
             </button>
@@ -1424,6 +2179,54 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </div>
           </div>
 
+          {/* DMC Product & Music Course Official Pricing Structure Card */}
+          <DmcPricingStructureCard
+            marketPriceLak={currentHeroProduct?.marketPriceLak ?? DMC_STANDARD_PRICING.marketPriceLak}
+            memberPriceLak={currentHeroProduct?.priceLak ?? DMC_STANDARD_PRICING.memberPriceLak}
+            memberDiscountLak={currentHeroProduct?.memberDiscountLak ?? DMC_STANDARD_PRICING.memberDiscountLak}
+            commissionPoolLak={currentHeroProduct?.commissionPoolLak ?? DMC_STANDARD_PRICING.commissionPoolLak}
+            l1Percent={
+              currentHeroProduct?.splitRule.ruleType === 'POOL_PERCENTAGE'
+                ? currentHeroProduct.splitRule.l1Share
+                : DMC_STANDARD_PRICING.l1Percent
+            }
+            l2Percent={
+              currentHeroProduct?.splitRule.ruleType === 'POOL_PERCENTAGE'
+                ? currentHeroProduct.splitRule.l2Share
+                : DMC_STANDARD_PRICING.l2Percent
+            }
+            l3Percent={
+              currentHeroProduct?.splitRule.ruleType === 'POOL_PERCENTAGE'
+                ? currentHeroProduct.splitRule.l3Share
+                : DMC_STANDARD_PRICING.l3Percent
+            }
+            title="DMC Product & Music Course Pricing Structure"
+            subtitle="Commission calculated from 450,000 LAK pool (not member discount)"
+            compact={true}
+            onSavePricing={
+              isAdmin && currentHeroProduct
+                ? (values) => {
+                    adminUpdateProduct(currentHeroProduct.sku, {
+                      marketPriceLak: values.marketPriceLak,
+                      priceLak: values.memberPriceLak,
+                      memberDiscountLak: values.memberDiscountLak,
+                      commissionPoolLak: values.commissionPoolLak,
+                      splitRule: {
+                        ruleType: 'POOL_PERCENTAGE',
+                        l1Share: values.l1Percent,
+                        l2Share: values.l2Percent,
+                        l3Share: values.l3Percent,
+                      },
+                    });
+                    setRedemptionNotice(
+                      `Updated pricing for ${currentHeroProduct.sku} (${formatNumberWithCommas(values.memberPriceLak)} LAK)`
+                    );
+                    setTimeout(() => setRedemptionNotice(null), 3500);
+                  }
+                : undefined
+            }
+          />
+
           {/* 4A. Interactive Hero Product Banner Carousel */}
           {currentHeroProduct && currentHeroLocalized && (
             <div className="relative rounded-2xl overflow-hidden shadow-lg border border-amber-400/50 bg-slate-900 text-white group">
@@ -1443,7 +2246,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       {currentHeroLocalized.categoryBadge}
                     </span>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-slate-950 text-[10px] font-black font-mono shadow hidden xs:inline">
-                      {t.poolLabel}: {formatLakCompact(currentHeroProduct.commissionPoolLak)}
+                      {t.poolLabel}: {formatNumberWithCommas(currentHeroProduct.commissionPoolLak)} LAK
                     </span>
                   </div>
 
@@ -1511,8 +2314,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     <h4 className="text-sm sm:text-base font-black text-white leading-tight line-clamp-1">
                       {currentHeroLocalized.title}
                     </h4>
-                    <div className="text-sm font-black text-amber-400 font-mono mt-0.5">
-                      {formatNumberWithCommas(currentHeroProduct.priceLak)} LAK
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      {currentHeroProduct.marketPriceLak && currentHeroProduct.marketPriceLak > currentHeroProduct.priceLak && (
+                        <span className="text-[11px] font-mono text-slate-300 line-through">
+                          Market: {formatNumberWithCommas(currentHeroProduct.marketPriceLak)} LAK
+                        </span>
+                      )}
+                      <span className="text-sm font-black text-amber-400 font-mono">
+                        DMC Member: {formatNumberWithCommas(currentHeroProduct.priceLak)} LAK
+                      </span>
                     </div>
                   </div>
 
@@ -1559,6 +2369,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <div className="grid grid-cols-2 gap-2.5">
             {featuredProducts.map((prod) => {
               const loc = getLocalizedProduct(prod, language);
+              const marketPrice = prod.marketPriceLak;
+              const discount = prod.memberDiscountLak ?? (marketPrice && marketPrice > prod.priceLak ? marketPrice - prod.priceLak : 0);
               return (
                 <div
                   key={prod.sku}
@@ -1574,7 +2386,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       alt={loc.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/20" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
                     <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-amber-300 text-[8px] font-bold uppercase max-w-[55%] truncate">
                       {loc.categoryBadge}
                     </span>
@@ -1612,19 +2424,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       </div>
                     )}
 
-                    <span className="absolute bottom-1.5 left-2 right-2 text-white font-black font-mono text-xs drop-shadow">
-                      {formatNumberWithCommas(prod.priceLak)} LAK
-                    </span>
+                    <div className="absolute bottom-1.5 left-2 right-2">
+                      {marketPrice && marketPrice > prod.priceLak && (
+                        <div className="text-[9px] font-mono text-slate-300 line-through leading-none">
+                          Market: {formatNumberWithCommas(marketPrice)} LAK
+                        </div>
+                      )}
+                      <div className="text-white font-black font-mono text-xs drop-shadow leading-tight">
+                        {formatNumberWithCommas(prod.priceLak)} LAK
+                      </div>
+                    </div>
                   </div>
 
                   {/* Product Banner Details */}
-                  <div className="p-2.5 flex-1 flex flex-col justify-between space-y-2">
+                  <div className="p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
                     <div>
                       <div className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2 group-hover:text-[#df1c2d]">
                         {loc.title}
                       </div>
+                      {discount > 0 && (
+                        <div className="text-[9px] font-bold text-amber-700 font-mono mt-0.5">
+                          Discount: {formatNumberWithCommas(discount)} LAK
+                        </div>
+                      )}
                       <div className="text-[10px] font-semibold text-emerald-700 font-mono mt-0.5">
-                        L1/L2/L3 {t.poolLabel}: {formatLakCompact(prod.commissionPoolLak)}
+                        Pool: {formatNumberWithCommas(prod.commissionPoolLak)} LAK (100%)
                       </div>
                     </div>
 
@@ -1784,58 +2608,637 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Promotions Modal */}
+      {/* Promotions Modal (With Administrator Add, Edit, Delete, Update) */}
       {showPromotionsModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-pink-50 text-[#e60067]">
-                  <Sparkles className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900 max-h-[93vh] overflow-y-auto my-auto border-2 border-pink-300/80">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#e60067] to-[#b3004b] text-white flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+                  {customHomeIcons.promotions ? (
+                    <img
+                      src={customHomeIcons.promotions}
+                      alt="Promotions"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg viewBox="2.5 0.2 19.8 20.2" className="w-6 h-6 text-white" fill="currentColor">
+                      <path d="M19.8 2.2L21.8 4.2C22.2 4.6 22.2 5.2 21.8 5.6L19.9 7.5L18.5 6.1L14.2 10.4C15.3 11.8 15.4 13.7 14.2 15.2C13.6 15.9 12.8 16.4 12 16.6C11.8 17.5 11.3 18.3 10.6 19C8.9 20.6 6.1 20.4 4.4 18.7L5.3 17.8C3.6 16.1 3.4 13.3 5 11.6C5.7 10.9 6.5 10.4 7.4 10.2C7.6 9.4 8.1 8.6 8.8 8C10.3 6.8 12.2 6.9 13.6 8L17.9 3.7L16.5 2.3L18.4 0.4C18.8 0 19.4 0 19.8 2.2ZM9.6 12.6C8.8 13.4 8.8 14.7 9.6 15.5C10.4 16.3 11.7 16.3 12.5 15.5C13.3 14.7 13.3 13.4 12.5 12.6C11.7 11.8 10.4 11.8 9.6 12.6ZM6.4 15.3L8.7 17.6L7.5 18.8L5.2 16.5L6.4 15.3Z" />
+                    </svg>
+                  )}
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{t.btnPromotions}</h4>
-                  <span className="text-[10px] text-slate-500">Rev 2.6 Seasonal Incentives</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="text-sm sm:text-base font-black text-slate-900">
+                      {t.btnPromotions} & Special Incentives
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full bg-pink-100 text-[#e60067] border border-pink-200 text-[9px] font-black uppercase">
+                      {promotions.length} Active
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block truncate">
+                    Rev 2.6 Music Packages, Guitar Showroom & Studio Deals
+                  </span>
                 </div>
               </div>
-              <button
-                onClick={() => setShowPromotionsModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-pink-50 via-rose-50 to-amber-50 border border-pink-200/60 space-y-2">
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#e60067] text-white">
-                SPECIAL MUSIC INCENTIVE
-              </span>
-              <h5 className="text-xs font-bold text-slate-900">
-                {t.featuredMusicTitle}
-              </h5>
-              <p className="text-[11px] text-slate-600 leading-snug">
-                {t.featuredMusicDesc}
-              </p>
-              <div className="pt-1 flex items-center justify-between text-xs font-mono font-bold text-[#e60067]">
-                <span>{t.price}: 1,600,000 LAK</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isAdmin ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromotionModalMode('CREATE');
+                        setEditingPromotionId(null);
+                        setPromotionForm({
+                          code: `PROMO-DMC-${String(promotions.length + 1).padStart(2, '0')}`,
+                          badge: 'SPECIAL PROMOTION',
+                          title: '',
+                          titleLo: '',
+                          description: '',
+                          priceLak: 1600000,
+                          originalPriceLak: 2000000,
+                          bonusPoolLak: 300000,
+                          validUntil: '31 Dec 2026',
+                          imageUrl:
+                            'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
+                          targetTab: 'catalog',
+                          targetSku: 'MUSIC_SINGLE_1600',
+                          status: 'ACTIVE',
+                        });
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-[#e60067] hover:bg-pink-700 text-white text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
+                      title="Administrator: Add New Promotion"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Add Promo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        adminResetPromotions();
+                        setPromotionModalMode('LIST');
+                        setRedemptionNotice('Reset Promotions to default.');
+                        setTimeout(() => setRedemptionNotice(null), 3500);
+                      }}
+                      className="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold cursor-pointer"
+                      title="Reset Default Promotions"
+                    >
+                      Reset
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthInitialMode('ADMIN');
+                      setShowAuthPortalModal(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
+                    title="Administrator Login to Add, Edit, Delete, Update Promotions"
+                  >
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>Admin Edit</span>
+                  </button>
+                )}
                 <button
-                  onClick={() => {
-                    setShowPromotionsModal(false);
-                    onNavigate('musichub');
-                  }}
-                  className="px-3 py-1 rounded-xl bg-[#e60067] hover:bg-pink-700 text-white text-[11px] font-bold shadow-sm cursor-pointer"
+                  type="button"
+                  onClick={() => setShowPromotionsModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                 >
-                  {t.buyNowBtn}
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <button
-              onClick={() => setShowPromotionsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
-            >
-              Close
-            </button>
+            {/* Mode 1: Administrator Add / Edit / Update Promotion Form */}
+            {(promotionModalMode === 'CREATE' || promotionModalMode === 'EDIT') && isAdmin ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleanTitle =
+                    promotionForm.title.trim() || 'DMC Special Seasonal Promotion';
+                  const cleanCode =
+                    promotionForm.code.trim().toUpperCase() || `PROMO-${Date.now().toString().slice(-4)}`;
+                  if (promotionModalMode === 'EDIT' && editingPromotionId) {
+                    adminUpdatePromotion(editingPromotionId, {
+                      code: cleanCode,
+                      badge: promotionForm.badge.trim() || 'SPECIAL PROMOTION',
+                      title: cleanTitle,
+                      titleLo: promotionForm.titleLo.trim() || cleanTitle,
+                      description:
+                        promotionForm.description.trim() ||
+                        'Official DMC Xayraxa seasonal promotion & unilevel incentive.',
+                      priceLak: Number(promotionForm.priceLak) || 0,
+                      originalPriceLak: Number(promotionForm.originalPriceLak) || 0,
+                      bonusPoolLak: Number(promotionForm.bonusPoolLak) || 0,
+                      validUntil: promotionForm.validUntil.trim() || '31 Dec 2026',
+                      imageUrl:
+                        promotionForm.imageUrl.trim() ||
+                        'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
+                      targetTab: promotionForm.targetTab,
+                      targetSku: promotionForm.targetSku.trim(),
+                      status: promotionForm.status,
+                    });
+                    setRedemptionNotice(`Updated Promotion "${cleanTitle}" (${cleanCode})!`);
+                  } else {
+                    adminAddPromotion({
+                      code: cleanCode,
+                      badge: promotionForm.badge.trim() || 'SPECIAL PROMOTION',
+                      title: cleanTitle,
+                      titleLo: promotionForm.titleLo.trim() || cleanTitle,
+                      description:
+                        promotionForm.description.trim() ||
+                        'Official DMC Xayraxa seasonal promotion & unilevel incentive.',
+                      priceLak: Number(promotionForm.priceLak) || 1600000,
+                      originalPriceLak: Number(promotionForm.originalPriceLak) || 2000000,
+                      bonusPoolLak: Number(promotionForm.bonusPoolLak) || 300000,
+                      validUntil: promotionForm.validUntil.trim() || '31 Dec 2026',
+                      imageUrl:
+                        promotionForm.imageUrl.trim() ||
+                        'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
+                      targetTab: promotionForm.targetTab,
+                      targetSku: promotionForm.targetSku.trim(),
+                      status: promotionForm.status,
+                    });
+                    setRedemptionNotice(`Added new Promotion "${cleanTitle}" (${cleanCode})!`);
+                  }
+                  setTimeout(() => setRedemptionNotice(null), 3500);
+                  setPromotionModalMode('LIST');
+                }}
+                className="p-4 rounded-2xl bg-pink-50/50 border border-pink-200 space-y-3 text-xs"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-pink-200/80">
+                  <span className="text-xs font-black text-[#e60067]">
+                    {promotionModalMode === 'EDIT'
+                      ? `Edit / Update Promotion (${promotionForm.code})`
+                      : 'Add New DMC Promotion & Price'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPromotionModalMode('LIST')}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    Cancel ✕
+                  </button>
+                </div>
+
+                {/* Promotion Banner Image Preview & Upload */}
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-pink-200">
+                  <img
+                    src={promotionForm.imageUrl}
+                    alt={promotionForm.title || 'Promo Preview'}
+                    className="w-16 h-16 rounded-xl object-cover border-2 border-[#e60067] shrink-0"
+                  />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <label className="px-2.5 py-1.5 rounded-lg bg-[#e60067] hover:bg-pink-700 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-xs">
+                        <Upload className="w-3 h-3" />
+                        <span>Upload Promo Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (typeof reader.result === 'string') {
+                                setPromotionForm((prev) => ({
+                                  ...prev,
+                                  imageUrl: reader.result as string,
+                                }));
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={promotionForm.imageUrl}
+                      onChange={(e) =>
+                        setPromotionForm({ ...promotionForm, imageUrl: e.target.value })
+                      }
+                      placeholder="Or paste promotion image URL..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10px] text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Promo Code, Badge & Status */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Promo Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={promotionForm.code}
+                      onChange={(e) =>
+                        setPromotionForm({
+                          ...promotionForm,
+                          code: e.target.value.toUpperCase(),
+                        })
+                      }
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Highlight Badge *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={promotionForm.badge}
+                      onChange={(e) =>
+                        setPromotionForm({ ...promotionForm, badge: e.target.value })
+                      }
+                      placeholder="SPECIAL MUSIC INCENTIVE"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={promotionForm.status}
+                      onChange={(e) =>
+                        setPromotionForm({
+                          ...promotionForm,
+                          status: e.target.value as DmcPromotionItem['status'],
+                        })
+                      }
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-bold text-slate-900"
+                    >
+                      <option value="FEATURED">FEATURED</option>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="SEASONAL">SEASONAL</option>
+                      <option value="EXPIRED">EXPIRED</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Title (EN & LO) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Promotion Title (English) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={promotionForm.title}
+                      onChange={(e) =>
+                        setPromotionForm({ ...promotionForm, title: e.target.value })
+                      }
+                      placeholder="e.g. Signature Acoustic Guitar Promo"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Promotion Title (Lao / ພາສາລາວ)
+                    </label>
+                    <input
+                      type="text"
+                      value={promotionForm.titleLo}
+                      onChange={(e) =>
+                        setPromotionForm({ ...promotionForm, titleLo: e.target.value })
+                      }
+                      placeholder="ຊື່ໂປຣໂມຊັ່ນພາສາລາວ"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Promotional Price (LAK), Original Price (LAK), Bonus Pool (LAK) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-black text-[#e60067] mb-1">
+                      Promo Price (LAK) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      required
+                      value={promotionForm.priceLak === 0 ? '' : promotionForm.priceLak}
+                      placeholder="0"
+                      onChange={(e) =>
+                        setPromotionForm({
+                          ...promotionForm,
+                          priceLak: e.target.value === '' ? 0 : Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-white border-2 border-[#e60067] rounded-xl px-2.5 py-1.5 text-xs font-mono font-black text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Normal Price (LAK)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={promotionForm.originalPriceLak === 0 ? '' : promotionForm.originalPriceLak}
+                      placeholder="0"
+                      onChange={(e) =>
+                        setPromotionForm({
+                          ...promotionForm,
+                          originalPriceLak: e.target.value === '' ? 0 : Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-emerald-700 mb-1">
+                      Unilevel Pool (LAK)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={promotionForm.bonusPoolLak === 0 ? '' : promotionForm.bonusPoolLak}
+                      placeholder="0"
+                      onChange={(e) =>
+                        setPromotionForm({
+                          ...promotionForm,
+                          bonusPoolLak: e.target.value === '' ? 0 : Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-white border border-emerald-400 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Valid Until & Destination Screen */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Valid Until Date
+                    </label>
+                    <input
+                      type="text"
+                      value={promotionForm.validUntil}
+                      onChange={(e) =>
+                        setPromotionForm({ ...promotionForm, validUntil: e.target.value })
+                      }
+                      placeholder="e.g. 31 Dec 2026"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Buy Button Destination
+                    </label>
+                    <select
+                      value={promotionForm.targetTab}
+                      onChange={(e) =>
+                        setPromotionForm({
+                          ...promotionForm,
+                          targetTab: e.target.value as DmcPromotionItem['targetTab'],
+                        })
+                      }
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                    >
+                      <option value="musichub">Music Hub & Studio Package</option>
+                      <option value="catalog">Product Catalog & Guitars</option>
+                      <option value="academy">DMC Academy</option>
+                      <option value="membership">Membership Activation</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                    Promotion Details & Incentive Description *
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={promotionForm.description}
+                    onChange={(e) =>
+                      setPromotionForm({ ...promotionForm, description: e.target.value })
+                    }
+                    placeholder="Describe the promotion package, gifts, and commission pool..."
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+
+                {/* Form Action Buttons (Delete, Cancel, Save/Update) */}
+                <div className="flex items-center gap-2 pt-1">
+                  {promotionModalMode === 'EDIT' &&
+                    editingPromotionId &&
+                    promotions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          adminDeletePromotion(editingPromotionId);
+                          setPromotionModalMode('LIST');
+                          setRedemptionNotice('Deleted promotion.');
+                          setTimeout(() => setRedemptionNotice(null), 3500);
+                        }}
+                        className="px-3 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    )}
+                  <button
+                    type="button"
+                    onClick={() => setPromotionModalMode('LIST')}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#e60067] to-[#b3004b] hover:from-pink-600 hover:to-pink-800 text-white font-black text-xs shadow-md cursor-pointer"
+                  >
+                    {promotionModalMode === 'EDIT' ? 'Update Promotion' : 'Save New Promotion'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Mode 2: Promotions Cards List (With Admin Edit, Update, Delete on every card) */
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-0.5">
+                {promotions.map((promo) => (
+                  <div
+                    key={promo.id}
+                    className="rounded-2xl overflow-hidden bg-gradient-to-br from-pink-50/90 via-rose-50/70 to-amber-50/70 border border-pink-200/80 shadow-xs transition-all hover:shadow-md"
+                  >
+                    {/* Promotion Banner Image Header */}
+                    <div className="relative h-32 w-full overflow-hidden bg-slate-900">
+                      <img
+                        src={promo.imageUrl}
+                        alt={promo.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-[#e60067] text-white shadow">
+                          {promo.badge}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold bg-black/65 text-amber-300">
+                          {promo.code}
+                        </span>
+                      </div>
+
+                      {/* Administrator Direct Edit / Update & Delete Controls on Card */}
+                      {isAdmin && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPromotionId(promo.id);
+                              setPromotionForm({
+                                code: promo.code,
+                                badge: promo.badge,
+                                title: promo.title,
+                                titleLo: promo.titleLo || '',
+                                description: promo.description,
+                                priceLak: promo.priceLak,
+                                originalPriceLak: promo.originalPriceLak || promo.priceLak,
+                                bonusPoolLak: promo.bonusPoolLak || 0,
+                                validUntil: promo.validUntil,
+                                imageUrl: promo.imageUrl,
+                                targetTab: promo.targetTab,
+                                targetSku: promo.targetSku || '',
+                                status: promo.status,
+                              });
+                              setPromotionModalMode('EDIT');
+                            }}
+                            className="px-2 py-1 rounded-lg bg-sky-500/95 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
+                            title="Administrator: Edit / Update Promotion"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            <span>Edit / Update</span>
+                          </button>
+                          {promotions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                adminDeletePromotion(promo.id);
+                                setRedemptionNotice(`Deleted promotion "${promo.title}"`);
+                                setTimeout(() => setRedemptionNotice(null), 3500);
+                              }}
+                              className="p-1 rounded-lg bg-red-600/95 hover:bg-red-700 text-white shadow cursor-pointer"
+                              title="Administrator: Delete Promotion"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2 left-2.5 right-2.5 flex items-end justify-between gap-2">
+                        <span className="text-[10px] font-semibold text-amber-200 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-amber-300" />
+                          <span>Valid until: {promo.validUntil}</span>
+                        </span>
+                        {promo.bonusPoolLak && promo.bonusPoolLak > 0 ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/90 text-slate-950 text-[9px] font-mono font-black">
+                            Pool: {formatLakCompact(promo.bonusPoolLak)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Promotion Card Body */}
+                    <div className="p-3.5 space-y-2">
+                      <div>
+                        <h5 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">
+                          {language === 'lo' && promo.titleLo ? promo.titleLo : promo.title}
+                        </h5>
+                        <p className="text-[11px] text-slate-600 leading-snug mt-1">
+                          {promo.description}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-pink-200/60 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs sm:text-sm font-mono font-black text-[#e60067]">
+                            {t.price}: {formatNumberWithCommas(promo.priceLak)} LAK
+                          </div>
+                          {promo.originalPriceLak && promo.originalPriceLak > promo.priceLak ? (
+                            <div className="text-[10px] font-mono text-slate-400 line-through">
+                              Normal: {formatNumberWithCommas(promo.originalPriceLak)} LAK
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingPromotionId(promo.id);
+                                setPromotionForm({
+                                  code: promo.code,
+                                  badge: promo.badge,
+                                  title: promo.title,
+                                  titleLo: promo.titleLo || '',
+                                  description: promo.description,
+                                  priceLak: promo.priceLak,
+                                  originalPriceLak: promo.originalPriceLak || promo.priceLak,
+                                  bonusPoolLak: promo.bonusPoolLak || 0,
+                                  validUntil: promo.validUntil,
+                                  imageUrl: promo.imageUrl,
+                                  targetTab: promo.targetTab,
+                                  targetSku: promo.targetSku || '',
+                                  status: promo.status,
+                                });
+                                setPromotionModalMode('EDIT');
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowPromotionsModal(false);
+                              onNavigate(promo.targetTab);
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#e60067] to-[#b3004b] hover:from-pink-600 hover:to-pink-800 text-white text-[11px] font-black shadow-sm cursor-pointer"
+                          >
+                            {t.buyNowBtn}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-slate-500">
+                {isAdmin
+                  ? 'Administrator Mode Active: Add, Edit, Delete, Update Promotions'
+                  : 'Tap Admin Edit to Add, Edit, Delete, or Update Promotions'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPromotionsModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3117,47 +4520,174 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Price (LAK) *
+                    Market Price (LAK) *
                   </label>
                   <input
                     type="number"
-                    step="10000"
+                    min="0"
+                    step="any"
                     required
-                    value={productForm.priceLak}
-                    onChange={(e) =>
-                      setProductForm({ ...productForm, priceLak: Number(e.target.value) })
-                    }
+                    value={productForm.marketPriceLak === 0 ? '' : productForm.marketPriceLak}
+                    placeholder="6200000"
+                    onChange={(e) => {
+                      const mp = e.target.value === '' ? 0 : Number(e.target.value);
+                      setProductForm({
+                        ...productForm,
+                        marketPriceLak: mp,
+                        memberDiscountLak: Math.max(0, mp - productForm.priceLak),
+                      });
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Pool (LAK) *
+                  <label className="block text-[11px] font-bold text-amber-700 mb-1">
+                    DMC Member Price (LAK) *
                   </label>
                   <input
                     type="number"
-                    step="10000"
+                    min="0"
+                    step="any"
                     required
-                    value={productForm.commissionPoolLak}
+                    value={productForm.priceLak === 0 ? '' : productForm.priceLak}
+                    placeholder="4200000"
+                    onChange={(e) => {
+                      const p = e.target.value === '' ? 0 : Number(e.target.value);
+                      setProductForm({
+                        ...productForm,
+                        priceLak: p,
+                        memberDiscountLak: Math.max(0, productForm.marketPriceLak - p),
+                      });
+                    }}
+                    className="w-full bg-amber-50/70 border border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Member Discount
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={productForm.memberDiscountLak === 0 ? '' : productForm.memberDiscountLak}
+                    placeholder="2000000"
+                    onChange={(e) => {
+                      const disc = e.target.value === '' ? 0 : Number(e.target.value);
+                      setProductForm({
+                        ...productForm,
+                        memberDiscountLak: disc,
+                      });
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-emerald-700 mb-1">
+                    Pool (LAK = 100%) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={productForm.commissionPoolLak === 0 ? '' : productForm.commissionPoolLak}
+                    placeholder="450000"
                     onChange={(e) =>
-                      setProductForm({ ...productForm, commissionPoolLak: Number(e.target.value) })
+                      setProductForm({
+                        ...productForm,
+                        commissionPoolLak: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
                     }
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono"
+                    className="w-full bg-emerald-50/70 border border-emerald-400 rounded-xl px-2.5 py-2 text-xs text-emerald-950 font-mono font-bold"
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Stock</label>
                   <input
                     type="number"
+                    min="0"
+                    step="1"
                     required
-                    value={productForm.stockSellable}
+                    value={productForm.stockSellable === 0 ? '' : productForm.stockSellable}
+                    placeholder="0"
                     onChange={(e) =>
-                      setProductForm({ ...productForm, stockSellable: Number(e.target.value) })
+                      setProductForm({
+                        ...productForm,
+                        stockSellable: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
                     }
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Commission Distribution L1 / L2 / L3 (%) */}
+              <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    L1 (%) • {formatNumberWithCommas(Math.round((productForm.commissionPoolLak * productForm.l1Share) / 100))}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={productForm.l1Share === 0 ? '' : productForm.l1Share}
+                    placeholder="50"
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        l1Share: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono font-bold text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    L2 (%) • {formatNumberWithCommas(Math.round((productForm.commissionPoolLak * productForm.l2Share) / 100))}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={productForm.l2Share === 0 ? '' : productForm.l2Share}
+                    placeholder="30"
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        l2Share: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono font-bold text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    L3 (%) • {formatNumberWithCommas(Math.round((productForm.commissionPoolLak * productForm.l3Share) / 100))}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={productForm.l3Share === 0 ? '' : productForm.l3Share}
+                    placeholder="20"
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        l3Share: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-900 font-mono font-bold text-center"
                   />
                 </div>
               </div>
@@ -3289,6 +4819,1071 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </div>
 
             <DownlineOrganizeTree />
+          </div>
+        </div>
+      )}
+
+      {/* DMC Staff & 8 Positions Modal (Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time + Change Icons) */}
+      {showStaffModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4 animate-in zoom-in-95 text-slate-900 max-h-[93vh] overflow-y-auto my-auto border-2 border-amber-300/80">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
+                  {customHomeIcons.staff ? (
+                    <img
+                      src={customHomeIcons.staff}
+                      alt="Staff Icon"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg viewBox="0 0 28 22" className="w-5 h-5 text-white" fill="currentColor">
+                      <circle cx="6.5" cy="7.5" r="2.7" opacity="0.9" />
+                      <path d="M1.5 18C1.5 14.3 3.7 12.5 6.5 12.5C7.4 12.5 8.2 12.7 8.9 13.1C7.8 14.3 7.2 16 7.2 18H1.5Z" opacity="0.9" />
+                      <circle cx="21.5" cy="7.5" r="2.7" opacity="0.9" />
+                      <path d="M26.5 18C26.5 14.3 24.3 12.5 21.5 12.5C20.6 12.5 19.8 12.7 19.1 13.1C20.2 14.3 20.8 16 20.8 18H26.5Z" opacity="0.9" />
+                      <circle cx="14" cy="5.8" r="3.4" />
+                      <path d="M8.5 18.5C8.5 14.2 10.9 11.8 14 11.8C17.1 11.8 19.5 14.2 19.5 18.5H8.5Z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="text-sm sm:text-base font-black text-slate-900">
+                      DMC Staff & Positions Directory
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black uppercase">
+                      8 Official Positions
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 truncate">
+                    Administrator • Assistance • Accounting • Marketing • IT • Teacher • Fencer • Part time
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defaultMem = allMembers[0];
+                        setSelectedMemberToUpgradeId(defaultMem?.memberId || '');
+                        if (defaultMem) {
+                          const existingStf = staffMembers.find(
+                            (s) => s.memberId === defaultMem.memberId
+                          );
+                          setStaffForm((prev) => ({
+                            ...prev,
+                            staffCode:
+                              existingStf?.staffCode ||
+                              defaultMem.staffCode ||
+                              `DMC-STF-${defaultMem.memberId}`,
+                            fullName: defaultMem.name.replace(/\s*\(.*?\)\s*/g, ''),
+                            position:
+                              defaultMem.staffPosition ||
+                              existingStf?.position ||
+                              (selectedStaffPositionFilter === 'ALL'
+                                ? 'Teacher'
+                                : selectedStaffPositionFilter),
+                            phone: defaultMem.phone,
+                            email:
+                              defaultMem.email ||
+                              `${defaultMem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                            branch:
+                              existingStf?.branch ||
+                              defaultMem.staffBranch ||
+                              'Dongdok Campus Studio Hub, Vientiane',
+                            avatarUrl: defaultMem.avatarUrl || prev.avatarUrl,
+                            bioOrDuty:
+                              existingStf?.bioOrDuty || defaultMem.staffBioOrDuty || '',
+                          }));
+                        }
+                        setStaffModalMode(
+                          staffModalMode === 'UPGRADE_MEMBER' ? 'LIST' : 'UPGRADE_MEMBER'
+                        );
+                      }}
+                      className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1 shadow cursor-pointer ${
+                        staffModalMode === 'UPGRADE_MEMBER'
+                          ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
+                          : 'bg-gradient-to-r from-[#0088ff] to-[#0066cc] hover:from-sky-500 hover:to-blue-600 text-white'
+                      }`}
+                      title="Administrator: Upgrade any DMC Member to Become Official Staff"
+                    >
+                      <Users className="w-3 h-3" />
+                      <span>↑ Upgrade Member</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStaffModalMode('CREATE');
+                        setEditingStaffId(null);
+                        setStaffForm({
+                          staffCode: `DMC-STF-${String(staffMembers.length + 1).padStart(3, '0')}`,
+                          fullName: '',
+                          position:
+                            selectedStaffPositionFilter === 'ALL'
+                              ? 'Teacher'
+                              : selectedStaffPositionFilter,
+                          phone: '+856 20 ',
+                          email: '',
+                          branch: 'Dongdok Campus Studio Hub, Vientiane',
+                          avatarUrl:
+                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+                          customIconUrl: '',
+                          bioOrDuty: '',
+                          status: 'ACTIVE',
+                        });
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Add Staff</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setStaffModalMode(staffModalMode === 'ICONS' ? 'LIST' : 'ICONS')
+                      }
+                      className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1 shadow cursor-pointer ${
+                        staffModalMode === 'ICONS'
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-slate-900 hover:bg-slate-800 text-amber-300'
+                      }`}
+                      title="Change Home Button Icons (Academy, Staff, Promotions, Support)"
+                    >
+                      <ImageIcon className="w-3 h-3" />
+                      <span>Change Icon</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowStaffModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 8 Official Staff Positions Selector Grid */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Select Staff Position ({DMC_STAFF_POSITIONS.length} Positions):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStaffPositionFilter('ALL');
+                    setStaffModalMode('LIST');
+                  }}
+                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black cursor-pointer ${
+                    selectedStaffPositionFilter === 'ALL'
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  Show All ({staffMembers.length})
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {DMC_STAFF_POSITIONS.map((pos) => {
+                  const count = staffMembers.filter((m) => m.position === pos.id).length;
+                  const isSelected = selectedStaffPositionFilter === pos.id;
+                  return (
+                    <button
+                      key={pos.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedStaffPositionFilter(isSelected ? 'ALL' : pos.id);
+                        if (staffModalMode !== 'LIST') setStaffModalMode('LIST');
+                      }}
+                      className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
+                        isSelected
+                          ? `bg-gradient-to-r ${pos.badgeColor} text-white border-transparent shadow-md scale-[1.01]`
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200/90'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-black leading-tight truncate">
+                          - {pos.labelEn}
+                        </div>
+                        <div
+                          className={`text-[9px] truncate ${
+                            isSelected ? 'text-white/85' : 'text-slate-500'
+                          }`}
+                        >
+                          {language === 'th' ? pos.labelTh : pos.labelLo}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black shrink-0 ${
+                          isSelected
+                            ? 'bg-white/20 text-white'
+                            : 'bg-white text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Mode 1: Change Home Icons Panel (Administrator Only) */}
+            {staffModalMode === 'ICONS' && isAdmin ? (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h5 className="text-xs font-black text-slate-900">
+                      Change Home Screen Button Icons
+                    </h5>
+                    <p className="text-[10px] text-slate-500">
+                      Upload custom icon images or reset to the default Gold & Red badge icons
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStaffModalMode('LIST')}
+                    className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-[10px] cursor-pointer"
+                  >
+                    ← Back to Staff List
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(
+                    [
+                      { key: 'academy', label: 'Academy Icon (Graduation Cap)' },
+                      { key: 'musicHub', label: 'Music Hub Icon (Headphones)' },
+                      { key: 'staff', label: 'Staff Icon (3-People Team)' },
+                      { key: 'promotions', label: 'Promotions Icon (Guitar)' },
+                      { key: 'support', label: 'Support Icon' },
+                    ] as const
+                  ).map((item) => (
+                    <div
+                      key={item.key}
+                      className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold text-slate-900">{item.label}</div>
+                        <div className="text-[9px] text-slate-500">
+                          {customHomeIcons[item.key] ? 'Custom uploaded icon active' : 'Default badge icon active'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label className="px-2.5 py-1.5 rounded-lg bg-[#0088ff] hover:bg-blue-600 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer">
+                          <Upload className="w-3 h-3" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                if (typeof reader.result === 'string') {
+                                  adminUpdateHomeIcon(item.key, reader.result);
+                                  setRedemptionNotice(`Updated ${item.label}!`);
+                                  setTimeout(() => setRedemptionNotice(null), 3500);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                        {customHomeIcons[item.key] && (
+                          <button
+                            type="button"
+                            onClick={() => adminUpdateHomeIcon(item.key, '')}
+                            className="px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : staffModalMode === 'UPGRADE_MEMBER' && isAdmin ? (
+              /* Mode 1B: Administrator Upgrade Member to Become Staff Panel */
+              <div className="p-4 rounded-2xl bg-sky-50/70 border-2 border-sky-300 space-y-3.5 text-xs">
+                <div className="flex items-center justify-between pb-2 border-b border-sky-200">
+                  <div>
+                    <h5 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-[#0088ff]" />
+                      <span>Administrator: Upgrade Member to Become Staff</span>
+                    </h5>
+                    <p className="text-[10px] text-slate-600">
+                      Select any DMC Member below and assign them one of the 8 Official Staff Positions
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStaffModalMode('LIST')}
+                    className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-[10px] cursor-pointer"
+                  >
+                    ← Back to Staff List
+                  </button>
+                </div>
+
+                {/* Search & Select Member List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                      1. Search & Select Member ({allMembers.length} Total Members)
+                    </label>
+                    <input
+                      type="text"
+                      value={memberUpgradeFilterQuery}
+                      onChange={(e) => setMemberUpgradeFilterQuery(e.target.value)}
+                      placeholder="Filter by Name, ID (DM000...), or Phone..."
+                      className="w-56 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-[10px] text-slate-900 font-medium"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto p-1 bg-white rounded-xl border border-slate-200">
+                    {allMembers
+                      .filter((m) => {
+                        const q = memberUpgradeFilterQuery.trim().toLowerCase();
+                        if (!q) return true;
+                        return (
+                          m.name.toLowerCase().includes(q) ||
+                          m.memberId.toLowerCase().includes(q) ||
+                          m.phone.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((mem) => {
+                        const existingStf = staffMembers.find(
+                          (s) => s.memberId === mem.memberId
+                        );
+                        const isAlreadyStaff = Boolean(mem.isStaff || existingStf);
+                        const currentPos = mem.staffPosition || existingStf?.position;
+                        const isSelected = selectedMemberToUpgradeId === mem.memberId;
+
+                        return (
+                          <button
+                            key={mem.memberId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedMemberToUpgradeId(mem.memberId);
+                              setStaffForm((prev) => ({
+                                ...prev,
+                                staffCode:
+                                  existingStf?.staffCode ||
+                                  mem.staffCode ||
+                                  `DMC-STF-${mem.memberId}`,
+                                fullName: mem.name.replace(/\s*\(.*?\)\s*/g, ''),
+                                position: currentPos || prev.position || 'Teacher',
+                                phone: mem.phone,
+                                email:
+                                  mem.email ||
+                                  `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                                branch:
+                                  existingStf?.branch ||
+                                  mem.staffBranch ||
+                                  'Dongdok Campus Studio Hub, Vientiane',
+                                avatarUrl: mem.avatarUrl || prev.avatarUrl,
+                                bioOrDuty:
+                                  existingStf?.bioOrDuty || mem.staffBioOrDuty || '',
+                              }));
+                            }}
+                            className={`p-2 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                              isSelected
+                                ? 'bg-sky-600 text-white border-sky-700 shadow-sm'
+                                : 'bg-slate-50 hover:bg-sky-50/80 text-slate-900 border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                src={
+                                  mem.avatarUrl ||
+                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'
+                                }
+                                alt={mem.name}
+                                className="w-8 h-8 rounded-full object-cover border border-amber-400 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-black truncate">
+                                  {mem.name.replace(/\s*\(.*?\)\s*/g, '')}
+                                </div>
+                                <div
+                                  className={`text-[9px] font-mono truncate ${
+                                    isSelected ? 'text-sky-100' : 'text-slate-500'
+                                  }`}
+                                >
+                                  {mem.memberId} • {mem.phone}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0">
+                              {isAlreadyStaff ? (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                                    isSelected
+                                      ? 'bg-amber-300 text-slate-950'
+                                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  }`}
+                                >
+                                  Staff: {currentPos}
+                                </span>
+                              ) : (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                                    isSelected
+                                      ? 'bg-white/20 text-white'
+                                      : 'bg-slate-200 text-slate-700'
+                                  }`}
+                                >
+                                  Member
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Upgrade Position & Details Form */}
+                {selectedMemberToUpgradeId && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const upgraded = adminUpgradeMemberToStaff(
+                        selectedMemberToUpgradeId,
+                        staffForm.position,
+                        {
+                          staffCode: staffForm.staffCode.trim(),
+                          branch: staffForm.branch.trim(),
+                          bioOrDuty: staffForm.bioOrDuty.trim(),
+                          status: staffForm.status,
+                        }
+                      );
+                      if (upgraded) {
+                        setRedemptionNotice(
+                          `Upgraded Member ${selectedMemberToUpgradeId} (${upgraded.fullName}) to Official Staff (${upgraded.position})!`
+                        );
+                        setTimeout(() => setRedemptionNotice(null), 4000);
+                        setSelectedStaffPositionFilter('ALL');
+                        setStaffModalMode('LIST');
+                      }
+                    }}
+                    className="p-3 rounded-xl bg-white border border-sky-200 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-slate-900">
+                        2. Assign Official Staff Position for Member{' '}
+                        <span className="text-[#0088ff] font-mono">
+                          {selectedMemberToUpgradeId}
+                        </span>{' '}
+                        ({staffForm.fullName})
+                      </span>
+                      {(allMembers.find((m) => m.memberId === selectedMemberToUpgradeId)
+                        ?.isStaff ||
+                        staffMembers.some(
+                          (s) => s.memberId === selectedMemberToUpgradeId
+                        )) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            adminDowngradeStaffToMember(selectedMemberToUpgradeId);
+                            setRedemptionNotice(
+                              `Removed Staff role from Member ${selectedMemberToUpgradeId}.`
+                            );
+                            setTimeout(() => setRedemptionNotice(null), 3500);
+                            setStaffModalMode('LIST');
+                          }}
+                          className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-[9px] font-black cursor-pointer"
+                        >
+                          Downgrade to Regular Member
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-700 mb-1">
+                          Select Staff Position *
+                        </label>
+                        <select
+                          value={staffForm.position}
+                          onChange={(e) =>
+                            setStaffForm({
+                              ...staffForm,
+                              position: e.target.value as StaffPosition,
+                            })
+                          }
+                          className="w-full bg-amber-50/70 border-2 border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-black"
+                        >
+                          {DMC_STAFF_POSITIONS.map((pos) => (
+                            <option key={pos.id} value={pos.id}>
+                              - {pos.labelEn} ({pos.labelLo})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                          Staff ID Code
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={staffForm.staffCode}
+                          onChange={(e) =>
+                            setStaffForm({
+                              ...staffForm,
+                              staffCode: e.target.value.toUpperCase(),
+                            })
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                          Branch / Location
+                        </label>
+                        <input
+                          type="text"
+                          value={staffForm.branch}
+                          onChange={(e) =>
+                            setStaffForm({ ...staffForm, branch: e.target.value })
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                        Staff Responsibilities / Bio Note
+                      </label>
+                      <input
+                        type="text"
+                        value={staffForm.bioOrDuty}
+                        onChange={(e) =>
+                          setStaffForm({ ...staffForm, bioOrDuty: e.target.value })
+                        }
+                        placeholder="Optional custom duty note (defaults to official position description)..."
+                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setStaffModalMode('LIST')}
+                        className="px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#0088ff] to-[#0066cc] hover:from-sky-500 hover:to-blue-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>
+                          Confirm Upgrade Member ({selectedMemberToUpgradeId}) to{' '}
+                          {staffForm.position} Staff
+                        </span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            ) : staffModalMode === 'CREATE' || staffModalMode === 'EDIT' ? (
+              /* Mode 2: Administrator Add / Edit / Update Staff Member & Position Form */
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleanName = staffForm.fullName.trim() || 'DMC Staff Member';
+                  if (staffModalMode === 'EDIT' && editingStaffId) {
+                    adminUpdateStaffMember(editingStaffId, {
+                      staffCode: staffForm.staffCode.trim(),
+                      fullName: cleanName,
+                      position: staffForm.position,
+                      phone: staffForm.phone.trim(),
+                      email: staffForm.email.trim(),
+                      branch: staffForm.branch.trim(),
+                      avatarUrl: staffForm.avatarUrl.trim(),
+                      customIconUrl: staffForm.customIconUrl.trim(),
+                      bioOrDuty: staffForm.bioOrDuty.trim(),
+                      status: staffForm.status,
+                    });
+                    setRedemptionNotice(
+                      `Updated Staff "${cleanName}" (${staffForm.position})!`
+                    );
+                  } else if (selectedMemberToUpgradeId) {
+                    adminUpgradeMemberToStaff(
+                      selectedMemberToUpgradeId,
+                      staffForm.position,
+                      {
+                        staffCode: staffForm.staffCode.trim(),
+                        branch: staffForm.branch.trim(),
+                        bioOrDuty: staffForm.bioOrDuty.trim(),
+                        status: staffForm.status,
+                      }
+                    );
+                    setRedemptionNotice(
+                      `Upgraded Member ${selectedMemberToUpgradeId} ("${cleanName}") to Staff (${staffForm.position})!`
+                    );
+                  } else {
+                    adminAddStaffMember({
+                      staffCode: staffForm.staffCode.trim(),
+                      fullName: cleanName,
+                      position: staffForm.position,
+                      phone: staffForm.phone.trim(),
+                      email: staffForm.email.trim(),
+                      branch: staffForm.branch.trim(),
+                      avatarUrl: staffForm.avatarUrl.trim(),
+                      customIconUrl: staffForm.customIconUrl.trim(),
+                      bioOrDuty: staffForm.bioOrDuty.trim(),
+                      status: staffForm.status,
+                    });
+                    setRedemptionNotice(
+                      `Created new Staff "${cleanName}" in position "${staffForm.position}"!`
+                    );
+                  }
+                  setTimeout(() => setRedemptionNotice(null), 3500);
+                  setStaffModalMode('LIST');
+                }}
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <span className="text-xs font-black text-slate-900">
+                    {staffModalMode === 'EDIT'
+                      ? `Edit / Update Staff (${staffForm.fullName || staffForm.staffCode})`
+                      : 'Create New DMC Staff Member (or Upgrade Existing Member)'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStaffModalMode('LIST')}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    Cancel ✕
+                  </button>
+                </div>
+
+                {/* Quick Upgrade Existing Member Selector inside Create Mode */}
+                {staffModalMode === 'CREATE' && (
+                  <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black text-sky-900">
+                        Upgrade Existing DMC Member to Become Staff (Optional):
+                      </div>
+                      <div className="text-[9px] text-sky-700">
+                        Select any registered member to auto-fill details and upgrade their account to Staff
+                      </div>
+                    </div>
+                    <select
+                      value={selectedMemberToUpgradeId}
+                      onChange={(e) => {
+                        const memId = e.target.value;
+                        setSelectedMemberToUpgradeId(memId);
+                        const mem = allMembers.find((m) => m.memberId === memId);
+                        if (mem) {
+                          const existingStf = staffMembers.find((s) => s.memberId === memId);
+                          setStaffForm((prev) => ({
+                            ...prev,
+                            staffCode:
+                              existingStf?.staffCode ||
+                              mem.staffCode ||
+                              `DMC-STF-${mem.memberId}`,
+                            fullName: mem.name.replace(/\s*\(.*?\)\s*/g, ''),
+                            position: mem.staffPosition || existingStf?.position || prev.position,
+                            phone: mem.phone,
+                            email:
+                              mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                            branch:
+                              existingStf?.branch ||
+                              mem.staffBranch ||
+                              'Dongdok Campus Studio Hub, Vientiane',
+                            avatarUrl: mem.avatarUrl || prev.avatarUrl,
+                            bioOrDuty:
+                              existingStf?.bioOrDuty || mem.staffBioOrDuty || '',
+                          }));
+                        }
+                      }}
+                      className="bg-white border border-sky-300 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-slate-900 cursor-pointer"
+                    >
+                      <option value="">-- Or Enter New Staff Manually --</option>
+                      {allMembers.map((m) => (
+                        <option key={m.memberId} value={m.memberId}>
+                          {m.memberId} - {m.name} {m.isStaff ? `(Staff: ${m.staffPosition})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Staff Photo / Icon Preview & Upload */}
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-slate-200">
+                  <img
+                    src={staffForm.avatarUrl}
+                    alt={staffForm.fullName || 'Staff Preview'}
+                    className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-400 shrink-0"
+                  />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <label className="px-2.5 py-1.5 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-xs">
+                        <Upload className="w-3 h-3" />
+                        <span>Upload Staff Photo / Icon</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (typeof reader.result === 'string') {
+                                setStaffForm((prev) => ({
+                                  ...prev,
+                                  avatarUrl: reader.result as string,
+                                }));
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      {PRESET_AVATARS.slice(0, 4).map((url, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setStaffForm((prev) => ({ ...prev, avatarUrl: url }))}
+                          className="w-7 h-7 rounded-lg overflow-hidden border border-slate-300 hover:border-amber-500 cursor-pointer"
+                          title={`Preset Avatar ${i + 1}`}
+                        >
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={staffForm.avatarUrl}
+                      onChange={(e) => setStaffForm({ ...staffForm, avatarUrl: e.target.value })}
+                      placeholder="Or paste image URL..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10px] text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Staff Position Selection (All 8 Positions) & Staff Code */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-700 mb-1">
+                      Staff Position * (8 Official Positions)
+                    </label>
+                    <select
+                      value={staffForm.position}
+                      onChange={(e) =>
+                        setStaffForm({
+                          ...staffForm,
+                          position: e.target.value as StaffPosition,
+                        })
+                      }
+                      className="w-full bg-white border-2 border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-900 font-black"
+                    >
+                      {DMC_STAFF_POSITIONS.map((pos) => (
+                        <option key={pos.id} value={pos.id}>
+                          - {pos.labelEn} ({pos.labelLo})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Staff ID Code & Status
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        required
+                        value={staffForm.staffCode}
+                        onChange={(e) =>
+                          setStaffForm({ ...staffForm, staffCode: e.target.value.toUpperCase() })
+                        }
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-slate-900"
+                      />
+                      <select
+                        value={staffForm.status}
+                        onChange={(e) =>
+                          setStaffForm({
+                            ...staffForm,
+                            status: e.target.value as DmcStaffMember['status'],
+                          })
+                        }
+                        className="bg-white border border-slate-300 rounded-xl px-2 py-2 text-xs font-bold text-slate-900"
+                      >
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="ON_DUTY">ON DUTY</option>
+                        <option value="PART_TIME">PART TIME</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={staffForm.fullName}
+                      onChange={(e) => setStaffForm({ ...staffForm, fullName: e.target.value })}
+                      placeholder="e.g. Somphone Keomany"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Phone / WhatsApp *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={staffForm.phone}
+                      onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
+                      placeholder="+856 20 5511 2233"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={staffForm.email}
+                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                      placeholder="staff@dmcxayraxa.la"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                      Branch / Department Location
+                    </label>
+                    <input
+                      type="text"
+                      value={staffForm.branch}
+                      onChange={(e) => setStaffForm({ ...staffForm, branch: e.target.value })}
+                      placeholder="Dongdok Campus Studio Hub, Vientiane"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                    Position Duties / Responsibilities
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={staffForm.bioOrDuty}
+                    onChange={(e) => setStaffForm({ ...staffForm, bioOrDuty: e.target.value })}
+                    placeholder="Describe staff position responsibilities..."
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  {staffModalMode === 'EDIT' && editingStaffId && staffMembers.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        adminDeleteStaffMember(editingStaffId);
+                        setStaffModalMode('LIST');
+                        setRedemptionNotice('Deleted staff member.');
+                        setTimeout(() => setRedemptionNotice(null), 3500);
+                      }}
+                      className="px-3 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStaffModalMode('LIST')}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md cursor-pointer"
+                  >
+                    {staffModalMode === 'EDIT'
+                      ? 'Update Staff'
+                      : selectedMemberToUpgradeId
+                      ? `Upgrade Member (${selectedMemberToUpgradeId}) to Staff`
+                      : 'Save New Staff'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Mode 3: Staff Directory List grouped/filtered by the 8 Positions */
+              <div className="space-y-2.5 max-h-[52vh] overflow-y-auto pr-0.5">
+                {staffMembers
+                  .filter(
+                    (stf) =>
+                      selectedStaffPositionFilter === 'ALL' ||
+                      stf.position === selectedStaffPositionFilter
+                  )
+                  .map((stf) => {
+                    const posMeta =
+                      DMC_STAFF_POSITIONS.find((p) => p.id === stf.position) ||
+                      DMC_STAFF_POSITIONS[0];
+                    return (
+                      <div
+                        key={stf.id}
+                        className="p-3 rounded-2xl bg-slate-50 border border-slate-200/90 hover:border-amber-400/80 transition-all flex items-start justify-between gap-3 shadow-xs"
+                      >
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <img
+                              src={stf.avatarUrl}
+                              alt={stf.fullName}
+                              className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow-xs"
+                            />
+                            <span
+                              className={`absolute -bottom-1 -right-1 px-1.5 py-0.2 rounded text-[7px] font-black uppercase text-white bg-gradient-to-r ${posMeta.badgeColor} shadow`}
+                            >
+                              {stf.position}
+                            </span>
+                          </div>
+
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs sm:text-sm font-black text-slate-900">
+                                {stf.fullName}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[9px] font-mono font-bold">
+                                {stf.staffCode}
+                              </span>
+                              {stf.memberId && (
+                                <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-300 text-[9px] font-mono font-black">
+                                  Member: {stf.memberId}
+                                </span>
+                              )}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white bg-gradient-to-r ${posMeta.badgeColor}`}
+                              >
+                                Position: {stf.position}
+                              </span>
+                            </div>
+
+                            <p className="text-[10px] text-slate-600 leading-snug">
+                              {stf.bioOrDuty || posMeta.description}
+                            </p>
+
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[10px] text-slate-500 font-medium">
+                              <span className="flex items-center gap-1 text-slate-700 font-mono font-bold">
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                {stf.phone}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-[#df1c2d]" />
+                                {stf.branch}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Administrator Direct Edit / Position Switch / Delete Controls */}
+                        {isAdmin && (
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <select
+                              value={stf.position}
+                              onChange={(e) =>
+                                adminUpdateStaffMember(stf.id, {
+                                  position: e.target.value as StaffPosition,
+                                })
+                              }
+                              className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-900 cursor-pointer"
+                              title="Administrator: Quick Change Staff Position"
+                            >
+                              {DMC_STAFF_POSITIONS.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.labelEn}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingStaffId(stf.id);
+                                  setStaffForm({
+                                    staffCode: stf.staffCode,
+                                    fullName: stf.fullName,
+                                    position: stf.position,
+                                    phone: stf.phone,
+                                    email: stf.email || '',
+                                    branch: stf.branch,
+                                    avatarUrl: stf.avatarUrl,
+                                    customIconUrl: stf.customIconUrl || '',
+                                    bioOrDuty: stf.bioOrDuty,
+                                    status: stf.status,
+                                  });
+                                  setStaffModalMode('EDIT');
+                                }}
+                                className="px-2 py-1 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                                <span>Edit</span>
+                              </button>
+                              {staffMembers.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => adminDeleteStaffMember(stf.id)}
+                                  className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer"
+                                  title="Delete Staff Member"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-slate-500">
+                Positions: Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowStaffModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

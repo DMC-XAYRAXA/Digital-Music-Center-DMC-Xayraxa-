@@ -3,9 +3,14 @@
  * App Header, Identity Switcher, Multi-Language Picker & User Control Panel
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDmc } from '../../context/DmcContext';
-import { translations, SUPPORTED_LANGUAGES } from '../../utils/i18n';
+import {
+  translations,
+  SUPPORTED_LANGUAGES,
+  formatNumberWithCommas,
+  getLocalizedProduct,
+} from '../../utils/i18n';
 import {
   ShieldCheck,
   Globe,
@@ -18,17 +23,34 @@ import {
   Check,
   Smartphone,
   Monitor,
+  Search,
+  X,
+  Package,
+  Truck,
+  Calendar,
+  MapPin,
+  Briefcase,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import { UserControlPanelModal } from '../common/UserControlPanelModal';
 import { AuthPortalModal } from '../common/AuthPortalModal';
 import { DmcOfficialLogo } from '../common/DmcLogo';
+import { MainNavTab } from './BottomNavigation';
 
 interface HeaderProps {
   deviceFrame?: 'mobile' | 'desktop';
   setDeviceFrame?: (frame: 'mobile' | 'desktop') => void;
+  onSelectTab?: (tab: MainNavTab | 'membership' | 'catalog') => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDeviceFrame }) => {
+type SearchFilterCategory = 'ALL' | 'PRODUCTS' | 'STAFF' | 'MEMBERS' | 'SHIPPING' | 'EVENTS';
+
+export const Header: React.FC<HeaderProps> = ({
+  deviceFrame = 'mobile',
+  setDeviceFrame,
+  onSelectTab,
+}) => {
   const {
     currentMember,
     allMembers,
@@ -40,6 +62,11 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
     isAdminAuthenticated,
     setIsAdminAuthenticated,
     setIsLoggedOut,
+    products,
+    staffMembers,
+    shippingCarriers,
+    eventPosts,
+    supportLocations,
   } = useDmc();
 
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
@@ -50,16 +77,129 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>('MEMBER');
 
+  // Global Header Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchCategory, setSearchCategory] = useState<SearchFilterCategory>('ALL');
+
   const t = translations[language];
   const currentLangOption =
     SUPPORTED_LANGUAGES.find((l) => l.code === language) || SUPPORTED_LANGUAGES[0];
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  // Compute live search matches across Products, Staff, Members, Shipping, Events & Support
+  const searchResults = useMemo(() => {
+    const q = normalizedQuery;
+
+    const matchedProducts = products.filter((p) => {
+      if (!q) return true;
+      const loc = getLocalizedProduct(p, language);
+      return (
+        p.sku.toLowerCase().includes(q) ||
+        p.titleEn.toLowerCase().includes(q) ||
+        (p.titleLo && p.titleLo.toLowerCase().includes(q)) ||
+        (p.titleTh && p.titleTh.toLowerCase().includes(q)) ||
+        loc.title.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        String(p.priceLak).includes(q)
+      );
+    });
+
+    const matchedStaff = staffMembers.filter((s) => {
+      if (!q) return true;
+      return (
+        s.fullName.toLowerCase().includes(q) ||
+        s.position.toLowerCase().includes(q) ||
+        s.staffCode.toLowerCase().includes(q) ||
+        s.phone.toLowerCase().includes(q) ||
+        s.branch.toLowerCase().includes(q) ||
+        s.bioOrDuty.toLowerCase().includes(q)
+      );
+    });
+
+    const matchedMembers = allMembers.filter((m) => {
+      if (!q) return true;
+      return (
+        m.name.toLowerCase().includes(q) ||
+        m.memberId.toLowerCase().includes(q) ||
+        m.phone.toLowerCase().includes(q) ||
+        (m.email && m.email.toLowerCase().includes(q))
+      );
+    });
+
+    const matchedShipping = shippingCarriers.filter((c) => {
+      if (!q) return true;
+      return (
+        c.nameEn.toLowerCase().includes(q) ||
+        c.nameLo.toLowerCase().includes(q) ||
+        c.shortName.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q) ||
+        String(c.baseFeeLak).includes(q)
+      );
+    });
+
+    const matchedEvents = eventPosts.filter((e) => {
+      if (!q) return true;
+      return (
+        e.title.toLowerCase().includes(q) ||
+        e.headline.toLowerCase().includes(q) ||
+        e.location.toLowerCase().includes(q) ||
+        e.information.toLowerCase().includes(q)
+      );
+    });
+
+    const matchedSupport = supportLocations.filter((loc) => {
+      if (!q) return true;
+      return (
+        loc.label.toLowerCase().includes(q) ||
+        loc.value.toLowerCase().includes(q) ||
+        (loc.locationAddress && loc.locationAddress.toLowerCase().includes(q))
+      );
+    });
+
+    return {
+      products: matchedProducts,
+      staff: matchedStaff,
+      members: matchedMembers,
+      shipping: matchedShipping,
+      events: matchedEvents,
+      support: matchedSupport,
+      totalCount:
+        matchedProducts.length +
+        matchedStaff.length +
+        matchedMembers.length +
+        matchedShipping.length +
+        matchedEvents.length +
+        matchedSupport.length,
+    };
+  }, [
+    normalizedQuery,
+    products,
+    staffMembers,
+    allMembers,
+    shippingCarriers,
+    eventPosts,
+    supportLocations,
+    language,
+  ]);
+
+  const handleNavigateFromSearch = (tab: MainNavTab | 'membership' | 'catalog') => {
+    if (isAdminMode) {
+      setIsAdminMode(false);
+    }
+    if (onSelectTab) {
+      onSelectTab(tab);
+    }
+    setIsSearchOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-slate-900/98 backdrop-blur-md border-b border-slate-800 text-slate-100">
       {/* Main App Bar (Single Clean Layer) */}
       <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
         {/* Brand (Constant Official DMC R ໄຊລາຊາ Logo) */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <DmcOfficialLogo size={40} rounded="full" withGoldRing={true} />
           <div>
             <div className="flex items-center gap-2">
@@ -70,12 +210,12 @@ export const Header: React.FC<HeaderProps> = ({ deviceFrame = 'mobile', setDevic
                 Rev 2.6
               </span>
             </div>
-            <p className="text-[10px] sm:text-[11px] text-slate-400 hidden sm:block">{t.subtitle}</p>
+            <p className="text-[10px] sm:text-[11px] text-slate-400 hidden lg:block">{t.subtitle}</p>
           </div>
         </div>
 
         {/* Controls: View Switcher (Desktop), Admin Toggle, Login/Log Out Dropdown, Persona Switcher, Language & Notifications */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Desktop Viewport Switcher */}
           {!isAdminMode && setDeviceFrame && (
             <div className="hidden md:flex items-center gap-1 bg-slate-950 border border-slate-800 p-1 rounded-lg text-xs">

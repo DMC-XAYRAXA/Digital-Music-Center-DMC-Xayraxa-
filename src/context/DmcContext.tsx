@@ -30,6 +30,9 @@ import {
   SuperAdminProfile,
   EventActivityPost,
   SupportLocationItem,
+  StaffPosition,
+  DmcStaffMember,
+  DmcPromotionItem,
 } from '../types/dmc';
 
 export const FOUR_HOURS_INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 Hours (14,400,000 ms)
@@ -128,6 +131,29 @@ interface DmcContextType {
   adminUpdateShippingCarrier: (carrierId: string, updates: Partial<LaoShippingCarrier>) => void;
   adminDeleteShippingCarrier: (carrierId: string) => boolean;
   adminResetShippingCarriers: () => void;
+  staffMembers: DmcStaffMember[];
+  adminAddStaffMember: (staff: Omit<DmcStaffMember, 'id' | 'joinedDate'> & { id?: string; joinedDate?: string }) => DmcStaffMember;
+  adminUpdateStaffMember: (staffId: string, updates: Partial<DmcStaffMember>) => void;
+  adminDeleteStaffMember: (staffId: string) => boolean;
+  adminResetStaffMembers: () => void;
+  adminUpgradeMemberToStaff: (
+    memberId: string,
+    staffDetails: {
+      position: StaffPosition;
+      staffCode?: string;
+      branch?: string;
+      bioOrDuty?: string;
+      status?: DmcStaffMember['status'];
+    }
+  ) => DmcStaffMember | null;
+  adminDowngradeStaffToMember: (memberId: string) => void;
+  promotions: DmcPromotionItem[];
+  adminAddPromotion: (promo: Omit<DmcPromotionItem, 'id' | 'updatedAt'> & { id?: string }) => DmcPromotionItem;
+  adminUpdatePromotion: (promoId: string, updates: Partial<DmcPromotionItem>) => void;
+  adminDeletePromotion: (promoId: string) => boolean;
+  adminResetPromotions: () => void;
+  customHomeIcons: { academy?: string; musicHub?: string; staff?: string; promotions?: string; support?: string };
+  adminUpdateHomeIcon: (key: 'academy' | 'musicHub' | 'staff' | 'promotions' | 'support', iconUrl: string) => void;
   adminAddSong: (song: SongProductionProject) => void;
   adminUpdateSong: (songId: string, updates: Partial<SongProductionProject>) => void;
   adminDeleteSong: (songId: string) => boolean;
@@ -676,13 +702,15 @@ const INITIAL_PRODUCTS: ProductSKU[] = [
     titleLo: 'ກີຕ້າໂປ່ງ DMC Xayraxa Signature Solid-Top',
     titleTh: 'กีตาร์โปร่ง DMC Xayraxa Signature Solid-Top',
     descriptionEn: 'Hand-crafted solid spruce top acoustic guitar with warm resonance, bone nut, and ebony fingerboard.',
-    priceLak: 2800000,
-    commissionPoolLak: 300000, // 300k pool with 50/30/20 default split
+    marketPriceLak: 6200000,
+    priceLak: 4200000,
+    memberDiscountLak: 2000000,
+    commissionPoolLak: 450000, // 450,000 LAK = 100% pool (L1 50% = 225k, L2 30% = 135k, L3 20% = 90k)
     splitRule: {
       ruleType: 'POOL_PERCENTAGE',
-      l1Share: 50, // 150k
-      l2Share: 30, // 90k
-      l3Share: 20, // 60k
+      l1Share: 50, // 225,000 LAK
+      l2Share: 30, // 135,000 LAK
+      l3Share: 20, // 90,000 LAK
     },
     stockSellable: 14,
     stockReserved: 1,
@@ -697,13 +725,15 @@ const INITIAL_PRODUCTS: ProductSKU[] = [
     titleLo: 'ກີຕ້າໄຟຟ້າ DMC Studio Custom (Alnico V Pickups)',
     titleTh: 'กีตาร์ไฟฟ้า DMC Studio Custom (Alnico V Pickups)',
     descriptionEn: 'Roasted maple neck, dual humbucking pickups with coil tap, tailored for stage and studio recording.',
+    marketPriceLak: 6200000,
     priceLak: 4200000,
-    commissionPoolLak: 450000,
+    memberDiscountLak: 2000000,
+    commissionPoolLak: 450000, // 450,000 LAK = 100% pool (L1 50% = 225k, L2 30% = 135k, L3 20% = 90k)
     splitRule: {
       ruleType: 'POOL_PERCENTAGE',
-      l1Share: 50, // 225k
-      l2Share: 30, // 135k
-      l3Share: 20, // 90k
+      l1Share: 50, // 225,000 LAK
+      l2Share: 30, // 135,000 LAK
+      l3Share: 20, // 90,000 LAK
     },
     stockSellable: 8,
     stockReserved: 0,
@@ -718,13 +748,15 @@ const INITIAL_PRODUCTS: ProductSKU[] = [
     titleLo: 'ຊຸດໄມຄອນເດນເຊີ DMC Vocal Studio ພ້ອມ Shockmount',
     titleTh: 'ชุดไมค์คอนเดนเซอร์ DMC Vocal Studio พร้อม Shockmount',
     descriptionEn: 'Broadcast grade 34mm gold-sputtered capsule, shockmount, pop filter, and balanced XLR cable.',
-    priceLak: 1150000,
-    commissionPoolLak: 120000,
+    marketPriceLak: 6200000,
+    priceLak: 4200000,
+    memberDiscountLak: 2000000,
+    commissionPoolLak: 450000, // 450,000 LAK = 100% pool (L1 50% = 225k, L2 30% = 135k, L3 20% = 90k)
     splitRule: {
       ruleType: 'POOL_PERCENTAGE',
-      l1Share: 50, // 60k
-      l2Share: 30, // 36k
-      l3Share: 20, // 24k
+      l1Share: 50, // 225,000 LAK
+      l2Share: 30, // 135,000 LAK
+      l3Share: 20, // 90,000 LAK
     },
     stockSellable: 25,
     stockReserved: 2,
@@ -739,13 +771,15 @@ const INITIAL_PRODUCTS: ProductSKU[] = [
     titleLo: 'ປິກກີຕ້າ DMC Celluloid ຊຸດ 12 ອັນ (0.88mm)',
     titleTh: 'ปิ๊กกีตาร์ DMC Celluloid ชุด 12 ชิ้น (0.88mm)',
     descriptionEn: 'Vintage celluloid picks with non-slip grip surface in medium-heavy gauge.',
-    priceLak: 90000,
-    commissionPoolLak: 10000,
+    marketPriceLak: 6200000,
+    priceLak: 4200000,
+    memberDiscountLak: 2000000,
+    commissionPoolLak: 450000, // 450,000 LAK = 100% pool (L1 50% = 225k, L2 30% = 135k, L3 20% = 90k)
     splitRule: {
       ruleType: 'POOL_PERCENTAGE',
-      l1Share: 50, // 5k
-      l2Share: 30, // 3k
-      l3Share: 20, // 2k
+      l1Share: 50, // 225,000 LAK
+      l2Share: 30, // 135,000 LAK
+      l3Share: 20, // 90,000 LAK
     },
     stockSellable: 120,
     stockReserved: 0,
@@ -880,6 +914,173 @@ const INITIAL_SUPPORT_LOCATIONS: SupportLocationItem[] = [
   },
 ];
 
+const INITIAL_STAFF_MEMBERS: DmcStaffMember[] = [
+  {
+    id: 'stf-001',
+    staffCode: 'DMC-STF-001',
+    fullName: 'Xay Raxa (ໄຊລາຊາ)',
+    position: 'Administrator',
+    phone: '+856 20 5511 2233',
+    email: 'xay.raxa@gmail.com',
+    branch: 'Head Office & Central Studio, Vientiane',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Founder & Executive Administrator — Digital Music Center (DMC Xayraxa)',
+    status: 'ACTIVE',
+    joinedDate: '2026-01-01',
+  },
+  {
+    id: 'stf-002',
+    staffCode: 'DMC-STF-002',
+    fullName: 'Noy Phommavong',
+    position: 'Assistance',
+    phone: '+856 20 5522 3344',
+    email: 'assistance@dmcxayraxa.la',
+    branch: 'Dongdok Campus Studio Hub',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Executive Assistance, Member Onboarding & Studio Booking Coordinator',
+    status: 'ACTIVE',
+    joinedDate: '2026-02-10',
+  },
+  {
+    id: 'stf-003',
+    staffCode: 'DMC-STF-003',
+    fullName: 'Dalavone Keomany',
+    position: 'Accounting',
+    phone: '+856 20 5533 4455',
+    email: 'accounting@dmcxayraxa.la',
+    branch: 'Head Office Finance Dept, Vientiane',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Chief Accounting Officer — LAK Ledger, Commission Payouts & Bank QR Verification',
+    status: 'ACTIVE',
+    joinedDate: '2026-02-15',
+  },
+  {
+    id: 'stf-004',
+    staffCode: 'DMC-STF-004',
+    fullName: 'Anousone Chanthavong',
+    position: 'Marketing',
+    phone: '+856 20 5544 5566',
+    email: 'marketing@dmcxayraxa.la',
+    branch: 'Vientiane & Luang Prabang Hub',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Marketing & Promotions Director — Unilevel Growth, Artist Campaigns & Concerts',
+    status: 'ACTIVE',
+    joinedDate: '2026-03-01',
+  },
+  {
+    id: 'stf-005',
+    staffCode: 'DMC-STF-005',
+    fullName: 'Somsack Sisoulith',
+    position: 'IT',
+    phone: '+856 20 5566 7788',
+    email: 'it@dmcxayraxa.la',
+    branch: 'Head Office Tech Lab, Vientiane',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'IT & Digital Systems Engineer — DMC App Platform, Audio Network & Security',
+    status: 'ACTIVE',
+    joinedDate: '2026-03-12',
+  },
+  {
+    id: 'stf-006',
+    staffCode: 'DMC-STF-006',
+    fullName: 'Ajarn Khamphanh',
+    position: 'Teacher',
+    phone: '+856 20 5577 8899',
+    email: 'academy@dmcxayraxa.la',
+    branch: 'DMC Music Academy — Hall A',
+    avatarUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Senior Music Teacher (ตัวแทนครูสอนดนตรี) — Guitar, Vocal & Songwriting Instructor',
+    status: 'ON_DUTY',
+    joinedDate: '2026-04-01',
+  },
+  {
+    id: 'stf-007',
+    staffCode: 'DMC-STF-007',
+    fullName: 'Vilayphone Souvanna',
+    position: 'Fencer',
+    phone: '+856 20 5588 9900',
+    email: 'fencer@dmcxayraxa.la',
+    branch: 'Nationwide Field & Studio Partner',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Fencer / Independent Specialist — Regional Field Representative & Studio Session Partner',
+    status: 'ACTIVE',
+    joinedDate: '2026-05-10',
+  },
+  {
+    id: 'stf-008',
+    staffCode: 'DMC-STF-008',
+    fullName: 'Toui Inthavong',
+    position: 'Part time',
+    phone: '+856 20 5599 0011',
+    email: 'parttime@dmcxayraxa.la',
+    branch: 'Dongdok Showroom & Logistics',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: 'Part time Staff — Weekend Studio Assistant, Guitar Showroom & Shipping Support',
+    status: 'PART_TIME',
+    joinedDate: '2026-06-15',
+  },
+];
+
+const INITIAL_PROMOTIONS: DmcPromotionItem[] = [
+  {
+    id: 'promo-music-1600',
+    code: 'PROMO-MUSIC-1600',
+    badge: 'SPECIAL MUSIC INCENTIVE',
+    title: 'Original Studio Song Production + Lifetime Member Activation',
+    titleLo: 'ແພັກເກັດສ້າງເພງລິຂະສິດ + ເປີດສະມາຊິກຕະຫຼອດຊີບ',
+    description:
+      'Complete 1-song vocal recording, arrangement, mixing & mastering at DMC Central Studios Vientiane + full 3-Level Unilevel Pool (700,000 LAK).',
+    priceLak: 1600000,
+    originalPriceLak: 2000000,
+    bonusPoolLak: 700000,
+    validUntil: '31 Dec 2026',
+    imageUrl:
+      'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=900&q=80',
+    targetTab: 'musichub',
+    targetSku: 'MUSIC_SINGLE_1600',
+    status: 'FEATURED',
+    updatedAt: '2026-10-16T08:00:00Z',
+  },
+  {
+    id: 'promo-guitar-01',
+    code: 'PROMO-GTR-01',
+    badge: 'GUITAR SHOWROOM PROMO',
+    title: 'DMC Xayraxa Signature Solid-Top Acoustic Guitar Bundle',
+    titleLo: 'ໂປຣໂມຊັ່ນກີຕ້າໂປ່ງໄມ້ແທ້ DMC Xayraxa ພ້ອມກະເປົາ ແລະ ຈູນເນີ',
+    description:
+      'Concert spruce top acoustic guitar with free padded gig bag, digital clip-on tuner, extra strings & 450,000 LAK Unilevel Pool (L1: 225,000 • L2: 135,000 • L3: 90,000 LAK).',
+    priceLak: 4200000,
+    originalPriceLak: 6200000,
+    bonusPoolLak: 450000,
+    validUntil: '30 Nov 2026',
+    imageUrl:
+      'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=900&q=80',
+    targetTab: 'catalog',
+    targetSku: 'GTR-DMC-ACOUSTIC-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-16T08:00:00Z',
+  },
+  {
+    id: 'promo-studio-02',
+    code: 'PROMO-STUDIO-02',
+    badge: 'HOME STUDIO DEAL',
+    title: 'Pro Studio Condenser Microphone & 24-Bit Audio Interface Pack',
+    titleLo: 'ຊຸດໄມໂຄຣໂຟນອັດສຽງ Studio Condenser + ຊາວการ์ด 24-Bit',
+    description:
+      'Complete creator recording bundle for vocalists & acoustic guitarists with phantom power, shock mount, pop filter & 450,000 LAK Unilevel Pool (L1: 225,000 • L2: 135,000 • L3: 90,000 LAK).',
+    priceLak: 4200000,
+    originalPriceLak: 6200000,
+    bonusPoolLak: 450000,
+    validUntil: '30 Nov 2026',
+    imageUrl:
+      'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=900&q=80',
+    targetTab: 'catalog',
+    targetSku: 'ACC-DMC-MIC-03',
+    status: 'SEASONAL',
+    updatedAt: '2026-10-16T08:00:00Z',
+  },
+];
+
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>(() => {
     try {
@@ -978,7 +1179,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeSmsOtps, setActiveSmsOtps] = useState<Record<string, string>>({});
   const [products, setProducts] = useState<ProductSKU[]>(() => {
     try {
-      const saved = localStorage.getItem('dmc_rev26_products_v1');
+      const saved = localStorage.getItem('dmc_rev26_products_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -1023,6 +1224,48 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore storage errors
     }
     return LAO_SHIPPING_CARRIERS;
+  });
+  const [staffMembers, setStaffMembers] = useState<DmcStaffMember[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_staff_members_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_STAFF_MEMBERS;
+  });
+  const [promotions, setPromotions] = useState<DmcPromotionItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_promotions_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_PROMOTIONS;
+  });
+  const [customHomeIcons, setCustomHomeIcons] = useState<{
+    academy?: string;
+    musicHub?: string;
+    staff?: string;
+    promotions?: string;
+    support?: string;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_custom_home_icons_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return {};
   });
   const [songs, setSongs] = useState<SongProductionProject[]>(INITIAL_SONGS);
   const [laoBanks, setLaoBanks] = useState<LaoBankDefinition[]>(() => {
@@ -2503,7 +2746,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const filtered = prev.filter(p => p.sku !== prod.sku);
       const next = [prod, ...filtered];
       try {
-        localStorage.setItem('dmc_rev26_products_v1', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_products_v2', JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -2527,7 +2770,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(prev => {
       const next = prev.map(p => (p.sku === sku ? { ...p, ...updates } : p));
       try {
-        localStorage.setItem('dmc_rev26_products_v1', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_products_v2', JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -2551,7 +2794,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(prev => {
       const next = prev.filter(p => p.sku !== sku);
       try {
-        localStorage.setItem('dmc_rev26_products_v1', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_products_v2', JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -2894,6 +3137,455 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // ignore
     }
+  };
+
+  // 3C. DMC Staff & Positions CRUD (Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time)
+  const adminAddStaffMember = (
+    staffData: Omit<DmcStaffMember, 'id' | 'joinedDate'> & { id?: string; joinedDate?: string }
+  ): DmcStaffMember => {
+    const newStaff: DmcStaffMember = {
+      ...staffData,
+      id: staffData.id || `stf-${Date.now().toString().slice(-6)}`,
+      staffCode:
+        staffData.staffCode?.trim() ||
+        `DMC-STF-${String(staffMembers.length + 1).padStart(3, '0')}`,
+      joinedDate: staffData.joinedDate || new Date().toISOString().slice(0, 10),
+    };
+    setStaffMembers(prev => {
+      const next = [...prev, newStaff];
+      try {
+        localStorage.setItem('dmc_rev26_staff_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_ADD_STAFF_MEMBER',
+        entityType: 'STAFF',
+        entityId: newStaff.id,
+        details: {
+          fullName: newStaff.fullName,
+          position: newStaff.position,
+          staffCode: newStaff.staffCode,
+        },
+      },
+      ...prev,
+    ]);
+    // If staffData links to a Member, sync Member's staff fields
+    if (newStaff.memberId) {
+      setMembers(prev => {
+        const next = prev.map(m =>
+          m.memberId === newStaff.memberId
+            ? {
+                ...m,
+                isStaff: true,
+                staffPosition: newStaff.position,
+                staffCode: newStaff.staffCode,
+                staffBranch: newStaff.branch,
+                staffBioOrDuty: newStaff.bioOrDuty,
+              }
+            : m
+        );
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+    return newStaff;
+  };
+
+  const adminUpdateStaffMember = (staffId: string, updates: Partial<DmcStaffMember>) => {
+    const existingStaff = staffMembers.find(s => s.id === staffId);
+    const linkedMemberId = updates.memberId || existingStaff?.memberId;
+    setStaffMembers(prev => {
+      const next = prev.map(item => (item.id === staffId ? { ...item, ...updates } : item));
+      try {
+        localStorage.setItem('dmc_rev26_staff_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    if (linkedMemberId) {
+      setMembers(prev => {
+        const next = prev.map(m =>
+          m.memberId === linkedMemberId
+            ? {
+                ...m,
+                isStaff: true,
+                ...(updates.position ? { staffPosition: updates.position } : {}),
+                ...(updates.staffCode ? { staffCode: updates.staffCode } : {}),
+                ...(updates.branch ? { staffBranch: updates.branch } : {}),
+                ...(updates.bioOrDuty !== undefined ? { staffBioOrDuty: updates.bioOrDuty } : {}),
+              }
+            : m
+        );
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPDATE_STAFF_MEMBER',
+        entityType: 'STAFF',
+        entityId: staffId,
+        details: updates,
+      },
+      ...prev,
+    ]);
+  };
+
+  const adminDeleteStaffMember = (staffId: string): boolean => {
+    const targetStaff = staffMembers.find(s => s.id === staffId);
+    setStaffMembers(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter(item => item.id !== staffId);
+      try {
+        localStorage.setItem('dmc_rev26_staff_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    if (targetStaff?.memberId) {
+      setMembers(prev => {
+        const next = prev.map(m =>
+          m.memberId === targetStaff.memberId
+            ? {
+                ...m,
+                isStaff: false,
+                staffPosition: undefined,
+                staffCode: undefined,
+                staffBranch: undefined,
+                staffBioOrDuty: undefined,
+              }
+            : m
+        );
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_DELETE_STAFF_MEMBER',
+        entityType: 'STAFF',
+        entityId: staffId,
+        details: { deletedAt: new Date().toISOString() },
+      },
+      ...prev,
+    ]);
+    return true;
+  };
+
+  const adminResetStaffMembers = () => {
+    setStaffMembers(INITIAL_STAFF_MEMBERS);
+    try {
+      localStorage.setItem('dmc_rev26_staff_members_v1', JSON.stringify(INITIAL_STAFF_MEMBERS));
+    } catch {
+      // ignore
+    }
+  };
+
+  // All Administrators can Upgrade any Member to become Staff
+  const adminUpgradeMemberToStaff = (
+    memberId: string,
+    staffDetails: {
+      position: StaffPosition;
+      staffCode?: string;
+      branch?: string;
+      bioOrDuty?: string;
+      status?: DmcStaffMember['status'];
+    }
+  ): DmcStaffMember | null => {
+    const targetMember = members.find(m => m.memberId === memberId);
+    if (!targetMember) return null;
+
+    const existingStaff = staffMembers.find(
+      s => s.memberId === memberId || (targetMember.staffCode && s.staffCode === targetMember.staffCode)
+    );
+
+    const finalStaffCode =
+      staffDetails.staffCode?.trim().toUpperCase() ||
+      existingStaff?.staffCode ||
+      targetMember.staffCode ||
+      `DMC-STF-${String(staffMembers.length + 1).padStart(3, '0')}`;
+
+    const finalBranch =
+      staffDetails.branch?.trim() ||
+      existingStaff?.branch ||
+      targetMember.staffBranch ||
+      targetMember.deliveryAddress?.province ||
+      'Dongdok Campus Studio Hub, Vientiane';
+
+    const finalBio =
+      staffDetails.bioOrDuty?.trim() ||
+      existingStaff?.bioOrDuty ||
+      targetMember.staffBioOrDuty ||
+      `Upgraded from Member (${targetMember.memberId}) to DMC ${staffDetails.position}`;
+
+    const finalStatus: DmcStaffMember['status'] =
+      staffDetails.status ||
+      (staffDetails.position === 'Part time' ? 'PART_TIME' : existingStaff?.status || 'ACTIVE');
+
+    const finalAvatar =
+      targetMember.avatarUrl && !targetMember.avatarUrl.startsWith('data:image/svg+xml')
+        ? targetMember.avatarUrl
+        : existingStaff?.avatarUrl ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80';
+
+    const upgradedStaffRecord: DmcStaffMember = {
+      id: existingStaff?.id || `stf-mem-${targetMember.memberId}`,
+      staffCode: finalStaffCode,
+      memberId: targetMember.memberId,
+      fullName: targetMember.name,
+      position: staffDetails.position,
+      phone: targetMember.phone,
+      email: targetMember.email || existingStaff?.email || '',
+      branch: finalBranch,
+      avatarUrl: finalAvatar,
+      customIconUrl: existingStaff?.customIconUrl,
+      bioOrDuty: finalBio,
+      status: finalStatus,
+      joinedDate: existingStaff?.joinedDate || new Date().toISOString().slice(0, 10),
+    };
+
+    setStaffMembers(prev => {
+      const exists = prev.some(
+        s => s.id === upgradedStaffRecord.id || s.memberId === targetMember.memberId
+      );
+      const next = exists
+        ? prev.map(s =>
+            s.id === upgradedStaffRecord.id || s.memberId === targetMember.memberId
+              ? upgradedStaffRecord
+              : s
+          )
+        : [upgradedStaffRecord, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_staff_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setMembers(prev => {
+      const next = prev.map(m =>
+        m.memberId === targetMember.memberId
+          ? {
+              ...m,
+              isStaff: true,
+              staffPosition: staffDetails.position,
+              staffCode: finalStaffCode,
+              staffBranch: finalBranch,
+              staffBioOrDuty: finalBio,
+            }
+          : m
+      );
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-upg-stf-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPGRADE_MEMBER_TO_STAFF',
+        entityType: 'MEMBER_STAFF',
+        entityId: targetMember.memberId,
+        details: {
+          memberId: targetMember.memberId,
+          memberName: targetMember.name,
+          position: staffDetails.position,
+          staffCode: finalStaffCode,
+          branch: finalBranch,
+        },
+      },
+      ...prev,
+    ]);
+
+    return upgradedStaffRecord;
+  };
+
+  const adminDowngradeStaffToMember = (memberId: string) => {
+    setStaffMembers(prev => {
+      const next = prev.filter(s => s.memberId !== memberId);
+      try {
+        localStorage.setItem('dmc_rev26_staff_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setMembers(prev => {
+      const next = prev.map(m =>
+        m.memberId === memberId
+          ? {
+              ...m,
+              isStaff: false,
+              staffPosition: undefined,
+              staffCode: undefined,
+              staffBranch: undefined,
+              staffBioOrDuty: undefined,
+            }
+          : m
+      );
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-dwg-stf-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_REMOVE_MEMBER_STAFF_ROLE',
+        entityType: 'MEMBER_STAFF',
+        entityId: memberId,
+        details: { memberId },
+      },
+      ...prev,
+    ]);
+  };
+
+  // Promotions CRUD (Administrator Add, Edit, Delete, Update, Reset)
+  const adminAddPromotion = (
+    promo: Omit<DmcPromotionItem, 'id' | 'updatedAt'> & { id?: string }
+  ): DmcPromotionItem => {
+    const newPromo: DmcPromotionItem = {
+      ...promo,
+      id: promo.id || `promo-${Date.now()}`,
+      updatedAt: new Date().toISOString(),
+    };
+    setPromotions(prev => {
+      const next = [newPromo, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_promotions_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_ADD_PROMOTION',
+        entityType: 'PROMOTION',
+        entityId: newPromo.id,
+        details: newPromo,
+      },
+      ...prev,
+    ]);
+    return newPromo;
+  };
+
+  const adminUpdatePromotion = (promoId: string, updates: Partial<DmcPromotionItem>) => {
+    setPromotions(prev => {
+      const next = prev.map(item =>
+        item.id === promoId
+          ? { ...item, ...updates, updatedAt: new Date().toISOString() }
+          : item
+      );
+      try {
+        localStorage.setItem('dmc_rev26_promotions_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPDATE_PROMOTION',
+        entityType: 'PROMOTION',
+        entityId: promoId,
+        details: updates,
+      },
+      ...prev,
+    ]);
+  };
+
+  const adminDeletePromotion = (promoId: string): boolean => {
+    setPromotions(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter(item => item.id !== promoId);
+      try {
+        localStorage.setItem('dmc_rev26_promotions_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_DELETE_PROMOTION',
+        entityType: 'PROMOTION',
+        entityId: promoId,
+        details: { deletedAt: new Date().toISOString() },
+      },
+      ...prev,
+    ]);
+    return true;
+  };
+
+  const adminResetPromotions = () => {
+    setPromotions(INITIAL_PROMOTIONS);
+    try {
+      localStorage.setItem('dmc_rev26_promotions_v1', JSON.stringify(INITIAL_PROMOTIONS));
+    } catch {
+      // ignore
+    }
+  };
+
+  const adminUpdateHomeIcon = (
+    key: 'academy' | 'musicHub' | 'staff' | 'promotions' | 'support',
+    iconUrl: string
+  ) => {
+    setCustomHomeIcons(prev => {
+      const next = { ...prev, [key]: iconUrl };
+      try {
+        localStorage.setItem('dmc_rev26_custom_home_icons_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   // 4. Songs CRUD
@@ -3289,7 +3981,12 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLanguage,
         isAdminMode,
         setIsAdminMode,
-        isAdminAuthenticated,
+        isAdminAuthenticated:
+          isAdminAuthenticated ||
+          currentMember?.staffPosition === 'Administrator' ||
+          staffMembers.some(
+            s => s.memberId === currentMember?.memberId && s.position === 'Administrator'
+          ),
         setIsAdminAuthenticated,
         isLoggedOut,
         setIsLoggedOut,
@@ -3343,6 +4040,20 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminUpdateShippingCarrier,
         adminDeleteShippingCarrier,
         adminResetShippingCarriers,
+        staffMembers,
+        adminAddStaffMember,
+        adminUpdateStaffMember,
+        adminDeleteStaffMember,
+        adminResetStaffMembers,
+        adminUpgradeMemberToStaff,
+        adminDowngradeStaffToMember,
+        promotions,
+        adminAddPromotion,
+        adminUpdatePromotion,
+        adminDeletePromotion,
+        adminResetPromotions,
+        customHomeIcons,
+        adminUpdateHomeIcon,
         adminAddSong,
         adminUpdateSong,
         adminDeleteSong,

@@ -16,6 +16,7 @@ import { BeautifulNumberInput } from '../common/BeautifulNumberInput';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
 import { LaoShippingCarrierModal } from '../common/LaoShippingCarrierModal';
 import { DmcOfficialLogo } from '../common/DmcLogo';
+import { DmcPricingStructureCard } from '../common/DmcPricingStructureCard';
 import {
   Music,
   ShoppingBag,
@@ -40,6 +41,7 @@ import {
   Navigation,
   ChevronRight,
   Check,
+  Upload,
 } from 'lucide-react';
 import {
   ProductSKU,
@@ -47,6 +49,7 @@ import {
   LaoShippingCarrierId,
   LaoShippingCarrier,
   LAO_SHIPPING_CARRIERS,
+  DMC_STANDARD_PRICING,
 } from '../../types/dmc';
 
 interface CatalogScreenProps {
@@ -81,7 +84,9 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
     createOrder,
     currentMember,
     language,
+    adminAddProduct,
     adminUpdateProduct,
+    adminDeleteProduct,
     adminUpdateMember,
     shippingCarriers,
     adminAddShippingCarrier,
@@ -481,6 +486,193 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
     setTimeout(() => setCoreEditSuccessNotice(null), 6000);
   };
 
+  // Administrator Catalog Product CRUD Modal state (Add, Edit, Delete, Update)
+  const [isProductCrudOpen, setIsProductCrudOpen] = useState(false);
+  const [productCrudMode, setProductCrudMode] = useState<'CREATE' | 'EDIT'>('CREATE');
+  const [productCrudForm, setProductCrudForm] = useState<{
+    sku: string;
+    category: ProductSKU['category'];
+    titleEn: string;
+    titleLo: string;
+    titleTh: string;
+    descriptionEn: string;
+    marketPriceLak: number | string;
+    priceLak: number | string;
+    memberDiscountLak: number | string;
+    commissionPoolLak: number | string;
+    l1Share: number | string;
+    l2Share: number | string;
+    l3Share: number | string;
+    stockSellable: number | string;
+    itemType: ProductSKU['itemType'];
+    imageUrl: string;
+  }>({
+    sku: 'DMC-PROD-005',
+    category: 'GUITAR',
+    titleEn: '',
+    titleLo: '',
+    titleTh: '',
+    descriptionEn: '',
+    marketPriceLak: DMC_STANDARD_PRICING.marketPriceLak,
+    priceLak: DMC_STANDARD_PRICING.memberPriceLak,
+    memberDiscountLak: DMC_STANDARD_PRICING.memberDiscountLak,
+    commissionPoolLak: DMC_STANDARD_PRICING.commissionPoolLak,
+    l1Share: DMC_STANDARD_PRICING.l1Percent,
+    l2Share: DMC_STANDARD_PRICING.l2Percent,
+    l3Share: DMC_STANDARD_PRICING.l3Percent,
+    stockSellable: 25,
+    itemType: 'PHYSICAL',
+    imageUrl:
+      'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+  });
+
+  const openCreateCatalogProduct = () => {
+    setProductCrudMode('CREATE');
+    setProductCrudForm({
+      sku: `DMC-PROD-${Math.floor(100 + Math.random() * 900)}`,
+      category:
+        activeCategory === 'ALL'
+          ? 'GUITAR'
+          : (activeCategory as ProductSKU['category']),
+      titleEn: '',
+      titleLo: '',
+      titleTh: '',
+      descriptionEn: '',
+      marketPriceLak: DMC_STANDARD_PRICING.marketPriceLak,
+      priceLak: DMC_STANDARD_PRICING.memberPriceLak,
+      memberDiscountLak: DMC_STANDARD_PRICING.memberDiscountLak,
+      commissionPoolLak: DMC_STANDARD_PRICING.commissionPoolLak,
+      l1Share: DMC_STANDARD_PRICING.l1Percent,
+      l2Share: DMC_STANDARD_PRICING.l2Percent,
+      l3Share: DMC_STANDARD_PRICING.l3Percent,
+      stockSellable: 25,
+      itemType: 'PHYSICAL',
+      imageUrl:
+        'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+    });
+    setIsProductCrudOpen(true);
+  };
+
+  const openEditCatalogProduct = (prod: ProductSKU) => {
+    setProductCrudMode('EDIT');
+    const mkt = prod.marketPriceLak ?? DMC_STANDARD_PRICING.marketPriceLak;
+    const disc = prod.memberDiscountLak ?? Math.max(0, mkt - prod.priceLak);
+    setProductCrudForm({
+      sku: prod.sku,
+      category: prod.category,
+      titleEn: prod.titleEn,
+      titleLo: prod.titleLo || prod.titleEn,
+      titleTh: prod.titleTh || prod.titleEn,
+      descriptionEn: prod.descriptionEn,
+      marketPriceLak: mkt,
+      priceLak: prod.priceLak,
+      memberDiscountLak: disc,
+      commissionPoolLak: prod.commissionPoolLak,
+      l1Share: prod.splitRule.l1Share ?? DMC_STANDARD_PRICING.l1Percent,
+      l2Share: prod.splitRule.l2Share ?? DMC_STANDARD_PRICING.l2Percent,
+      l3Share: prod.splitRule.l3Share ?? DMC_STANDARD_PRICING.l3Percent,
+      stockSellable: prod.stockSellable,
+      itemType: prod.itemType,
+      imageUrl: prod.imageUrl,
+    });
+    setIsProductCrudOpen(true);
+  };
+
+  const handleSaveCatalogProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanSku =
+      productCrudForm.sku.trim().toUpperCase() || `DMC-PROD-${Date.now().toString().slice(-4)}`;
+    const titleEn = productCrudForm.titleEn.trim() || 'DMC Official Product';
+    const marketPrice =
+      productCrudForm.marketPriceLak !== '' && !isNaN(Number(productCrudForm.marketPriceLak))
+        ? Math.max(0, Math.round(Number(productCrudForm.marketPriceLak)))
+        : DMC_STANDARD_PRICING.marketPriceLak;
+    const memberPrice =
+      productCrudForm.priceLak !== '' && !isNaN(Number(productCrudForm.priceLak))
+        ? Math.max(0, Math.round(Number(productCrudForm.priceLak)))
+        : DMC_STANDARD_PRICING.memberPriceLak;
+    const memberDiscount =
+      productCrudForm.memberDiscountLak !== '' && !isNaN(Number(productCrudForm.memberDiscountLak))
+        ? Math.max(0, Math.round(Number(productCrudForm.memberDiscountLak)))
+        : Math.max(0, marketPrice - memberPrice);
+    const pool =
+      productCrudForm.commissionPoolLak !== '' && !isNaN(Number(productCrudForm.commissionPoolLak))
+        ? Math.max(0, Math.round(Number(productCrudForm.commissionPoolLak)))
+        : DMC_STANDARD_PRICING.commissionPoolLak;
+    const l1 =
+      productCrudForm.l1Share !== '' && !isNaN(Number(productCrudForm.l1Share))
+        ? Number(productCrudForm.l1Share)
+        : 50;
+    const l2 =
+      productCrudForm.l2Share !== '' && !isNaN(Number(productCrudForm.l2Share))
+        ? Number(productCrudForm.l2Share)
+        : 30;
+    const l3 =
+      productCrudForm.l3Share !== '' && !isNaN(Number(productCrudForm.l3Share))
+        ? Number(productCrudForm.l3Share)
+        : 20;
+    const stock =
+      productCrudForm.stockSellable !== '' && !isNaN(Number(productCrudForm.stockSellable))
+        ? Math.max(0, Math.round(Number(productCrudForm.stockSellable)))
+        : 0;
+
+    if (productCrudMode === 'EDIT') {
+      adminUpdateProduct(cleanSku, {
+        category: productCrudForm.category,
+        titleEn,
+        titleLo: productCrudForm.titleLo.trim() || titleEn,
+        titleTh: productCrudForm.titleTh.trim() || titleEn,
+        descriptionEn: productCrudForm.descriptionEn.trim(),
+        marketPriceLak: marketPrice,
+        priceLak: memberPrice,
+        memberDiscountLak: memberDiscount,
+        commissionPoolLak: pool,
+        splitRule: {
+          ruleType: 'POOL_PERCENTAGE',
+          l1Share: l1,
+          l2Share: l2,
+          l3Share: l3,
+        },
+        stockSellable: stock,
+        itemType: productCrudForm.itemType,
+        imageUrl: productCrudForm.imageUrl.trim(),
+      });
+      setCoreEditSuccessNotice(`Updated product "${titleEn}" (${cleanSku})!`);
+    } else {
+      const newProd: ProductSKU = {
+        sku: cleanSku,
+        category: productCrudForm.category,
+        titleEn,
+        titleLo: productCrudForm.titleLo.trim() || titleEn,
+        titleTh: productCrudForm.titleTh.trim() || titleEn,
+        descriptionEn:
+          productCrudForm.descriptionEn.trim() || 'Official DMC Xayraxa catalog product.',
+        marketPriceLak: marketPrice,
+        priceLak: memberPrice,
+        memberDiscountLak: memberDiscount,
+        commissionPoolLak: pool,
+        splitRule: {
+          ruleType: 'POOL_PERCENTAGE',
+          l1Share: l1,
+          l2Share: l2,
+          l3Share: l3,
+        },
+        stockSellable: stock,
+        stockReserved: 0,
+        warehouseId: 'Vientiane Central Warehouse',
+        itemType: productCrudForm.itemType,
+        imageUrl:
+          productCrudForm.imageUrl.trim() ||
+          'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+        featured: true,
+      };
+      adminAddProduct(newProd);
+      setCoreEditSuccessNotice(`Added new product "${titleEn}" (${cleanSku})!`);
+    }
+    setTimeout(() => setCoreEditSuccessNotice(null), 5000);
+    setIsProductCrudOpen(false);
+  };
+
   return (
     <div className="@container space-y-5 pb-16 animate-in fade-in">
       {/* 1. TOP HEADER & SHOPPING CART BUTTON */}
@@ -493,7 +685,19 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
           <p className="text-xs text-slate-400 mt-0.5">{t.catalogScreenSub}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={openCreateCatalogProduct}
+              className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-black text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Administrator: Add New Product to Catalog"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Product</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsShippingGuideOpen(true)}
@@ -853,6 +1057,37 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
         </div>
       </div>
 
+      {/* 3B. OFFICIAL DMC PRODUCT & MUSIC COURSE PRICING STRUCTURE */}
+      <DmcPricingStructureCard
+        title="DMC Product Pricing – Official Member Discount & Commission Pool"
+        onSavePricing={(payload) => {
+          products
+            .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
+            .forEach((p) => {
+              adminUpdateProduct(p.sku, {
+                marketPriceLak: payload.marketPriceLak,
+                priceLak: payload.memberPriceLak,
+                memberDiscountLak: payload.memberDiscountLak,
+                commissionPoolLak: payload.commissionPoolLak,
+                splitRule: {
+                  ruleType: 'POOL_PERCENTAGE',
+                  l1Share: payload.l1Percent,
+                  l2Share: payload.l2Percent,
+                  l3Share: payload.l3Percent,
+                },
+              });
+            });
+          setCoreEditSuccessNotice(
+            `Updated DMC Product Pricing: Market ${formatLak(payload.marketPriceLak)} • Member ${formatLak(
+              payload.memberPriceLak
+            )} • Discount ${formatLak(payload.memberDiscountLak)} • Pool ${formatLak(
+              payload.commissionPoolLak
+            )}`
+          );
+          setTimeout(() => setCoreEditSuccessNotice(null), 5000);
+        }}
+      />
+
       {/* 4. CATEGORY FILTER TABS (Clean Wrap, Zero Ugly Scrollbar) */}
       <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs">
         {[
@@ -883,6 +1118,11 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
           .map((product) => {
             const inCartQty = cart[product.sku] || 0;
             const locProd = getLocalizedProduct(product, language);
+            const marketPrice = product.marketPriceLak || DMC_STANDARD_PRICING.marketPriceLak;
+            const memberDiscount =
+              product.memberDiscountLak !== undefined
+                ? product.memberDiscountLak
+                : Math.max(0, marketPrice - product.priceLak);
             return (
               <div
                 key={product.sku}
@@ -905,19 +1145,58 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                       </span>
                     </div>
 
-                    {/* Top Right Stock Count */}
-                    <div className="absolute top-3 right-3 bg-slate-950/85 backdrop-blur-xs px-2.5 py-1 rounded-md text-[11px] font-mono font-bold text-emerald-300 border border-slate-700">
-                      {t.stockLabel}: {product.stockSellable}
+                    {/* Top Right Stock Count & Admin Edit / Delete Buttons */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      <div className="bg-slate-950/85 backdrop-blur-xs px-2.5 py-1 rounded-md text-[11px] font-mono font-bold text-emerald-300 border border-slate-700">
+                        {t.stockLabel}: {product.stockSellable}
+                      </div>
+                      {isAdmin && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditCatalogProduct(product)}
+                            className="px-2 py-1 rounded-md bg-sky-500/95 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
+                            title="Administrator: Edit / Update Product & Price"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+                          {products.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                adminDeleteProduct(product.sku);
+                                setCoreEditSuccessNotice(`Deleted product ${product.sku}`);
+                                setTimeout(() => setCoreEditSuccessNotice(null), 4000);
+                              }}
+                              className="p-1 rounded-md bg-rose-600/95 hover:bg-rose-700 text-white shadow cursor-pointer"
+                              title="Administrator: Delete Product"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
 
-                    {/* Bottom Left SKU & Price */}
+                    {/* Bottom Left SKU & DMC Member Price */}
                     <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
-                      <span className="text-[11px] font-mono font-bold text-amber-300 uppercase">
-                        {product.sku}
-                      </span>
-                      <span className="text-lg font-black text-white font-mono drop-shadow">
-                        {formatLak(product.priceLak)}
-                      </span>
+                      <div>
+                        <span className="text-[11px] font-mono font-bold text-amber-300 uppercase block">
+                          {product.sku}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-300 line-through">
+                          Market: {formatLak(marketPrice)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-emerald-400 block">
+                          Save {formatLak(memberDiscount)}
+                        </span>
+                        <span className="text-lg font-black text-amber-400 font-mono drop-shadow">
+                          {formatLak(product.priceLak)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -962,20 +1241,35 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                       </button>
                     </div>
 
-                    {/* Unilevel Commission Pool Info */}
-                    <div className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/60 text-xs space-y-1">
-                      <div className="flex justify-between items-center text-slate-200">
-                        <span className="font-semibold">{t.poolLabel} (50/30/20):</span>
-                        <span className="font-mono font-bold text-amber-300">
-                          {formatLak(product.commissionPoolLak)}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        L1: {formatLakCompact(Math.round(product.commissionPoolLak * 0.5))} • L2:{' '}
-                        {formatLakCompact(Math.round(product.commissionPoolLak * 0.3))} • L3:{' '}
-                        {formatLakCompact(Math.round(product.commissionPoolLak * 0.2))}
-                      </div>
-                    </div>
+                    {/* Exact DMC Product Pricing & Commission Pool Breakdown */}
+                    <DmcPricingStructureCard
+                      marketPriceLak={marketPrice}
+                      memberPriceLak={product.priceLak}
+                      memberDiscountLak={memberDiscount}
+                      commissionPoolLak={product.commissionPoolLak}
+                      l1Percent={product.splitRule.l1Share || 50}
+                      l2Percent={product.splitRule.l2Share || 30}
+                      l3Percent={product.splitRule.l3Share || 20}
+                      compact={true}
+                      onSavePricing={(payload) => {
+                        adminUpdateProduct(product.sku, {
+                          marketPriceLak: payload.marketPriceLak,
+                          priceLak: payload.memberPriceLak,
+                          memberDiscountLak: payload.memberDiscountLak,
+                          commissionPoolLak: payload.commissionPoolLak,
+                          splitRule: {
+                            ruleType: 'POOL_PERCENTAGE',
+                            l1Share: payload.l1Percent,
+                            l2Share: payload.l2Percent,
+                            l3Share: payload.l3Percent,
+                          },
+                        });
+                        setCoreEditSuccessNotice(
+                          `Updated ${product.sku} pricing numbers!`
+                        );
+                        setTimeout(() => setCoreEditSuccessNotice(null), 4000);
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -1800,7 +2094,8 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                     </label>
                     <input
                       type="number"
-                      step="10000"
+                      min="0"
+                      step="any"
                       value={coreEditForm.dmcBudget}
                       onChange={(e) =>
                         setCoreEditForm({ ...coreEditForm, dmcBudget: Number(e.target.value) })
@@ -1815,7 +2110,8 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                     </label>
                     <input
                       type="number"
-                      step="10000"
+                      min="0"
+                      step="any"
                       value={coreEditForm.l1Share}
                       onChange={(e) =>
                         setCoreEditForm({ ...coreEditForm, l1Share: Number(e.target.value) })
@@ -1830,7 +2126,8 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                     </label>
                     <input
                       type="number"
-                      step="10000"
+                      min="0"
+                      step="any"
                       value={coreEditForm.l2Share}
                       onChange={(e) =>
                         setCoreEditForm({ ...coreEditForm, l2Share: Number(e.target.value) })
@@ -1845,7 +2142,8 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                     </label>
                     <input
                       type="number"
-                      step="10000"
+                      min="0"
+                      step="any"
                       value={coreEditForm.l3Share}
                       onChange={(e) =>
                         setCoreEditForm({ ...coreEditForm, l3Share: Number(e.target.value) })
@@ -2184,6 +2482,439 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                         ? `Update Shipping & Price (${formatLak(shippingForm.baseFeeLak)})`
                         : `Add Shipping Carrier (${formatLak(shippingForm.baseFeeLak)})`}
                     </span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ADMINISTRATOR PRODUCT CATALOG CRUD MODAL (ADD, EDIT, DELETE, UPDATE) ================= */}
+      {isAdmin && isProductCrudOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-xl w-full p-5 sm:p-6 text-slate-100 shadow-2xl max-h-[92vh] overflow-y-auto space-y-4 my-auto">
+            <div className="flex justify-between items-start pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    {productCrudMode === 'EDIT'
+                      ? `Edit / Update Product (${productCrudForm.sku})`
+                      : 'Add New Catalog Product'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Upload product photo, set LAK price, 50/30/20 commission pool, and stock.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsProductCrudOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCatalogProduct} className="space-y-3.5 text-xs">
+              {/* Product Image Preview & Upload */}
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center gap-3">
+                <img
+                  src={productCrudForm.imageUrl}
+                  alt={productCrudForm.titleEn || 'Product Preview'}
+                  className="w-16 h-16 rounded-xl object-cover border border-amber-400/50 shrink-0"
+                />
+                <div className="flex-1 space-y-1.5">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shadow">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Product Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') {
+                            setProductCrudForm((prev) => ({
+                              ...prev,
+                              imageUrl: reader.result as string,
+                            }));
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    value={productCrudForm.imageUrl}
+                    onChange={(e) =>
+                      setProductCrudForm({ ...productCrudForm, imageUrl: e.target.value })
+                    }
+                    placeholder="Or paste image URL..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">SKU Code *</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={productCrudMode === 'EDIT'}
+                    value={productCrudForm.sku}
+                    onChange={(e) =>
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        sku: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-mono font-bold disabled:opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">Category *</label>
+                  <select
+                    value={productCrudForm.category}
+                    onChange={(e) =>
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        category: e.target.value as ProductSKU['category'],
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-bold"
+                  >
+                    <option value="GUITAR">GUITAR</option>
+                    <option value="AUDIO_GEAR">AUDIO_GEAR</option>
+                    <option value="ACCESSORY">ACCESSORY</option>
+                    <option value="MUSIC_PACKAGE">MUSIC_PACKAGE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">Item Type</label>
+                  <select
+                    value={productCrudForm.itemType}
+                    onChange={(e) =>
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        itemType: e.target.value as ProductSKU['itemType'],
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-bold"
+                  >
+                    <option value="PHYSICAL">PHYSICAL PARCEL</option>
+                    <option value="SERVICE">STUDIO SERVICE</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">
+                  Product Title (English) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={productCrudForm.titleEn}
+                  onChange={(e) =>
+                    setProductCrudForm({ ...productCrudForm, titleEn: e.target.value })
+                  }
+                  placeholder="e.g. DMC Acoustic Guitar Pro"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Lao Title (ພາສາລາວ)
+                  </label>
+                  <input
+                    type="text"
+                    value={productCrudForm.titleLo}
+                    onChange={(e) =>
+                      setProductCrudForm({ ...productCrudForm, titleLo: e.target.value })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Thai Title (ไทย)
+                  </label>
+                  <input
+                    type="text"
+                    value={productCrudForm.titleTh}
+                    onChange={(e) =>
+                      setProductCrudForm({ ...productCrudForm, titleTh: e.target.value })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-slate-300 font-bold block mb-1">
+                    Market Price (LAK) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={productCrudForm.marketPriceLak}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const mktNum = Number(val) || 0;
+                      const memNum = Number(productCrudForm.priceLak) || 0;
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        marketPriceLak: val === '' ? '' : Number(val),
+                        memberDiscountLak: Math.max(0, mktNum - memNum),
+                      });
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-slate-200 font-mono font-bold focus:border-amber-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-amber-300 font-bold block mb-1">
+                    DMC Member Price (LAK) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={productCrudForm.priceLak}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const memNum = Number(val) || 0;
+                      const mktNum = Number(productCrudForm.marketPriceLak) || 0;
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        priceLak: val === '' ? '' : Number(val),
+                        memberDiscountLak: Math.max(0, mktNum - memNum),
+                      });
+                    }}
+                    className="w-full bg-slate-900 border-2 border-amber-500/60 rounded-xl p-2 text-amber-300 font-mono font-black focus:border-amber-400 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-emerald-300 font-bold block mb-1">
+                    Member Discount (LAK) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={productCrudForm.memberDiscountLak}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        memberDiscountLak: val === '' ? '' : Number(val),
+                      });
+                    }}
+                    className="w-full bg-slate-900 border border-emerald-500/50 rounded-xl p-2 text-emerald-400 font-mono font-bold focus:border-emerald-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-amber-300 font-bold block mb-1">
+                    Commission Pool = 100% (LAK) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={productCrudForm.commissionPoolLak}
+                    onChange={(e) =>
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        commissionPoolLak: e.target.value === '' ? '' : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-amber-500/50 rounded-xl p-2 text-amber-300 font-mono font-bold focus:border-amber-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">Stock Qty *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={productCrudForm.stockSellable}
+                    onChange={(e) =>
+                      setProductCrudForm({
+                        ...productCrudForm,
+                        stockSellable: e.target.value === '' ? '' : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-mono font-bold focus:border-amber-400 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Commission Distribution L1 / L2 / L3 (%) Input by Type Number */}
+              <div className="p-3 rounded-xl bg-slate-950/90 border border-amber-500/30 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-amber-300">
+                    Commission Distribution (From {formatLak(Number(productCrudForm.commissionPoolLak) || 0)} Pool):
+                  </span>
+                  <span className="font-mono text-emerald-400 font-bold">
+                    {Number(productCrudForm.l1Share) || 0}% + {Number(productCrudForm.l2Share) || 0}% +{' '}
+                    {Number(productCrudForm.l3Share) || 0}% ={' '}
+                    {(Number(productCrudForm.l1Share) || 0) +
+                      (Number(productCrudForm.l2Share) || 0) +
+                      (Number(productCrudForm.l3Share) || 0)}
+                    %
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-amber-300 font-bold block mb-1">
+                      L1 (%) •{' '}
+                      {formatLak(
+                        Math.floor(
+                          ((Number(productCrudForm.commissionPoolLak) || 0) *
+                            (Number(productCrudForm.l1Share) || 0)) /
+                            100
+                        )
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={productCrudForm.l1Share}
+                      onChange={(e) =>
+                        setProductCrudForm({
+                          ...productCrudForm,
+                          l1Share: e.target.value === '' ? '' : Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-slate-900 border border-amber-500/40 rounded-lg p-1.5 text-center text-white font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-sky-300 font-bold block mb-1">
+                      L2 (%) •{' '}
+                      {formatLak(
+                        Math.floor(
+                          ((Number(productCrudForm.commissionPoolLak) || 0) *
+                            (Number(productCrudForm.l2Share) || 0)) /
+                            100
+                        )
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={productCrudForm.l2Share}
+                      onChange={(e) =>
+                        setProductCrudForm({
+                          ...productCrudForm,
+                          l2Share: e.target.value === '' ? '' : Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-slate-900 border border-sky-500/40 rounded-lg p-1.5 text-center text-white font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-emerald-300 font-bold block mb-1">
+                      L3 (%) •{' '}
+                      {formatLak(
+                        Math.floor(
+                          ((Number(productCrudForm.commissionPoolLak) || 0) *
+                            (Number(productCrudForm.l3Share) || 0)) /
+                            100
+                        )
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={productCrudForm.l3Share}
+                      onChange={(e) =>
+                        setProductCrudForm({
+                          ...productCrudForm,
+                          l3Share: e.target.value === '' ? '' : Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg p-1.5 text-center text-white font-mono font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">
+                  Product Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={productCrudForm.descriptionEn}
+                  onChange={(e) =>
+                    setProductCrudForm({
+                      ...productCrudForm,
+                      descriptionEn: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2.5 pt-2">
+                {productCrudMode === 'EDIT' && products.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      adminDeleteProduct(productCrudForm.sku);
+                      setIsProductCrudOpen(false);
+                      setCoreEditSuccessNotice(`Deleted product ${productCrudForm.sku}`);
+                      setTimeout(() => setCoreEditSuccessNotice(null), 4000);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsProductCrudOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg cursor-pointer"
+                  >
+                    {productCrudMode === 'EDIT' ? 'Update Product' : 'Save New Product'}
                   </button>
                 </div>
               </div>

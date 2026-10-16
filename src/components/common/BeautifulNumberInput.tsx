@@ -228,8 +228,29 @@ export const BeautifulNumberInput: React.FC<BeautifulNumberInputProps> = ({
         </div>
       </div>
 
-      {/* Helper Bar & Live Reading */}
-      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+      {/* Helper Bar, Direct Type Number Input & Live Reading */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-400 font-semibold">Type Number:</span>
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step="any"
+            disabled={disabled}
+            placeholder="0"
+            value={numericVal === 0 && displayText === '' ? '' : numericVal}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const num = raw === '' ? 0 : Number(raw);
+              setDisplayText(raw === '' ? '' : num.toLocaleString('en-US'));
+              onChange(num, raw);
+            }}
+            className="w-32 bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-xs font-mono font-bold text-amber-300 focus:outline-none"
+          />
+          <span className="text-[10px] font-mono text-slate-500">LAK</span>
+        </div>
+
         {numericVal > 0 ? (
           <div className="flex items-center gap-1 text-slate-400">
             <span className="text-[10px] text-slate-500">Live:</span>
@@ -239,7 +260,7 @@ export const BeautifulNumberInput: React.FC<BeautifulNumberInputProps> = ({
           </div>
         ) : (
           <div className="text-[10px] text-slate-500 flex items-center gap-1">
-            <span>Tip: type <strong>"500k"</strong> or <strong>"1.6m"</strong> directly</span>
+            <span>Tip: type number or <strong>"500k"</strong> / <strong>"4.2m"</strong></span>
           </div>
         )}
 

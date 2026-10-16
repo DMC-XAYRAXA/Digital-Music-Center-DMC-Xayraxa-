@@ -128,6 +128,11 @@ export interface Member {
     village?: string;
     note?: string;
   };
+  isStaff?: boolean;
+  staffPosition?: StaffPosition;
+  staffCode?: string;
+  staffBranch?: string;
+  staffBioOrDuty?: string;
 }
 
 export interface SuperAdminProfile {
@@ -230,6 +235,19 @@ export interface SongProductionProject {
   updatedAt: string;
 }
 
+export const DMC_STANDARD_PRICING = {
+  marketPriceLak: 6200000,
+  memberPriceLak: 4200000,
+  memberDiscountLak: 2000000,
+  commissionPoolLak: 450000,
+  l1Percent: 50,
+  l2Percent: 30,
+  l3Percent: 20,
+  l1AmountLak: 225000,
+  l2AmountLak: 135000,
+  l3AmountLak: 90000,
+} as const;
+
 export interface ProductSKU {
   sku: string;
   category: 'MUSIC_PACKAGE' | 'GUITAR' | 'AUDIO_GEAR' | 'ACCESSORY';
@@ -237,11 +255,13 @@ export interface ProductSKU {
   titleLo: string;
   titleTh: string;
   descriptionEn: string;
-  priceLak: number; // Integer LAK
-  commissionPoolLak: number; // 0 for no commission, or explicit pool
+  marketPriceLak?: number; // Market Price (e.g., 6,200,000 LAK)
+  priceLak: number; // DMC Member Price (e.g., 4,200,000 LAK)
+  memberDiscountLak?: number; // Member Discount (e.g., 2,000,000 LAK)
+  commissionPoolLak: number; // Commission Pool = 100% (e.g., 450,000 LAK, never calculated from member discount)
   splitRule: {
     ruleType: 'FIXED_MUSIC' | 'POOL_PERCENTAGE';
-    l1Share: number; // Amount or bps
+    l1Share: number; // Amount or percentage (50/30/20)
     l2Share: number;
     l3Share: number;
     dmcBudget?: number;
@@ -475,4 +495,135 @@ export interface SupportLocationItem {
   notes?: string;
   updatedAt: string;
 }
+
+export type StaffPosition =
+  | 'Administrator'
+  | 'Assistance'
+  | 'Accounting'
+  | 'Marketing'
+  | 'IT'
+  | 'Teacher'
+  | 'Fencer'
+  | 'Part time';
+
+export interface StaffPositionDefinition {
+  id: StaffPosition;
+  labelEn: string;
+  labelLo: string;
+  labelTh: string;
+  badgeColor: string;
+  iconKey: 'SHIELD' | 'USERS' | 'WALLET' | 'MEGAPHONE' | 'CPU' | 'GRADUATION' | 'SPARKLES' | 'CLOCK';
+  description: string;
+}
+
+export const DMC_STAFF_POSITIONS: StaffPositionDefinition[] = [
+  {
+    id: 'Administrator',
+    labelEn: 'Administrator',
+    labelLo: 'ຜູ້ບໍລິຫານລະບົບ (Administrator)',
+    labelTh: 'ผู้ดูแลระบบ / ผู้บริหาร (Administrator)',
+    badgeColor: 'from-red-600 to-rose-800',
+    iconKey: 'SHIELD',
+    description: 'Executive system administration, full platform control & approvals'
+  },
+  {
+    id: 'Assistance',
+    labelEn: 'Assistance',
+    labelLo: 'ຜູ້ຊ່ວຍບໍລິຫານ (Assistance)',
+    labelTh: 'ผู้ช่วยประสานงาน (Assistance)',
+    badgeColor: 'from-amber-500 to-orange-600',
+    iconKey: 'USERS',
+    description: 'Executive & member coordination, studio scheduling & administrative support'
+  },
+  {
+    id: 'Accounting',
+    labelEn: 'Accounting',
+    labelLo: 'ພະແນກບັນຊີ ແລະ ການເງິນ (Accounting)',
+    labelTh: 'ฝ่ายบัญชีและการเงิน (Accounting)',
+    badgeColor: 'from-emerald-600 to-teal-700',
+    iconKey: 'WALLET',
+    description: 'Financial ledger, LAK commission payouts, bank reconciliation & tax'
+  },
+  {
+    id: 'Marketing',
+    labelEn: 'Marketing',
+    labelLo: 'ພະແນກການຕະຫຼາດ (Marketing)',
+    labelTh: 'ฝ่ายการตลาดและประชาสัมพันธ์ (Marketing)',
+    badgeColor: 'from-pink-600 to-rose-700',
+    iconKey: 'MEGAPHONE',
+    description: 'Brand campaigns, artist promotion, affiliate network growth & events'
+  },
+  {
+    id: 'IT',
+    labelEn: 'IT',
+    labelLo: 'ພະແນກໄອທີ ແລະ ເຕັກໂນໂລຊີ (IT)',
+    labelTh: 'ฝ่ายเทคโนโลยีสารสนเทศ (IT)',
+    badgeColor: 'from-blue-600 to-indigo-700',
+    iconKey: 'CPU',
+    description: 'Platform engineering, studio audio networks, servers & technical support'
+  },
+  {
+    id: 'Teacher',
+    labelEn: 'Teacher',
+    labelLo: 'ຄູສອນດົນຕີ (Teacher)',
+    labelTh: 'ตัวแทนครูสอนดนตรี (Teacher)',
+    badgeColor: 'from-cyan-600 to-sky-700',
+    iconKey: 'GRADUATION',
+    description: 'Music Academy instructor, vocal/instrument coaching & curriculum'
+  },
+  {
+    id: 'Fencer',
+    labelEn: 'Fencer',
+    labelLo: 'ທີມງານອິດສະຫຼະ / ຕົວແທນພິເສດ (Fencer)',
+    labelTh: 'ตัวแทนอิสระ / ฟรีแลนซ์ (Fencer)',
+    badgeColor: 'from-purple-600 to-violet-800',
+    iconKey: 'SPARKLES',
+    description: 'Independent field specialist, studio session partner & creative contractor'
+  },
+  {
+    id: 'Part time',
+    labelEn: 'Part time',
+    labelLo: 'ພະນັກງານນອກເວລາ (Part time)',
+    labelTh: 'พนักงานพาร์ทไทม์ (Part time)',
+    badgeColor: 'from-slate-600 to-slate-800',
+    iconKey: 'CLOCK',
+    description: 'Flexible shift staff, event support, studio assistant & logistics'
+  }
+];
+
+export interface DmcStaffMember {
+  id: string;
+  staffCode: string;
+  memberId?: string;
+  fullName: string;
+  position: StaffPosition;
+  phone: string;
+  email?: string;
+  branch: string;
+  avatarUrl: string;
+  customIconUrl?: string;
+  bioOrDuty: string;
+  status: 'ACTIVE' | 'ON_DUTY' | 'PART_TIME' | 'INACTIVE';
+  joinedDate: string;
+}
+
+export interface DmcPromotionItem {
+  id: string;
+  code: string;
+  badge: string;
+  title: string;
+  titleLo?: string;
+  description: string;
+  priceLak: number;
+  originalPriceLak?: number;
+  bonusPoolLak?: number;
+  validUntil: string;
+  imageUrl: string;
+  targetTab: 'musichub' | 'catalog' | 'academy' | 'membership';
+  targetSku?: string;
+  status: 'ACTIVE' | 'FEATURED' | 'SEASONAL' | 'EXPIRED';
+  updatedAt: string;
+}
+
+
 

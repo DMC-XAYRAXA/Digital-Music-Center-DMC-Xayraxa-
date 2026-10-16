@@ -42,7 +42,16 @@ function AppContent() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Top Main Navigation Header (Hidden on mobile when on Home screen since HomeScreen has its own full mobile header) */}
       <div className={!isAdminMode && activeTab === 'home' ? 'hidden md:block' : 'block'}>
-        <Header deviceFrame={deviceFrame} setDeviceFrame={setDeviceFrame} />
+        <Header
+          deviceFrame={deviceFrame}
+          setDeviceFrame={setDeviceFrame}
+          onSelectTab={(tab) => {
+            if (isAdminMode) {
+              // If user selects an app tab from search while in Admin Mode, switch back to app view or stay
+            }
+            setActiveTab(tab);
+          }}
+        />
       </div>
 
       {/* Main Content Area */}

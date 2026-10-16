@@ -81,7 +81,10 @@ import {
   LaoShippingCarrier,
   LAO_SHIPPING_CARRIERS,
   EventActivityPost,
-  SupportLocationItem
+  SupportLocationItem,
+  StaffPosition,
+  DMC_STAFF_POSITIONS,
+  DmcStaffMember
 } from '../../types/dmc';
 
 export const AdminPortal: React.FC = () => {
@@ -135,10 +138,41 @@ export const AdminPortal: React.FC = () => {
     adminAddShippingCarrier,
     adminUpdateShippingCarrier,
     adminDeleteShippingCarrier,
-    adminResetShippingCarriers
+    adminResetShippingCarriers,
+    staffMembers,
+    adminAddStaffMember,
+    adminUpdateStaffMember,
+    adminDeleteStaffMember,
+    adminResetStaffMembers,
+    adminUpgradeMemberToStaff,
+    adminDowngradeStaffToMember
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
+  const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'STAFF' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
+  const [adminStaffFilterPos, setAdminStaffFilterPos] = useState<StaffPosition | 'ALL'>('ALL');
+  const [adminEditingStaffId, setAdminEditingStaffId] = useState<string | null>(null);
+  const [adminSelectedMemberToUpgrade, setAdminSelectedMemberToUpgrade] = useState<string>('');
+  const [adminStaffForm, setAdminStaffForm] = useState<{
+    staffCode: string;
+    fullName: string;
+    position: StaffPosition;
+    phone: string;
+    email: string;
+    branch: string;
+    avatarUrl: string;
+    bioOrDuty: string;
+    status: DmcStaffMember['status'];
+  }>({
+    staffCode: 'DMC-STF-009',
+    fullName: '',
+    position: 'Teacher',
+    phone: '+856 20 ',
+    email: '',
+    branch: 'Dongdok Campus Studio Hub, Vientiane',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+    bioOrDuty: '',
+    status: 'ACTIVE',
+  });
   const [selectedExcelReport, setSelectedExcelReport] = useState<AdminReportId>('1_MEMBERS');
   const [adminEventForm, setAdminEventForm] = useState({
     id: '' as string,
@@ -271,8 +305,10 @@ export const AdminPortal: React.FC = () => {
     titleLo: '',
     titleTh: '',
     descriptionEn: '',
-    priceLak: 1500000,
-    commissionPoolLak: 200000,
+    marketPriceLak: 6200000,
+    priceLak: 4200000,
+    memberDiscountLak: 2000000,
+    commissionPoolLak: 450000,
     l1Share: 50,
     l2Share: 30,
     l3Share: 20,
@@ -284,6 +320,12 @@ export const AdminPortal: React.FC = () => {
 
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
+    const marketPrice = Number(newProductForm.marketPriceLak) || 6200000;
+    const memberPrice = Number(newProductForm.priceLak) || 4200000;
+    const memberDiscount =
+      Number(newProductForm.memberDiscountLak) >= 0
+        ? Number(newProductForm.memberDiscountLak)
+        : Math.max(0, marketPrice - memberPrice);
     const prod: ProductSKU = {
       sku: newProductForm.sku.trim().toUpperCase(),
       category: newProductForm.category,
@@ -291,7 +333,9 @@ export const AdminPortal: React.FC = () => {
       titleLo: newProductForm.titleLo || newProductForm.titleEn,
       titleTh: newProductForm.titleTh || newProductForm.titleEn,
       descriptionEn: newProductForm.descriptionEn,
-      priceLak: Number(newProductForm.priceLak),
+      marketPriceLak: marketPrice,
+      priceLak: memberPrice,
+      memberDiscountLak: memberDiscount,
       commissionPoolLak: Number(newProductForm.commissionPoolLak),
       splitRule: {
         ruleType: 'POOL_PERCENTAGE',
@@ -1077,6 +1121,7 @@ export const AdminPortal: React.FC = () => {
           { id: 'COMPANY_PROFILE_PDF', label: 'Company Profile PDF', icon: FileText, count: 4 },
           { id: 'EXCEL_REPORTS', label: 'Excel Reports (1-7)', icon: FileSpreadsheet, count: 7 },
           { id: 'MEMBERS', label: 'Members CRUD', icon: Users, count: allMembers.length },
+          { id: 'STAFF', label: 'Staff & Positions (8)', icon: Users, count: staffMembers.length },
           { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
           { id: 'EVENTS', label: 'Event & Activity Posts', icon: Megaphone, count: eventPosts.length },
           { id: 'ADMIN_PROFILE', label: 'Admin & User SMS Security', icon: Smartphone },
@@ -1480,6 +1525,9 @@ export const AdminPortal: React.FC = () => {
             {filteredMembers.map(member => {
               const b = getMemberBalances(member.memberId);
               const isAct = member.membershipState === 'ACTIVE_LIFETIME_MEMBER';
+              const existingStaff = staffMembers.find(s => s.memberId === member.memberId);
+              const isMemberStaff = Boolean(member.isStaff || existingStaff);
+              const currentStaffPosition = member.staffPosition || existingStaff?.position || 'Teacher';
               return (
                 <div
                   key={member.memberId}
@@ -1491,9 +1539,14 @@ export const AdminPortal: React.FC = () => {
                         {member.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="font-bold text-white text-sm flex items-center gap-2">
+                        <div className="font-bold text-white text-sm flex items-center gap-2 flex-wrap">
                           <span>{member.name}</span>
                           <span className="font-mono text-amber-300 font-semibold text-xs">{member.memberId}</span>
+                          {isMemberStaff && (
+                            <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[10px] font-black uppercase">
+                              STAFF: {currentStaffPosition}
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                           <span>Phone: {member.phone}</span>
@@ -1527,7 +1580,56 @@ export const AdminPortal: React.FC = () => {
                       Bank: {member.bankAccount?.bankName} ({member.bankAccount?.accountNumber})
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Administrator Direct Upgrade Member to Staff Control */}
+                      <div className="flex items-center gap-1 bg-slate-900/90 border border-sky-500/40 rounded-lg px-2 py-1">
+                        <select
+                          value={currentStaffPosition}
+                          onChange={e => {
+                            const newPos = e.target.value as StaffPosition;
+                            adminUpgradeMemberToStaff(member.memberId, newPos);
+                            showNotification(
+                              `Upgraded Member ${member.name} (${member.memberId}) to ${newPos} Staff!`
+                            );
+                          }}
+                          className="bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] font-bold text-amber-300 cursor-pointer"
+                          title="Select Official Staff Position for this Member"
+                        >
+                          {DMC_STAFF_POSITIONS.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.labelEn}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            adminUpgradeMemberToStaff(member.memberId, currentStaffPosition);
+                            showNotification(
+                              `Upgraded Member ${member.name} (${member.memberId}) to Official Staff (${currentStaffPosition})!`
+                            );
+                          }}
+                          className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white font-black text-[10px] cursor-pointer"
+                        >
+                          {isMemberStaff ? 'Update Staff Role' : '↑ Upgrade to Staff'}
+                        </button>
+                        {isMemberStaff && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              adminDowngradeStaffToMember(member.memberId);
+                              showNotification(
+                                `Downgraded ${member.name} (${member.memberId}) back to regular Member.`
+                              );
+                            }}
+                            className="px-1.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-[10px] cursor-pointer"
+                            title="Remove Staff role"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
                       <button
                         onClick={() => setAdjustingMember(member)}
                         className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-[11px] flex items-center gap-1 border border-slate-700"
@@ -1557,6 +1659,373 @@ export const AdminPortal: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 1B: DMC STAFF & 8 POSITIONS CRUD ================= */}
+      {activeAdminTab === 'STAFF' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" />
+                <span>DMC Staff & 8 Official Positions Management (Add, Edit, Delete, Update)</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Positions: Administrator • Assistance • Accounting • Marketing • IT • Teacher • Fencer • Part time
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                adminResetStaffMembers();
+                showNotification('Reset DMC Staff Directory to default 8 positions!');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold cursor-pointer"
+            >
+              Reset Default Staff
+            </button>
+          </div>
+
+          {/* 8 Position Filter Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {DMC_STAFF_POSITIONS.map((pos) => {
+              const count = staffMembers.filter((s) => s.position === pos.id).length;
+              const isSelected = adminStaffFilterPos === pos.id;
+              return (
+                <button
+                  key={pos.id}
+                  type="button"
+                  onClick={() => setAdminStaffFilterPos(isSelected ? 'ALL' : pos.id)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? `bg-gradient-to-r ${pos.badgeColor} text-white border-amber-300 shadow-lg`
+                      : 'bg-slate-800/60 hover:bg-slate-800 text-slate-200 border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black truncate">- {pos.labelEn}</span>
+                    <span className="px-1.5 py-0.2 rounded bg-black/30 text-[10px] font-mono font-bold">
+                      {count}
+                    </span>
+                  </div>
+                  <div className="text-[10px] opacity-80 truncate mt-0.5">{pos.labelLo}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left: Create / Edit Staff Member Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const cleanName = adminStaffForm.fullName.trim() || 'DMC Staff';
+                if (adminEditingStaffId) {
+                  adminUpdateStaffMember(adminEditingStaffId, {
+                    staffCode: adminStaffForm.staffCode.trim(),
+                    fullName: cleanName,
+                    position: adminStaffForm.position,
+                    phone: adminStaffForm.phone.trim(),
+                    email: adminStaffForm.email.trim(),
+                    branch: adminStaffForm.branch.trim(),
+                    avatarUrl: adminStaffForm.avatarUrl.trim(),
+                    bioOrDuty: adminStaffForm.bioOrDuty.trim(),
+                    status: adminStaffForm.status,
+                  });
+                  showNotification(`Updated Staff "${cleanName}" (${adminStaffForm.position})!`);
+                } else if (adminSelectedMemberToUpgrade) {
+                  adminUpgradeMemberToStaff(
+                    adminSelectedMemberToUpgrade,
+                    adminStaffForm.position,
+                    {
+                      staffCode: adminStaffForm.staffCode.trim(),
+                      branch: adminStaffForm.branch.trim(),
+                      bioOrDuty: adminStaffForm.bioOrDuty.trim(),
+                      status: adminStaffForm.status,
+                    }
+                  );
+                  showNotification(
+                    `Upgraded Member ${adminSelectedMemberToUpgrade} ("${cleanName}") to Staff (${adminStaffForm.position})!`
+                  );
+                } else {
+                  adminAddStaffMember({
+                    staffCode: adminStaffForm.staffCode.trim(),
+                    fullName: cleanName,
+                    position: adminStaffForm.position,
+                    phone: adminStaffForm.phone.trim(),
+                    email: adminStaffForm.email.trim(),
+                    branch: adminStaffForm.branch.trim(),
+                    avatarUrl: adminStaffForm.avatarUrl.trim(),
+                    bioOrDuty: adminStaffForm.bioOrDuty.trim(),
+                    status: adminStaffForm.status,
+                  });
+                  showNotification(`Created Staff "${cleanName}" in position "${adminStaffForm.position}"!`);
+                }
+                setAdminEditingStaffId(null);
+                setAdminSelectedMemberToUpgrade('');
+                setAdminStaffForm({
+                  staffCode: `DMC-STF-${String(staffMembers.length + 2).padStart(3, '0')}`,
+                  fullName: '',
+                  position: 'Teacher',
+                  phone: '+856 20 ',
+                  email: '',
+                  branch: 'Dongdok Campus Studio Hub, Vientiane',
+                  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+                  bioOrDuty: '',
+                  status: 'ACTIVE',
+                });
+              }}
+              className="lg:col-span-5 bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="font-black text-amber-400 text-sm">
+                  {adminEditingStaffId
+                    ? 'Edit / Update Staff Member'
+                    : '+ Create Staff or Upgrade Member'}
+                </span>
+                {adminEditingStaffId && (
+                  <button
+                    type="button"
+                    onClick={() => setAdminEditingStaffId(null)}
+                    className="text-slate-400 hover:text-white text-[11px] font-bold cursor-pointer"
+                  >
+                    Cancel Edit ✕
+                  </button>
+                )}
+              </div>
+
+              {!adminEditingStaffId && (
+                <div className="p-2.5 rounded-xl bg-sky-950/50 border border-sky-500/40 space-y-1.5">
+                  <label className="block text-[10px] font-black text-sky-300 uppercase">
+                    ↑ Quick Upgrade Existing Member to Become Staff:
+                  </label>
+                  <select
+                    value={adminSelectedMemberToUpgrade}
+                    onChange={(e) => {
+                      const memId = e.target.value;
+                      setAdminSelectedMemberToUpgrade(memId);
+                      const mem = allMembers.find((m) => m.memberId === memId);
+                      if (mem) {
+                        const existingStf = staffMembers.find((s) => s.memberId === memId);
+                        setAdminStaffForm((prev) => ({
+                          ...prev,
+                          staffCode:
+                            existingStf?.staffCode ||
+                            mem.staffCode ||
+                            `DMC-STF-${mem.memberId}`,
+                          fullName: mem.name.replace(/\s*\(.*?\)\s*/g, ''),
+                          position:
+                            mem.staffPosition || existingStf?.position || prev.position,
+                          phone: mem.phone,
+                          email:
+                            mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                          branch:
+                            existingStf?.branch ||
+                            mem.staffBranch ||
+                            'Dongdok Campus Studio Hub, Vientiane',
+                          avatarUrl: mem.avatarUrl || prev.avatarUrl,
+                          bioOrDuty:
+                            existingStf?.bioOrDuty || mem.staffBioOrDuty || '',
+                        }));
+                      }
+                    }}
+                    className="w-full bg-slate-900 border border-sky-500/50 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                  >
+                    <option value="">-- Or Enter New Staff Details Manually --</option>
+                    {allMembers.map((m) => (
+                      <option key={m.memberId} value={m.memberId}>
+                        {m.memberId} - {m.name}{' '}
+                        {m.isStaff ? `(Staff: ${m.staffPosition})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                  Staff Position * (8 Positions)
+                </label>
+                <select
+                  value={adminStaffForm.position}
+                  onChange={(e) =>
+                    setAdminStaffForm({
+                      ...adminStaffForm,
+                      position: e.target.value as StaffPosition,
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-xs text-white font-black"
+                >
+                  {DMC_STAFF_POSITIONS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      - {p.labelEn} ({p.labelLo})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminStaffForm.fullName}
+                    onChange={(e) =>
+                      setAdminStaffForm({ ...adminStaffForm, fullName: e.target.value })
+                    }
+                    placeholder="Full Name"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">Staff Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminStaffForm.staffCode}
+                    onChange={(e) =>
+                      setAdminStaffForm({
+                        ...adminStaffForm,
+                        staffCode: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">Phone / WhatsApp *</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminStaffForm.phone}
+                    onChange={(e) =>
+                      setAdminStaffForm({ ...adminStaffForm, phone: e.target.value })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">Branch / Studio</label>
+                  <input
+                    type="text"
+                    value={adminStaffForm.branch}
+                    onChange={(e) =>
+                      setAdminStaffForm({ ...adminStaffForm, branch: e.target.value })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1">
+                  Duties / Responsibilities
+                </label>
+                <textarea
+                  rows={2}
+                  value={adminStaffForm.bioOrDuty}
+                  onChange={(e) =>
+                    setAdminStaffForm({ ...adminStaffForm, bioOrDuty: e.target.value })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow"
+              >
+                {adminEditingStaffId ? 'Update Staff Member' : '+ Add Staff Member'}
+              </button>
+            </form>
+
+            {/* Right: Staff Directory Cards */}
+            <div className="lg:col-span-7 space-y-2.5 max-h-[540px] overflow-y-auto pr-1">
+              {staffMembers
+                .filter(
+                  (s) => adminStaffFilterPos === 'ALL' || s.position === adminStaffFilterPos
+                )
+                .map((stf) => {
+                  const posMeta =
+                    DMC_STAFF_POSITIONS.find((p) => p.id === stf.position) ||
+                    DMC_STAFF_POSITIONS[0];
+                  return (
+                    <div
+                      key={stf.id}
+                      className="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/70 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={stf.avatarUrl}
+                          alt={stf.fullName}
+                          className="w-11 h-11 rounded-xl object-cover border border-amber-400/60 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-white text-sm">{stf.fullName}</span>
+                            <span className="font-mono text-[10px] text-amber-300">
+                              {stf.staffCode}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black text-white bg-gradient-to-r ${posMeta.badgeColor}`}
+                            >
+                              {stf.position}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {stf.bioOrDuty || posMeta.description}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            {stf.phone} • {stf.branch}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminEditingStaffId(stf.id);
+                            setAdminStaffForm({
+                              staffCode: stf.staffCode,
+                              fullName: stf.fullName,
+                              position: stf.position,
+                              phone: stf.phone,
+                              email: stf.email || '',
+                              branch: stf.branch,
+                              avatarUrl: stf.avatarUrl,
+                              bioOrDuty: stf.bioOrDuty,
+                              status: stf.status,
+                            });
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        {staffMembers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              adminDeleteStaffMember(stf.id);
+                              showNotification(`Deleted staff member ${stf.fullName}`);
+                            }}
+                            className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         </div>
       )}
@@ -3436,25 +3905,81 @@ export const AdminPortal: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-300 font-medium block mb-1">Price (Integer LAK) *</label>
+                  <label className="text-slate-300 font-medium block mb-1">Market Price (LAK) *</label>
                   <input
                     type="number"
-                    step="10000"
+                    min="0"
+                    step="any"
                     required
-                    value={newProductForm.priceLak}
-                    onChange={e => setNewProductForm({ ...newProductForm, priceLak: Number(e.target.value) })}
+                    value={newProductForm.marketPriceLak === 0 ? '' : newProductForm.marketPriceLak}
+                    placeholder="6200000"
+                    onChange={e => {
+                      const mp = e.target.value === '' ? 0 : Number(e.target.value);
+                      setNewProductForm({
+                        ...newProductForm,
+                        marketPriceLak: mp,
+                        memberDiscountLak: Math.max(0, mp - newProductForm.priceLak),
+                      });
+                    }}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 font-medium block mb-1">Commission Pool (LAK) *</label>
+                  <label className="text-amber-300 font-bold block mb-1">DMC Member Price (LAK) *</label>
                   <input
                     type="number"
-                    step="10000"
+                    min="0"
+                    step="any"
                     required
-                    value={newProductForm.commissionPoolLak}
-                    onChange={e => setNewProductForm({ ...newProductForm, commissionPoolLak: Number(e.target.value) })}
+                    value={newProductForm.priceLak === 0 ? '' : newProductForm.priceLak}
+                    placeholder="4200000"
+                    onChange={e => {
+                      const p = e.target.value === '' ? 0 : Number(e.target.value);
+                      setNewProductForm({
+                        ...newProductForm,
+                        priceLak: p,
+                        memberDiscountLak: Math.max(0, newProductForm.marketPriceLak - p),
+                      });
+                    }}
+                    className="w-full bg-slate-800 border border-amber-500/40 rounded-xl p-2.5 text-amber-300 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">Member Discount (LAK)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={newProductForm.memberDiscountLak === 0 ? '' : newProductForm.memberDiscountLak}
+                    placeholder="2000000"
+                    onChange={e =>
+                      setNewProductForm({
+                        ...newProductForm,
+                        memberDiscountLak: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-emerald-300 font-bold block mb-1">Commission Pool (LAK = 100%) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={newProductForm.commissionPoolLak === 0 ? '' : newProductForm.commissionPoolLak}
+                    placeholder="450000"
+                    onChange={e =>
+                      setNewProductForm({
+                        ...newProductForm,
+                        commissionPoolLak: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-800 border border-emerald-500/40 rounded-xl p-2.5 text-emerald-300 font-mono font-bold"
                   />
                 </div>
               </div>
@@ -3464,8 +3989,16 @@ export const AdminPortal: React.FC = () => {
                   <label className="text-[10px] text-slate-400 block mb-1">L1 Share (%)</label>
                   <input
                     type="number"
-                    value={newProductForm.l1Share}
-                    onChange={e => setNewProductForm({ ...newProductForm, l1Share: Number(e.target.value) })}
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={newProductForm.l1Share === 0 ? '' : newProductForm.l1Share}
+                    onChange={e =>
+                      setNewProductForm({
+                        ...newProductForm,
+                        l1Share: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-mono text-center"
                   />
                 </div>
@@ -3473,8 +4006,16 @@ export const AdminPortal: React.FC = () => {
                   <label className="text-[10px] text-slate-400 block mb-1">L2 Share (%)</label>
                   <input
                     type="number"
-                    value={newProductForm.l2Share}
-                    onChange={e => setNewProductForm({ ...newProductForm, l2Share: Number(e.target.value) })}
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={newProductForm.l2Share === 0 ? '' : newProductForm.l2Share}
+                    onChange={e =>
+                      setNewProductForm({
+                        ...newProductForm,
+                        l2Share: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-mono text-center"
                   />
                 </div>
@@ -3482,8 +4023,16 @@ export const AdminPortal: React.FC = () => {
                   <label className="text-[10px] text-slate-400 block mb-1">L3 Share (%)</label>
                   <input
                     type="number"
-                    value={newProductForm.l3Share}
-                    onChange={e => setNewProductForm({ ...newProductForm, l3Share: Number(e.target.value) })}
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={newProductForm.l3Share === 0 ? '' : newProductForm.l3Share}
+                    onChange={e =>
+                      setNewProductForm({
+                        ...newProductForm,
+                        l3Share: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-mono text-center"
                   />
                 </div>
@@ -3494,8 +4043,15 @@ export const AdminPortal: React.FC = () => {
                   <label className="text-slate-300 font-medium block mb-1">Stock Sellable</label>
                   <input
                     type="number"
-                    value={newProductForm.stockSellable}
-                    onChange={e => setNewProductForm({ ...newProductForm, stockSellable: Number(e.target.value) })}
+                    min="0"
+                    step="1"
+                    value={newProductForm.stockSellable === 0 ? '' : newProductForm.stockSellable}
+                    onChange={e =>
+                      setNewProductForm({
+                        ...newProductForm,
+                        stockSellable: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
                   />
                 </div>
@@ -3627,28 +4183,95 @@ export const AdminPortal: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-300 font-medium block mb-1">Price (Integer LAK) *</label>
+                  <label className="text-slate-300 font-medium block mb-1">Market Price (Integer LAK)</label>
                   <input
                     type="number"
-                    step="10000"
-                    required
-                    value={editingProduct.priceLak}
-                    onChange={e => setEditingProduct({ ...editingProduct, priceLak: Number(e.target.value) })}
+                    min="0"
+                    step="any"
+                    value={(editingProduct.marketPriceLak ?? 6200000) === 0 ? '' : (editingProduct.marketPriceLak ?? 6200000)}
+                    onChange={e => {
+                      const mp = e.target.value === '' ? 0 : Number(e.target.value);
+                      setEditingProduct({
+                        ...editingProduct,
+                        marketPriceLak: mp,
+                        memberDiscountLak: Math.max(0, mp - editingProduct.priceLak),
+                      });
+                    }}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block font-mono">
+                    {formatLak(editingProduct.marketPriceLak ?? 6200000)}
+                  </span>
+                </div>
+                <div>
+                  <label className="text-amber-300 font-bold block mb-1">DMC Member Price (LAK) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={editingProduct.priceLak === 0 ? '' : editingProduct.priceLak}
+                    onChange={e => {
+                      const p = e.target.value === '' ? 0 : Number(e.target.value);
+                      const mp = editingProduct.marketPriceLak ?? 6200000;
+                      setEditingProduct({
+                        ...editingProduct,
+                        priceLak: p,
+                        memberDiscountLak: Math.max(0, mp - p),
+                      });
+                    }}
+                    className="w-full bg-slate-800 border border-amber-500/40 rounded-xl p-2.5 text-amber-300 font-mono font-bold"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block font-mono">
                     {formatLak(editingProduct.priceLak)}
                   </span>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-300 font-medium block mb-1">Commission Pool (LAK) *</label>
+                  <label className="text-slate-300 font-medium block mb-1">Member Discount (LAK)</label>
                   <input
                     type="number"
-                    step="10000"
-                    required
-                    value={editingProduct.commissionPoolLak}
-                    onChange={e => setEditingProduct({ ...editingProduct, commissionPoolLak: Number(e.target.value) })}
+                    min="0"
+                    step="any"
+                    value={
+                      (editingProduct.memberDiscountLak ??
+                        Math.max(0, (editingProduct.marketPriceLak ?? 6200000) - editingProduct.priceLak)) === 0
+                        ? ''
+                        : (editingProduct.memberDiscountLak ??
+                            Math.max(0, (editingProduct.marketPriceLak ?? 6200000) - editingProduct.priceLak))
+                    }
+                    onChange={e =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        memberDiscountLak: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block font-mono">
+                    {formatLak(
+                      editingProduct.memberDiscountLak ??
+                        Math.max(0, (editingProduct.marketPriceLak ?? 6200000) - editingProduct.priceLak)
+                    )}
+                  </span>
+                </div>
+                <div>
+                  <label className="text-emerald-300 font-bold block mb-1">Commission Pool (LAK = 100%) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={editingProduct.commissionPoolLak === 0 ? '' : editingProduct.commissionPoolLak}
+                    onChange={e =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        commissionPoolLak: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="w-full bg-slate-800 border border-emerald-500/40 rounded-xl p-2.5 text-emerald-300 font-mono font-bold"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block font-mono">
                     {formatLak(editingProduct.commissionPoolLak)}
@@ -3668,7 +4291,8 @@ export const AdminPortal: React.FC = () => {
                       <label className="text-[9px] text-slate-400 block mb-1">Studio</label>
                       <input
                         type="number"
-                        step="10000"
+                        min="0"
+                        step="any"
                         value={editingProduct.splitRule.dmcBudget || 900000}
                         onChange={e => setEditingProduct({
                           ...editingProduct,
@@ -3681,7 +4305,8 @@ export const AdminPortal: React.FC = () => {
                       <label className="text-[9px] text-amber-400 block mb-1">L1 Direct</label>
                       <input
                         type="number"
-                        step="10000"
+                        min="0"
+                        step="any"
                         value={editingProduct.splitRule.l1Share}
                         onChange={e => {
                           const l1 = Number(e.target.value);
@@ -3698,7 +4323,8 @@ export const AdminPortal: React.FC = () => {
                       <label className="text-[9px] text-amber-400 block mb-1">L2 Second</label>
                       <input
                         type="number"
-                        step="10000"
+                        min="0"
+                        step="any"
                         value={editingProduct.splitRule.l2Share}
                         onChange={e => {
                           const l2 = Number(e.target.value);
@@ -3715,7 +4341,8 @@ export const AdminPortal: React.FC = () => {
                       <label className="text-[9px] text-amber-400 block mb-1">L3 Third</label>
                       <input
                         type="number"
-                        step="10000"
+                        min="0"
+                        step="any"
                         value={editingProduct.splitRule.l3Share}
                         onChange={e => {
                           const l3 = Number(e.target.value);
@@ -3736,10 +4363,13 @@ export const AdminPortal: React.FC = () => {
                     <label className="text-[10px] text-slate-400 block mb-1">L1 Share (%)</label>
                     <input
                       type="number"
-                      value={editingProduct.splitRule.l1Share}
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={editingProduct.splitRule.l1Share === 0 ? '' : editingProduct.splitRule.l1Share}
                       onChange={e => setEditingProduct({
                         ...editingProduct,
-                        splitRule: { ...editingProduct.splitRule, l1Share: Number(e.target.value) }
+                        splitRule: { ...editingProduct.splitRule, l1Share: e.target.value === '' ? 0 : Number(e.target.value) }
                       })}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white text-center font-mono"
                     />
@@ -3748,10 +4378,13 @@ export const AdminPortal: React.FC = () => {
                     <label className="text-[10px] text-slate-400 block mb-1">L2 Share (%)</label>
                     <input
                       type="number"
-                      value={editingProduct.splitRule.l2Share}
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={editingProduct.splitRule.l2Share === 0 ? '' : editingProduct.splitRule.l2Share}
                       onChange={e => setEditingProduct({
                         ...editingProduct,
-                        splitRule: { ...editingProduct.splitRule, l2Share: Number(e.target.value) }
+                        splitRule: { ...editingProduct.splitRule, l2Share: e.target.value === '' ? 0 : Number(e.target.value) }
                       })}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white text-center font-mono"
                     />
@@ -3760,10 +4393,13 @@ export const AdminPortal: React.FC = () => {
                     <label className="text-[10px] text-slate-400 block mb-1">L3 Share (%)</label>
                     <input
                       type="number"
-                      value={editingProduct.splitRule.l3Share}
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={editingProduct.splitRule.l3Share === 0 ? '' : editingProduct.splitRule.l3Share}
                       onChange={e => setEditingProduct({
                         ...editingProduct,
-                        splitRule: { ...editingProduct.splitRule, l3Share: Number(e.target.value) }
+                        splitRule: { ...editingProduct.splitRule, l3Share: e.target.value === '' ? 0 : Number(e.target.value) }
                       })}
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white text-center font-mono"
                     />
@@ -3776,9 +4412,11 @@ export const AdminPortal: React.FC = () => {
                   <label className="text-slate-300 font-medium block mb-1">Stock Sellable</label>
                   <input
                     type="number"
+                    min="0"
+                    step="1"
                     required
-                    value={editingProduct.stockSellable}
-                    onChange={e => setEditingProduct({ ...editingProduct, stockSellable: Number(e.target.value) })}
+                    value={editingProduct.stockSellable === 0 ? '' : editingProduct.stockSellable}
+                    onChange={e => setEditingProduct({ ...editingProduct, stockSellable: e.target.value === '' ? 0 : Number(e.target.value) })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
                   />
                 </div>

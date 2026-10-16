@@ -1,11 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { useDmc } from '../../context/DmcContext';
 import { formatLakCompact } from '../../utils/i18n';
-import { Member, LAO_SHIPPING_CARRIERS, LaoShippingCarrierId } from '../../types/dmc';
+import {
+  Member,
+  LAO_SHIPPING_CARRIERS,
+  LaoShippingCarrierId,
+  DMC_STAFF_POSITIONS,
+  StaffPosition,
+} from '../../types/dmc';
 import {
   ShieldCheck,
   CheckCircle2,
   UserPlus,
+  Users,
   RotateCcw,
   Crown,
   ChevronRight,
@@ -64,6 +71,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     adminUpdateMember,
     adminDeleteMember,
     adminAdjustMemberBalance,
+    staffMembers,
+    adminUpgradeMemberToStaff,
+    adminDowngradeStaffToMember,
   } = useDmc();
 
   const isAdmin = isAdminAuthenticated || isAdminMode;
@@ -109,6 +119,12 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
   const [editVillage, setEditVillage] = useState<string>('');
   const [editHeldLak, setEditHeldLak] = useState<number>(0);
   const [editAvailableLak, setEditAvailableLak] = useState<number>(0);
+  const [editIsStaff, setEditIsStaff] = useState<boolean>(false);
+  const [editStaffPosition, setEditStaffPosition] = useState<StaffPosition>('Teacher');
+  const [editStaffCode, setEditStaffCode] = useState<string>('');
+  const [editStaffBranch, setEditStaffBranch] = useState<string>(
+    'Dongdok Campus Studio Hub, Vientiane'
+  );
   const [confirmDeleteStep, setConfirmDeleteStep] = useState<boolean>(false);
 
   const editPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -174,6 +190,19 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     setEditVillage(member.deliveryAddress?.village || '');
     setEditHeldLak(bal.heldForQualification);
     setEditAvailableLak(bal.available);
+    const existingStaff = staffMembers.find((s) => s.memberId === member.memberId);
+    setEditIsStaff(Boolean(member.isStaff || existingStaff));
+    setEditStaffPosition(
+      member.staffPosition || existingStaff?.position || 'Teacher'
+    );
+    setEditStaffCode(
+      existingStaff?.staffCode || member.staffCode || `DMC-STF-${member.memberId}`
+    );
+    setEditStaffBranch(
+      existingStaff?.branch ||
+        member.staffBranch ||
+        'Dongdok Campus Studio Hub, Vientiane'
+    );
     setConfirmDeleteStep(false);
     setShowEditModal(true);
   };
@@ -255,12 +284,25 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
       );
     }
 
+    if (editIsStaff) {
+      adminUpgradeMemberToStaff(cleanNewId, editStaffPosition, {
+        staffCode: editStaffCode.trim() || `DMC-STF-${cleanNewId}`,
+        branch: editStaffBranch.trim() || 'Dongdok Campus Studio Hub, Vientiane',
+      });
+    } else {
+      adminDowngradeStaffToMember(cleanNewId);
+    }
+
     if (focusedMemberId === editingOriginalId && cleanNewId !== editingOriginalId) {
       setFocusedMemberId(cleanNewId);
     }
     setSelectedNodeId(cleanNewId);
     setShowEditModal(false);
-    showToast(`Updated member ${editName.trim()} (${cleanNewId}) in Organize Tree!`);
+    showToast(
+      editIsStaff
+        ? `Updated member ${editName.trim()} (${cleanNewId}) & Upgraded to ${editStaffPosition} Staff!`
+        : `Updated member ${editName.trim()} (${cleanNewId}) in Organize Tree!`
+    );
   };
 
   const handleDeleteMemberFromTree = () => {
@@ -1005,6 +1047,15 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                     ? 'ACTIVE LIFETIME'
                     : 'FREE MEMBER'}
                 </span>
+                {(selectedMember.isStaff ||
+                  staffMembers.some((s) => s.memberId === selectedMember.memberId)) && (
+                  <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[10px] font-black uppercase">
+                    STAFF:{' '}
+                    {selectedMember.staffPosition ||
+                      staffMembers.find((s) => s.memberId === selectedMember.memberId)
+                        ?.position}
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-2">
                 <span className="flex items-center gap-1">
@@ -1424,7 +1475,75 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                 </div>
               </div>
 
-              {/* 4. ORGANIZE TREE QUICK ACTIONS & DELETE CONFIRMATION */}
+              {/* 5. ADMINISTRATOR UPGRADE MEMBER TO BECOME STAFF */}
+              <div className="p-3.5 rounded-2xl bg-sky-950/40 border-2 border-sky-500/40 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] font-black text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-sky-400" />
+                    <span>5. Administrator: Upgrade Member to Become Official Staff</span>
+                  </div>
+                  <label className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-900 border border-sky-500/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsStaff}
+                      onChange={(e) => setEditIsStaff(e.target.checked)}
+                      className="rounded border-slate-600 text-sky-500 focus:ring-sky-500"
+                    />
+                    <span className="text-xs font-black text-white">
+                      {editIsStaff ? 'Active Official Staff Member' : 'Upgrade to Staff'}
+                    </span>
+                  </label>
+                </div>
+
+                {editIsStaff && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-black text-sky-200 mb-1">
+                        Official Staff Position (8 Positions) *
+                      </label>
+                      <select
+                        value={editStaffPosition}
+                        onChange={(e) =>
+                          setEditStaffPosition(e.target.value as StaffPosition)
+                        }
+                        className="w-full bg-slate-900 border-2 border-amber-400 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-black"
+                      >
+                        {DMC_STAFF_POSITIONS.map((pos) => (
+                          <option key={pos.id} value={pos.id}>
+                            - {pos.labelEn} ({pos.labelLo})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-300 mb-1">
+                        Staff ID Code
+                      </label>
+                      <input
+                        type="text"
+                        value={editStaffCode}
+                        onChange={(e) => setEditStaffCode(e.target.value.toUpperCase())}
+                        placeholder={`DMC-STF-${editMemberId}`}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-300 mb-1">
+                        Staff Branch / Department
+                      </label>
+                      <input
+                        type="text"
+                        value={editStaffBranch}
+                        onChange={(e) => setEditStaffBranch(e.target.value)}
+                        placeholder="Dongdok Campus Studio Hub, Vientiane"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 6. ORGANIZE TREE QUICK ACTIONS & DELETE CONFIRMATION */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Delete Member Button / Confirmation */}
