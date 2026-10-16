@@ -45,8 +45,10 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
   initialCarrierId = 'ANOUSITH',
   initialTrackingCode = ''
 }) => {
-  const { currentMember, language } = useDmc();
-  const [selectedCarrierId, setSelectedCarrierId] = useState<LaoShippingCarrierId>(initialCarrierId);
+  const { currentMember, language, adminUpdateMember } = useDmc();
+  const [selectedCarrierId, setSelectedCarrierId] = useState<LaoShippingCarrierId>(
+    currentMember.preferredCarrierId || initialCarrierId
+  );
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRACKING' | 'COVERAGE'>('OVERVIEW');
   const [trackingInput, setTrackingInput] = useState<string>(initialTrackingCode || 'ANS-LA-882190');
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -73,7 +75,9 @@ export const LaoShippingCarrierModal: React.FC<LaoShippingCarrierModalProps> = (
 
   const handleSetPreferredCarrier = (carrierId: LaoShippingCarrierId) => {
     setSelectedCarrierId(carrierId);
-    setPreferredSavedNotice(`Saved ${selectedCarrier.name} as your preferred shipping carrier!`);
+    const chosen = LAO_SHIPPING_CARRIERS.find(c => c.id === carrierId) || selectedCarrier;
+    adminUpdateMember(currentMember.memberId, { preferredCarrierId: carrierId });
+    setPreferredSavedNotice(`Saved ${chosen.name} (${chosen.nameLao}) as your preferred shipping carrier!`);
     setTimeout(() => setPreferredSavedNotice(null), 3000);
   };
 
