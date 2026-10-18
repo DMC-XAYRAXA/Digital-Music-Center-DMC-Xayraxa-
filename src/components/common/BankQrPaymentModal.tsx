@@ -1153,33 +1153,6 @@ export const BankQrPaymentModal: React.FC<BankQrPaymentModalProps> = ({
           {/* ACTION BUTTONS */}
           {editorMode === 'NONE' && (
             <div className="space-y-2 pt-1">
-              {!paymentComplete ? (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    type="button"
-                    disabled={isSimulatingScan}
-                    onClick={handleSimulateScanAndPay}
-                    className="flex-1 py-3 px-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-900/30 cursor-pointer"
-                  >
-                    <Smartphone className="w-4 h-4 text-white" />
-                    <span>
-                      {isSimulatingScan
-                        ? `Verifying with ${selectedBank.bankCode}...`
-                        : `Simulate ${selectedBank.bankCode} Scan & Pay`}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDownloadQr}
-                    className="py-3 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-slate-700 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-slate-300" />
-                    <span>Save QR</span>
-                  </button>
-                </div>
-              ) : null}
-
               <div className="flex gap-2">
                 <button
                   type="button"
