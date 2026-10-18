@@ -74,6 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showControlPanel, setShowControlPanel] = useState(false);
+  const [controlPanelTab, setControlPanelTab] = useState<'PROFILE' | 'BANK'>('PROFILE');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>('MEMBER');
 
@@ -370,7 +371,19 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>{t.profileAndSms} (+856)</span>
                     </button>
 
-                    {/* 5. Administrator Login */}
+                    {/* 5. My QR Code Bank Account */}
+                    <button
+                      onClick={() => {
+                        setShowLoginMenu(false);
+                        setControlPanelTab('BANK');
+                        setShowControlPanel(true);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <span>+ My QR Code Bank Account</span>
+                    </button>
+
+                    {/* 6. Administrator Login */}
                     <button
                       onClick={() => {
                         setShowLoginMenu(false);
@@ -382,10 +395,11 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>{t.adminLogin}</span>
                     </button>
 
-                    {/* 6. Full User Control Panel */}
+                    {/* 7. Full User Control Panel */}
                     <button
                       onClick={() => {
                         setShowLoginMenu(false);
+                        setControlPanelTab('PROFILE');
                         setShowControlPanel(true);
                       }}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer"
@@ -603,8 +617,11 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* User Control Panel Modal */}
       <UserControlPanelModal
+        key={controlPanelTab}
         isOpen={showControlPanel}
         onClose={() => setShowControlPanel(false)}
+        initialTab={controlPanelTab}
+        autoOpenAddBank={controlPanelTab === 'BANK'}
       />
 
       {/* Dedicated Auth Portal Modal */}

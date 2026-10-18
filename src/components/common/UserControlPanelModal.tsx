@@ -54,9 +54,16 @@ import { DmcOfficialLogo } from './DmcLogo';
 interface UserControlPanelModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'PROFILE' | 'BANK' | 'SHIPPING' | 'PRESETS' | 'LOGIN' | 'SECURITY';
+  autoOpenAddBank?: boolean;
 }
 
-export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ isOpen, onClose }) => {
+export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
+  isOpen,
+  onClose,
+  initialTab = 'PROFILE',
+  autoOpenAddBank = false,
+}) => {
   const { 
     currentMember, 
     allMembers, 
@@ -79,7 +86,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
     shippingCarriers
   } = useDmc();
 
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'BANK' | 'SHIPPING' | 'PRESETS' | 'LOGIN' | 'SECURITY'>('PROFILE');
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'BANK' | 'SHIPPING' | 'PRESETS' | 'LOGIN' | 'SECURITY'>(initialTab);
   const [profileRoleTarget, setProfileRoleTarget] = useState<'MEMBER' | 'SUPER_ADMIN'>('MEMBER');
   const [profileNameInput, setProfileNameInput] = useState(currentMember.name);
   const [profilePhoneInput, setProfilePhoneInput] = useState(currentMember.phone);
@@ -146,7 +153,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({ is
   const [viewingUserBankQr, setViewingUserBankQr] = useState<BankAccountInfo | null>(null);
 
   // Bank Form State
-  const [showAddBankForm, setShowAddBankForm] = useState(false);
+  const [showAddBankForm, setShowAddBankForm] = useState(autoOpenAddBank);
   const [selectedBankPreset, setSelectedBankPreset] = useState<string>(
     currentMember.bankAccount?.bankName || DEFAULT_LAO_BANKS[0].name
   );

@@ -962,6 +962,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                         <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                       </button>
 
+                      {/* 5B. Add / Manage My Own QR Code Bank */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          onNavigate('wallet');
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <QrCode className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>+ My QR Code Bank Account</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+                      </button>
+
                       {/* 6. Administrator Login / Lock */}
                       <button
                         type="button"

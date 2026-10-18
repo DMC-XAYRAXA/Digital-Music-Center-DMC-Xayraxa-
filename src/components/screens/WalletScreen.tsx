@@ -25,9 +25,15 @@ import {
   Info,
   X,
   QrCode,
-  Plus
+  Plus,
+  Upload,
+  Pencil,
+  Trash2,
+  Copy,
+  Check,
+  Landmark
 } from 'lucide-react';
-import { WithdrawalRequest } from '../../types/dmc';
+import { WithdrawalRequest, BankAccountInfo } from '../../types/dmc';
 
 interface WalletScreenProps {
   onNavigate: (tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet') => void;
@@ -44,6 +50,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
     redeemHeldCreditForQualification,
     language,
     updateMemberBankAccount,
+    adminUpdateMember,
     laoBanks,
     adminAdjustMemberBalance
   } = useDmc();
@@ -53,6 +60,36 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
   const ledgerEntries = getMemberLedger(currentMember.memberId);
 
   const isActive = currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER';
+
+  // Member's saved bank accounts list
+  const memberBankAccounts: BankAccountInfo[] =
+    currentMember.bankAccounts && currentMember.bankAccounts.length > 0
+      ? currentMember.bankAccounts
+      : currentMember.bankAccount
+      ? [currentMember.bankAccount]
+      : [];
+
+  // Member Self-Service Add / Edit QR Code Bank state
+  const [showMemberBankForm, setShowMemberBankForm] = useState(false);
+  const [editingMemberBankId, setEditingMemberBankId] = useState<string | null>(null);
+  const [memberBankPreset, setMemberBankPreset] = useState(
+    currentMember.bankAccount?.bankName || 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC'
+  );
+  const [memberCustomBankName, setMemberCustomBankName] = useState('');
+  const [memberAccNumber, setMemberAccNumber] = useState(
+    currentMember.bankAccount?.accountNumber || ''
+  );
+  const [memberAccName, setMemberAccName] = useState(
+    currentMember.bankAccount?.accountName || currentMember.name.toUpperCase()
+  );
+  const [memberBranch, setMemberBranch] = useState(
+    currentMember.bankAccount?.branch || 'Head Office Vientiane'
+  );
+  const [memberQrImageUrl, setMemberQrImageUrl] = useState(
+    currentMember.bankAccount?.customQrImageUrl || ''
+  );
+  const [viewingMemberQrAcc, setViewingMemberQrAcc] = useState<BankAccountInfo | null>(null);
+  const [copiedAccNum, setCopiedAccNum] = useState<string | null>(null);
 
   // Withdrawal state
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -64,6 +101,9 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
   const [saveToProfile, setSaveToProfile] = useState(true);
   const [accountNumber, setAccountNumber] = useState(currentMember.bankAccount?.accountNumber || '160-12-00049281-001');
   const [accountName, setAccountName] = useState(currentMember.bankAccount?.accountName || currentMember.name.toUpperCase());
+  const [withdrawQrImageUrl, setWithdrawQrImageUrl] = useState(
+    currentMember.bankAccount?.customQrImageUrl || ''
+  );
   const [withdrawError, setWithdrawError] = useState('');
   const [createdWithdrawalId, setCreatedWithdrawalId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
@@ -78,6 +118,63 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
   const [isDepositQrOpen, setIsDepositQrOpen] = useState(false);
   const [depositSuccessNotice, setDepositSuccessNotice] = useState<string | null>(null);
   const numDepositAmount = Math.max(10000, parseAmountWithK(depositAmountInput));
+
+  const handleSaveMemberQrBank = (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalBank =
+      memberBankPreset === 'CUSTOM' ? memberCustomBankName.trim() : memberBankPreset;
+    if (!finalBank || !memberAccNumber.trim()) return;
+
+    const matched = laoBanks.find((b) => b.name === finalBank);
+    const savedAcc: BankAccountInfo = {
+      id: editingMemberBankId || `usr-qr-bank-${Date.now()}`,
+      bankName: finalBank,
+      bankCode: matched?.code || 'LAOQR',
+      accountNumber: memberAccNumber.trim(),
+      accountName: (memberAccName.trim() || currentMember.name).toUpperCase(),
+      branch: memberBranch.trim() || matched?.branchDefault || 'Vientiane Capital',
+      customQrImageUrl: memberQrImageUrl.trim() || undefined,
+      isDefault: true,
+    };
+
+    if (editingMemberBankId) {
+      const updatedList = memberBankAccounts.map((acc) =>
+        acc.id === editingMemberBankId || acc.accountNumber === editingMemberBankId
+          ? savedAcc
+          : acc
+      );
+      adminUpdateMember(currentMember.memberId, {
+        bankAccount: savedAcc,
+        bankAccounts: updatedList,
+      });
+    } else {
+      updateMemberBankAccount(currentMember.memberId, savedAcc);
+    }
+
+    setBankName(savedAcc.bankName);
+    setAccountNumber(savedAcc.accountNumber);
+    setAccountName(savedAcc.accountName);
+    setWithdrawQrImageUrl(savedAcc.customQrImageUrl || '');
+    setShowMemberBankForm(false);
+    setEditingMemberBankId(null);
+    setRedemptionNotice(
+      `Saved your QR Code Bank Account (${savedAcc.bankName} • ${savedAcc.accountNumber})!`
+    );
+    setTimeout(() => setRedemptionNotice(null), 4000);
+  };
+
+  const handleDeleteMemberQrBank = (targetAcc: BankAccountInfo) => {
+    const remaining = memberBankAccounts.filter(
+      (a) =>
+        (a.id && a.id !== targetAcc.id) || a.accountNumber !== targetAcc.accountNumber
+    );
+    adminUpdateMember(currentMember.memberId, {
+      bankAccount: remaining[0] || undefined,
+      bankAccounts: remaining,
+    });
+    setRedemptionNotice(`Removed bank account ${targetAcc.accountNumber}.`);
+    setTimeout(() => setRedemptionNotice(null), 3500);
+  };
 
   const bankFeeLak = 5000;
   const numAmount = parseAmountWithK(withdrawAmount);
@@ -115,6 +212,8 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
         accountNumber: accountNumber.trim(),
         accountName: accountName.trim().toUpperCase(),
         branch: matched?.branchDefault || 'Head Office Vientiane',
+        customQrImageUrl:
+          withdrawQrImageUrl.trim() || currentMember.bankAccount?.customQrImageUrl || undefined,
         isDefault: true,
       });
     }
@@ -420,6 +519,423 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* ================= MY PERSONAL QR CODE BANK ACCOUNTS (MEMBER SELF-SERVICE) ================= */}
+      <div className="bg-slate-900 border-2 border-amber-500/35 rounded-3xl p-5 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              <QrCode className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black text-white">
+                  My Personal QR Code Bank Accounts
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Member Self-Service QR
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Add your own Lao bank account and upload your personal Bank QR Code image (BCEL One, LDB, JDB, Phongsavanh Bank, VietinBank, or Custom Bank) for commission payouts & transfers.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingMemberBankId(null);
+              setMemberBankPreset(
+                currentMember.bankAccount?.bankName ||
+                  'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC'
+              );
+              setMemberAccNumber('');
+              setMemberAccName(currentMember.name.toUpperCase());
+              setMemberBranch('Head Office Vientiane');
+              setMemberQrImageUrl('');
+              setShowMemberBankForm(true);
+            }}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>+ Add My QR Code Bank</span>
+          </button>
+        </div>
+
+        {/* Add / Edit Member QR Code Bank Form */}
+        {showMemberBankForm && (
+          <form
+            onSubmit={handleSaveMemberQrBank}
+            className="p-4 rounded-2xl bg-slate-950 border-2 border-amber-500/50 space-y-3.5 text-xs animate-in fade-in"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Landmark className="w-4 h-4 text-amber-400" />
+                <span className="font-black text-amber-300 text-xs sm:text-sm">
+                  {editingMemberBankId
+                    ? 'Edit My Bank Account & Personal QR Code'
+                    : 'Add My Own Bank Account & Personal QR Code'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMemberBankForm(false);
+                  setEditingMemberBankId(null);
+                }}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Bank Preset Pills */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-300 block">
+                Select Lao Bank Institution *
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {laoBanks.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => {
+                      setMemberBankPreset(b.name);
+                      setMemberBranch(b.branchDefault || 'Head Office Vientiane');
+                    }}
+                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                      memberBankPreset === b.name
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
+                  >
+                    {b.code} • {b.shortName}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setMemberBankPreset('CUSTOM')}
+                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                    memberBankPreset === 'CUSTOM'
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
+                      : 'bg-slate-900 text-emerald-300 border-emerald-500/40 hover:bg-slate-800'
+                  }`}
+                >
+                  + Other / Custom Bank
+                </button>
+              </div>
+            </div>
+
+            {memberBankPreset === 'CUSTOM' && (
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Custom Bank Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={memberCustomBankName}
+                  onChange={(e) => setMemberCustomBankName(e.target.value)}
+                  placeholder="e.g. Phongsavanh Bank / LaoVietBank / Maruhan Japan Bank"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Bank Account Number *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={memberAccNumber}
+                  onChange={(e) => setMemberAccNumber(e.target.value)}
+                  placeholder="160-12-00049281-001"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Account Holder / Beneficiary Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={memberAccName}
+                  onChange={(e) => setMemberAccName(e.target.value)}
+                  placeholder={currentMember.name.toUpperCase()}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white uppercase font-semibold focus:outline-none focus:border-amber-400"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Branch / Province
+                </label>
+                <input
+                  type="text"
+                  value={memberBranch}
+                  onChange={(e) => setMemberBranch(e.target.value)}
+                  placeholder="Head Office Vientiane"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            {/* Upload Member's Own QR Code Image */}
+            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <QrCode className="w-4 h-4 text-amber-400" />
+                  <span>Upload My Personal Bank QR Code Image</span>
+                </span>
+                {memberQrImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setMemberQrImageUrl('')}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Remove QR Image</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="w-20 h-20 rounded-2xl bg-white border-2 border-amber-400 p-1.5 flex items-center justify-center shrink-0 overflow-hidden shadow">
+                  {memberQrImageUrl ? (
+                    <img
+                      src={memberQrImageUrl}
+                      alt="My Bank QR Preview"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <QrCode className="w-8 h-8 text-slate-400" />
+                  )}
+                </div>
+
+                <div className="flex-1 w-full space-y-2">
+                  <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#df1c2d] to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs cursor-pointer shadow">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload QR Code Image from Phone / Computer</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          if (typeof ev.target?.result === 'string') {
+                            setMemberQrImageUrl(ev.target.result);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+
+                  <input
+                    type="text"
+                    value={memberQrImageUrl}
+                    onChange={(e) => setMemberQrImageUrl(e.target.value)}
+                    placeholder="Or paste your QR Code image URL (https://...)"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-[11px] text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMemberBankForm(false);
+                  setEditingMemberBankId(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black flex items-center gap-1.5 shadow-lg cursor-pointer"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>
+                  {editingMemberBankId ? 'Update My QR Code Bank' : 'Save My QR Code Bank'}
+                </span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Saved Member Bank Accounts & QR Cards */}
+        {memberBankAccounts.length > 0 ? (
+          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-3">
+            {memberBankAccounts.map((acc, idx) => (
+              <div
+                key={acc.id || `${acc.accountNumber}-${idx}`}
+                className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 hover:border-amber-500/40 transition-all flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    onClick={() => setViewingMemberQrAcc(acc)}
+                    className="w-16 h-16 rounded-2xl bg-white p-1.5 border-2 border-amber-400 shrink-0 flex items-center justify-center overflow-hidden cursor-pointer shadow"
+                    title="Click to view full QR Code"
+                  >
+                    {acc.customQrImageUrl ? (
+                      <img
+                        src={acc.customQrImageUrl}
+                        alt="Member QR Code"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <QrCode className="w-7 h-7 text-slate-800 mx-auto" />
+                        <span className="text-[8px] font-black text-red-600 block">LAO QR</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-black">
+                        {acc.bankCode || 'LAO BANK'}
+                      </span>
+                      {acc.customQrImageUrl && (
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">
+                          My QR Uploaded
+                        </span>
+                      )}
+                      {idx === 0 && (
+                        <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[9px] font-bold">
+                          Primary Payout
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-white truncate">{acc.bankName}</div>
+                    <div className="font-mono text-xs font-black text-amber-300">
+                      {acc.accountNumber}
+                    </div>
+                    <div className="text-[11px] text-slate-400 truncate">
+                      Holder: <strong className="text-slate-200">{acc.accountName}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1.5">
+                  {/* Direct 1-Click Upload / Change QR Image */}
+                  <label className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black flex items-center gap-1 cursor-pointer">
+                    <Upload className="w-3 h-3" />
+                    <span>{acc.customQrImageUrl ? 'Change My QR' : 'Upload My QR'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          if (typeof ev.target?.result === 'string') {
+                            const updatedAcc: BankAccountInfo = {
+                              ...acc,
+                              customQrImageUrl: ev.target.result,
+                            };
+                            updateMemberBankAccount(currentMember.memberId, updatedAcc);
+                            setWithdrawQrImageUrl(ev.target.result);
+                            setRedemptionNotice(
+                              `Uploaded your personal QR Code image for ${acc.bankName}!`
+                            );
+                            setTimeout(() => setRedemptionNotice(null), 3500);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setViewingMemberQrAcc(acc)}
+                      className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <QrCode className="w-3 h-3" />
+                      <span>View QR</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(acc.accountNumber);
+                          setCopiedAccNum(acc.accountNumber);
+                          setTimeout(() => setCopiedAccNum(null), 2000);
+                        }
+                      }}
+                      className="px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedAccNum === acc.accountNumber ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      <span>{copiedAccNum === acc.accountNumber ? 'Copied' : 'Copy'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const isKnown = laoBanks.some((b) => b.name === acc.bankName);
+                        setEditingMemberBankId(acc.id || acc.accountNumber);
+                        setMemberBankPreset(isKnown ? acc.bankName : 'CUSTOM');
+                        if (!isKnown) setMemberCustomBankName(acc.bankName);
+                        setMemberAccNumber(acc.accountNumber);
+                        setMemberAccName(acc.accountName);
+                        setMemberBranch(acc.branch || 'Head Office Vientiane');
+                        setMemberQrImageUrl(acc.customQrImageUrl || '');
+                        setShowMemberBankForm(true);
+                      }}
+                      className="px-2 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMemberQrBank(acc)}
+                      className="p-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 cursor-pointer"
+                      title="Delete Bank Account"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
+            <p className="text-xs text-slate-400">
+              You have not added a personal QR Code Bank account yet.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowMemberBankForm(true)}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add My First QR Code Bank</span>
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* ================= SMART "USE K" NUMBER INBOX SANDBOX & CONVERTER ================= */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 border border-amber-500/30 rounded-3xl p-5 shadow-xl space-y-4">
@@ -734,6 +1250,54 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                {/* Upload / Attach Member's Own Bank QR Code Image in Payout Request */}
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                      <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                      <span>My Receiving Bank QR Code (Optional)</span>
+                    </span>
+                    {withdrawQrImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setWithdrawQrImageUrl('')}
+                        className="text-[10px] text-rose-400 hover:underline cursor-pointer"
+                      >
+                        Remove QR
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    {withdrawQrImageUrl && (
+                      <img
+                        src={withdrawQrImageUrl}
+                        alt="My Bank QR"
+                        className="w-12 h-12 rounded-lg bg-white p-1 object-contain border border-amber-400 shrink-0"
+                      />
+                    )}
+                    <label className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[11px] flex items-center gap-1.5 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{withdrawQrImageUrl ? 'Change My Bank QR Image' : '+ Upload My Bank QR Image'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            if (typeof ev.target?.result === 'string') {
+                              setWithdrawQrImageUrl(ev.target.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2 pt-1 text-xs">
                   <input
                     type="checkbox"
@@ -743,7 +1307,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
                     className="w-4 h-4 rounded text-amber-500 bg-slate-800 border-slate-700 focus:ring-amber-500"
                   />
                   <label htmlFor="saveToProfileChk" className="text-slate-300 text-[11px] cursor-pointer">
-                    Save this Lao bank account to my profile for future settlements
+                    Save this Lao bank account & QR code to my profile for future settlements
                   </label>
                 </div>
 
@@ -908,6 +1472,99 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
           setIsDepositQrOpen(false);
         }}
       />
+
+      {/* MEMBER PERSONAL BANK QR CODE VIEWER MODAL */}
+      {viewingMemberQrAcc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setViewingMemberQrAcc(null)}
+        >
+          <div
+            className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-sm w-full p-5 text-center space-y-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="text-left">
+                <span className="text-[10px] font-mono font-bold text-amber-400 uppercase block">
+                  Member Personal Bank QR
+                </span>
+                <h4 className="text-sm font-black text-white truncate">
+                  {viewingMemberQrAcc.bankName}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingMemberQrAcc(null)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="w-60 h-60 mx-auto rounded-2xl bg-white p-3 border-4 border-amber-400 flex items-center justify-center overflow-hidden shadow-xl">
+              {viewingMemberQrAcc.customQrImageUrl ? (
+                <img
+                  src={viewingMemberQrAcc.customQrImageUrl}
+                  alt="Member Bank QR"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="space-y-2 text-slate-800">
+                  <QrCode className="w-28 h-28 mx-auto text-slate-900" />
+                  <p className="text-[11px] font-bold text-slate-600">
+                    No custom QR image uploaded yet. Click below to upload your bank QR image.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1 text-xs">
+              <div className="font-mono font-black text-amber-300 text-sm">
+                {viewingMemberQrAcc.accountNumber}
+              </div>
+              <div className="font-bold text-white">{viewingMemberQrAcc.accountName}</div>
+              {viewingMemberQrAcc.branch && (
+                <div className="text-[10px] text-slate-400">{viewingMemberQrAcc.branch}</div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload / Change QR</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      if (typeof ev.target?.result === 'string') {
+                        const updated: BankAccountInfo = {
+                          ...viewingMemberQrAcc,
+                          customQrImageUrl: ev.target.result,
+                        };
+                        updateMemberBankAccount(currentMember.memberId, updated);
+                        setViewingMemberQrAcc(updated);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setViewingMemberQrAcc(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
