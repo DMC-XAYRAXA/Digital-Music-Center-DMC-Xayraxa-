@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDmc } from '../../context/DmcContext';
 import { formatLakCompact, SUPPORTED_LANGUAGES } from '../../utils/i18n';
 import { DmcOfficialLogo } from './DmcLogo';
+import { DmcMembershipTermsModal } from './DmcMembershipTermsModal';
 import {
   User,
   ShieldCheck,
@@ -89,6 +90,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   const [regOtpStep, setRegOtpStep] = useState(false);
   const [regGeneratedOtp, setRegGeneratedOtp] = useState('482910');
   const [regOtpInput, setRegOtpInput] = useState('482910');
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Profile Update & Phone SMS Recovery State
   const [recoveryTarget, setRecoveryTarget] = useState<'MEMBER' | 'SUPER_ADMIN'>('MEMBER');
@@ -306,9 +308,253 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+    <div
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-between px-3 py-6 sm:px-6 sm:py-10 animate-in fade-in overflow-y-auto ${
+        isLoggedOut
+          ? 'bg-gradient-to-br from-[#FFFDF9] via-white to-[#F6F0E4] relative'
+          : 'bg-black/60 backdrop-blur-sm'
+      }`}
+    >
+      {/* PROFESSIONAL DIGITAL MUSIC CENTER (DMC) STUDIO & SYMPHONY BACKGROUND */}
+      {isLoggedOut && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 overflow-hidden z-0 select-none"
+        >
+          {/* Ambient Studio Spotlights & Acoustic Glow */}
+          <div className="absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full bg-amber-300/15 blur-3xl" />
+          <div className="absolute top-1/4 -right-32 w-[520px] h-[520px] rounded-full bg-[#6B0816]/8 blur-3xl" />
+          <div className="absolute -bottom-36 left-1/4 w-[560px] h-[420px] rounded-full bg-sky-400/10 blur-3xl" />
+
+          {/* Concentric Golden Vinyl & Studio Resonance Rings Behind Login Card */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[540px] h-[540px] sm:w-[680px] sm:h-[680px] rounded-full border border-[#C5A059]/20" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] h-[640px] sm:w-[820px] sm:h-[820px] rounded-full border border-dashed border-[#C5A059]/15" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[760px] h-[760px] sm:w-[980px] sm:h-[980px] rounded-full border border-[#6B0816]/10" />
+
+          {/* Full-Viewport Flowing Musical Staff Lines, Clefs & Soundwaves SVG */}
+          <svg
+            viewBox="0 0 1440 900"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-full object-cover opacity-85"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <defs>
+              <linearGradient id="dmcGoldStaff" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#C5A059" stopOpacity="0.08" />
+                <stop offset="25%" stopColor="#C5A059" stopOpacity="0.38" />
+                <stop offset="50%" stopColor="#6B0816" stopOpacity="0.22" />
+                <stop offset="75%" stopColor="#C5A059" stopOpacity="0.38" />
+                <stop offset="100%" stopColor="#C5A059" stopOpacity="0.08" />
+              </linearGradient>
+              <linearGradient id="dmcSoundWave" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#C5A059" stopOpacity="0.32" />
+                <stop offset="50%" stopColor="#6B0816" stopOpacity="0.18" />
+                <stop offset="100%" stopColor="#0088cc" stopOpacity="0.15" />
+              </linearGradient>
+            </defs>
+
+            {/* Upper Flowing 5-Line Musical Staff */}
+            {[0, 10, 20, 30, 40].map((offset) => (
+              <path
+                key={`upper-staff-${offset}`}
+                d={`M -60 ${170 + offset} C 320 ${80 + offset}, 620 ${260 + offset}, 1020 ${140 + offset} C 1220 ${85 + offset}, 1360 ${160 + offset}, 1500 ${125 + offset}`}
+                stroke="url(#dmcGoldStaff)"
+                strokeWidth="1.35"
+              />
+            ))}
+
+            {/* Lower Flowing 5-Line Musical Staff */}
+            {[0, 10, 20, 30, 40].map((offset) => (
+              <path
+                key={`lower-staff-${offset}`}
+                d={`M -60 ${710 + offset} C 300 ${790 + offset}, 680 ${610 + offset}, 1060 ${730 + offset} C 1260 ${780 + offset}, 1380 ${690 + offset}, 1500 ${720 + offset}`}
+                stroke="url(#dmcGoldStaff)"
+                strokeWidth="1.35"
+              />
+            ))}
+
+            {/* Left Studio Equalizer / Acoustic Frequency Bars */}
+            {[
+              { x: 48, h: 36 },
+              { x: 60, h: 64 },
+              { x: 72, h: 98 },
+              { x: 84, h: 52 },
+              { x: 96, h: 128 },
+              { x: 108, h: 164 },
+              { x: 120, h: 88 },
+              { x: 132, h: 142 },
+              { x: 144, h: 74 },
+              { x: 156, h: 112 },
+              { x: 168, h: 56 },
+              { x: 180, h: 92 },
+              { x: 192, h: 44 },
+              { x: 204, h: 68 },
+              { x: 216, h: 30 },
+            ].map((bar, i) => (
+              <rect
+                key={`eq-left-${i}`}
+                x={bar.x}
+                y={450 - bar.h / 2}
+                width="5"
+                height={bar.h}
+                rx="2.5"
+                fill="url(#dmcSoundWave)"
+              />
+            ))}
+
+            {/* Right Studio Equalizer / Acoustic Frequency Bars */}
+            {[
+              { x: 1224, h: 30 },
+              { x: 1236, h: 68 },
+              { x: 1248, h: 44 },
+              { x: 1260, h: 92 },
+              { x: 1272, h: 56 },
+              { x: 1284, h: 112 },
+              { x: 1296, h: 74 },
+              { x: 1308, h: 142 },
+              { x: 1320, h: 88 },
+              { x: 1332, h: 164 },
+              { x: 1344, h: 128 },
+              { x: 1356, h: 52 },
+              { x: 1368, h: 98 },
+              { x: 1380, h: 64 },
+              { x: 1392, h: 36 },
+            ].map((bar, i) => (
+              <rect
+                key={`eq-right-${i}`}
+                x={bar.x}
+                y={450 - bar.h / 2}
+                width="5"
+                height={bar.h}
+                rx="2.5"
+                fill="url(#dmcSoundWave)"
+              />
+            ))}
+
+            {/* Musical Clefs & Notes Along the Staves */}
+            <text
+              x="95"
+              y="208"
+              fill="#B68D3A"
+              fillOpacity="0.28"
+              fontSize="96"
+              fontFamily="serif"
+            >
+              &#119070;
+            </text>
+            <text
+              x="235"
+              y="165"
+              fill="#6B0816"
+              fillOpacity="0.20"
+              fontSize="44"
+              fontFamily="serif"
+            >
+              &#9835;
+            </text>
+            <text
+              x="360"
+              y="205"
+              fill="#B68D3A"
+              fillOpacity="0.26"
+              fontSize="38"
+              fontFamily="serif"
+            >
+              &#9834;
+            </text>
+            <text
+              x="1075"
+              y="175"
+              fill="#B68D3A"
+              fillOpacity="0.26"
+              fontSize="46"
+              fontFamily="serif"
+            >
+              &#9836;
+            </text>
+            <text
+              x="1220"
+              y="155"
+              fill="#6B0816"
+              fillOpacity="0.20"
+              fontSize="52"
+              fontFamily="serif"
+            >
+              &#9835;
+            </text>
+            <text
+              x="1310"
+              y="205"
+              fill="#B68D3A"
+              fillOpacity="0.25"
+              fontSize="84"
+              fontFamily="serif"
+            >
+              &#119070;
+            </text>
+
+            {/* Lower Staff Musical Symbols */}
+            <text
+              x="120"
+              y="768"
+              fill="#6B0816"
+              fillOpacity="0.18"
+              fontSize="54"
+              fontFamily="serif"
+            >
+              &#9836;
+            </text>
+            <text
+              x="280"
+              y="735"
+              fill="#B68D3A"
+              fillOpacity="0.28"
+              fontSize="48"
+              fontFamily="serif"
+            >
+              &#9835;
+            </text>
+            <text
+              x="1110"
+              y="750"
+              fill="#6B0816"
+              fillOpacity="0.20"
+              fontSize="44"
+              fontFamily="serif"
+            >
+              &#9834;
+            </text>
+            <text
+              x="1255"
+              y="775"
+              fill="#B68D3A"
+              fillOpacity="0.26"
+              fontSize="58"
+              fontFamily="serif"
+            >
+              &#9835;
+            </text>
+          </svg>
+        </div>
+      )}
+
+      {/* Top Welcome Title (Shown on Full-Page Sign-In Screen) */}
+      {isLoggedOut ? (
+        <div className="relative z-10 w-full text-center pt-1 pb-4 shrink-0">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50/90 border border-[#C5A059]/50 text-[#6B0816] text-[11px] font-bold uppercase tracking-widest mb-1.5 shadow-2xs">
+            <span>&#9835; Official Digital Music Ecosystem • Lao PDR &#9835;</span>
+          </div>
+          <h1 className="text-lg sm:text-2xl md:text-[26px] font-semibold tracking-tight text-[#0088cc] drop-shadow-2xs">
+            Welcome to Xayraxa Digital Music Center (DMC)
+          </h1>
+        </div>
+      ) : (
+        <div />
+      )}
+
       {/* CLASSIC CENTERED LOGIN DIALOG BOX */}
-      <div className="w-full max-w-md bg-[#FAF8F5] text-slate-900 border-2 border-[#C5A059] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.75)] overflow-hidden my-auto">
+      <div className="relative z-10 w-full max-w-md bg-[#FAF8F5] text-slate-900 border-2 border-[#C5A059] rounded-xl shadow-[0_24px_60px_rgba(107,8,22,0.16)] overflow-hidden my-auto shrink-0">
         
         {/* 1. CLASSIC HERITAGE TOP HEADER BANNER */}
         <div className="bg-gradient-to-b from-[#6B0816] via-[#4E0510] to-[#36030A] text-white px-6 pt-5 pb-4 border-b-2 border-[#C5A059] relative">
@@ -752,6 +998,10 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                       setErrorMsg('Please set a Password / PIN (at least 4 characters).');
                       return;
                     }
+                    if (!regTermsConsent) {
+                      setErrorMsg('Please read and agree to the DMC XAYRAXA Membership Terms (Free 0 LAK Registration).');
+                      return;
+                    }
                     const generated = Math.floor(100000 + Math.random() * 900000).toString();
                     setRegGeneratedOtp(generated);
                     setRegOtpInput(generated);
@@ -821,17 +1071,36 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     </div>
                   </div>
 
-                  <label className="flex items-start gap-2 text-xs text-slate-700 pt-1 cursor-pointer">
+                  <div className="flex items-start gap-2 text-xs text-slate-700 pt-1">
                     <input
+                      id="reg-terms-consent-checkbox"
                       type="checkbox"
                       checked={regTermsConsent}
                       onChange={(e) => setRegTermsConsent(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-slate-400 text-[#6B0816]"
+                      className="mt-0.5 w-4 h-4 rounded border-slate-400 text-[#6B0816] cursor-pointer shrink-0"
                     />
-                    <span>
-                      I agree to the DMC XAYRAXA Membership Terms (Free 0 LAK Registration).
-                    </span>
-                  </label>
+                    <div className="leading-snug">
+                      <label htmlFor="reg-terms-consent-checkbox" className="cursor-pointer">
+                        I agree to the{' '}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowTermsModal(true)}
+                        className="font-bold text-[#0066cc] hover:text-[#6B0816] underline underline-offset-2 cursor-pointer text-left"
+                      >
+                        DMC XAYRAXA Membership Terms (Free 0 LAK Registration).
+                      </button>
+                      <div className="mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowTermsModal(true)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100/80 hover:bg-amber-200/80 border border-[#C5A059] text-[#6B0816] text-[10px] font-bold cursor-pointer"
+                        >
+                          <span>Read Full Terms & Conditions</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
                   <button
                     type="submit"
@@ -1121,18 +1390,23 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         </div>
 
         {/* 4. CLASSIC FOOTER SESSION BAR */}
-        <div className="bg-[#EFECE4] px-6 py-3 border-t border-[#C8BFA8] flex items-center justify-between text-xs text-slate-700">
-          <div className="truncate">
-            <span className="font-semibold">Active: </span>
-            {isLoggedOut ? (
-              <span className="text-red-700 font-bold">Signed Out</span>
-            ) : isAdminMode ? (
-              <span className="text-[#065F46] font-bold">{superAdminProfile.name} (Admin)</span>
-            ) : (
-              <span className="text-[#6B0816] font-bold">
-                {currentMember.name} ({currentMember.memberId})
-              </span>
-            )}
+        <div className="bg-[#EFECE4] px-6 py-3 border-t border-[#C8BFA8] flex items-center justify-between gap-2 text-xs text-slate-700">
+          <div className="min-w-0 truncate">
+            <div>
+              <span className="font-semibold">Active: </span>
+              {isLoggedOut ? (
+                <span className="text-red-700 font-bold">Signed Out</span>
+              ) : isAdminMode ? (
+                <span className="text-[#065F46] font-bold">{superAdminProfile.name} (Admin)</span>
+              ) : (
+                <span className="text-[#6B0816] font-bold">
+                  {currentMember.name} ({currentMember.memberId})
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-slate-500 font-medium truncate">
+              Active Session: 12 Hours (Auto Sign-Out when inactive)
+            </div>
           </div>
 
           {!isLoggedOut && (
@@ -1140,6 +1414,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               type="button"
               onClick={() => {
                 setIsAdminMode(false);
+                setIsAdminAuthenticated(false);
                 setIsLoggedOut(true);
                 setSuccessMsg('Signed out successfully.');
               }}
@@ -1151,6 +1426,48 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Bottom Portal Directory Links (Shown on Full-Page Sign-In Screen) */}
+      {isLoggedOut ? (
+        <div className="relative z-10 w-full text-center pt-6 pb-1 shrink-0">
+          <nav
+            aria-label="DMC Portal Directory"
+            className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm sm:text-lg md:text-xl font-medium text-[#0088cc]"
+          >
+            <span>DMC Office</span>
+            <span className="text-[#0088cc]/70">|</span>
+            <span>About</span>
+            <span className="text-[#0088cc]/70">|</span>
+            <span>Academy</span>
+            <span className="text-[#0088cc]/70">|</span>
+            <span>Music</span>
+            <span className="text-[#0088cc]/70">|</span>
+            <span>Staff</span>
+            <span className="text-[#0088cc]/70">|</span>
+            <button
+              type="button"
+              onClick={() => setShowTermsModal(true)}
+              className="hover:underline cursor-pointer"
+            >
+              Policy
+            </button>
+            <span className="text-[#0088cc]/70">|</span>
+            <span>Contact</span>
+          </nav>
+        </div>
+      ) : (
+        <div />
+      )}
+
+      {/* Official DMC XAYRAXA Membership Terms & Conditions Reader Modal */}
+      <DmcMembershipTermsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        onAcceptTerms={() => {
+          setRegTermsConsent(true);
+          setErrorMsg('');
+        }}
+      />
     </div>
   );
 };

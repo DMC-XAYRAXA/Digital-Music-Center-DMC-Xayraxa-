@@ -28,11 +28,11 @@ function AppContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>('MEMBER');
 
-  // Default Startup Gate & 4-Hour Automatic Session Sign-Out Gate:
-  // Users and Administrators must sign in first before accessing the website.
+  // Default Startup Gate & 12-Hour Active Session Automatic Sign-Out Gate:
+  // Users and Administrators stay signed in for 12 hours of active use and sign out automatically after 12 hours of inactivity.
   if (isLoggedOut) {
     return (
-      <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center font-sans selection:bg-amber-500/30 selection:text-amber-200">
+      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center font-sans selection:bg-amber-500/30 selection:text-amber-900">
         <AuthPortalModal isOpen={true} initialMode="MEMBER" />
       </div>
     );

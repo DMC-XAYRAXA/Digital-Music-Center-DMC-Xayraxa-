@@ -625,5 +625,22 @@ export interface DmcPromotionItem {
   updatedAt: string;
 }
 
+export type DmcPrivacyPolicyCategory =
+  | 'MEMBERSHIP_TERMS'
+  | 'PRIVACY_POLICY'
+  | 'DATA_SECURITY'
+  | 'COPYRIGHT_LAW'
+  | 'COMMISSION_FINANCE';
 
-
+export interface DmcPrivacyPolicySection {
+  id: string;
+  articleNo: string;
+  category: DmcPrivacyPolicyCategory;
+  title: string;
+  titleLo?: string;
+  summary: string;
+  bulletPoints: string[];
+  effectiveDate: string;
+  status: 'ACTIVE' | 'DRAFT';
+  updatedAt: string;
+}

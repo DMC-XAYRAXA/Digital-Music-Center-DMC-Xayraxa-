@@ -55,7 +55,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in">
+    <div className="@container space-y-6 pb-12 animate-in fade-in">
       {/* Scope Lock & Architecture Guarantee Banner */}
       <div className="p-3.5 rounded-2xl bg-gradient-to-r from-red-950/40 via-slate-900 to-amber-950/40 border border-red-500/30 text-xs flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -98,7 +98,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
         </div>
 
         {/* 3-Level Metrics Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-3 pt-2">
           <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-800">
             <div className="text-[11px] text-slate-400">{t.totalNetwork}</div>
             <div className="text-xl font-black text-white mt-0.5">{totalDownlineCount}</div>
@@ -127,7 +127,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
           <span>{t.upwardSponsorLineage}</span>
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-1 @2xl:grid-cols-3 gap-3 text-xs">
           {/* L1 Sponsor */}
           <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 space-y-1">
             <div className="text-[10px] text-amber-400 font-bold uppercase">{t.l1Tab}</div>

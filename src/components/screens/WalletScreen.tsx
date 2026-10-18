@@ -194,7 +194,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
   const myWithdrawals = withdrawals.filter(w => w.memberId === currentMember.memberId);
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in">
+    <div className="@container space-y-6 pb-12 animate-in fade-in">
       {/* Title & Currency Standards */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -241,7 +241,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
       )}
 
       {/* 5-BALANCE ACCOUNT CARDS (Strict Rev 2.6 Invariants) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-3.5">
         {/* Account 1: PENDING */}
         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
           <div className="flex items-center justify-between">
@@ -461,7 +461,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
           />
 
           {/* Real-time Breakdown Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-center">
+          <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-2 pt-1 font-mono text-center">
             <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800">
               <span className="text-[10px] text-slate-500 block uppercase font-sans">Integer Kip</span>
               <span className="text-xs font-bold text-white block mt-0.5">

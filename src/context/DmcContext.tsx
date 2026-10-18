@@ -33,9 +33,65 @@ import {
   StaffPosition,
   DmcStaffMember,
   DmcPromotionItem,
+  DmcPrivacyPolicySection,
 } from '../types/dmc';
 
-export const FOUR_HOURS_INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 Hours (14,400,000 ms)
+export const TWELVE_HOURS_INACTIVITY_MS = 12 * 60 * 60 * 1000; // 12 Hours (43,200,000 ms)
+export const FOUR_HOURS_INACTIVITY_MS = TWELVE_HOURS_INACTIVITY_MS;
+const ACTIVE_SESSION_STORAGE_KEY = 'dmc_rev26_active_session_v1';
+
+interface StoredActiveSession {
+  isLoggedOut: boolean;
+  currentMemberId: string;
+  isAdminMode: boolean;
+  isAdminAuthenticated: boolean;
+  lastActivityAt: number;
+}
+
+function loadInitialActiveSession(): {
+  session: StoredActiveSession;
+  expiredOnLoad: boolean;
+} {
+  const now = Date.now();
+  const defaultSession: StoredActiveSession = {
+    isLoggedOut: true,
+    currentMemberId: 'DMC-LA-00404',
+    isAdminMode: false,
+    isAdminAuthenticated: false,
+    lastActivityAt: now,
+  };
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    if (!raw) return { session: defaultSession, expiredOnLoad: false };
+    const parsed = JSON.parse(raw) as Partial<StoredActiveSession>;
+    if (parsed.isLoggedOut !== false) {
+      return {
+        session: {
+          ...defaultSession,
+          currentMemberId: parsed.currentMemberId || defaultSession.currentMemberId,
+        },
+        expiredOnLoad: false,
+      };
+    }
+    const lastTs = typeof parsed.lastActivityAt === 'number' ? parsed.lastActivityAt : now;
+    if (now - lastTs >= TWELVE_HOURS_INACTIVITY_MS) {
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      return { session: defaultSession, expiredOnLoad: true };
+    }
+    return {
+      session: {
+        isLoggedOut: false,
+        currentMemberId: parsed.currentMemberId || 'DMC-LA-00404',
+        isAdminMode: Boolean(parsed.isAdminMode),
+        isAdminAuthenticated: Boolean(parsed.isAdminAuthenticated),
+        lastActivityAt: lastTs,
+      },
+      expiredOnLoad: false,
+    };
+  } catch {
+    return { session: defaultSession, expiredOnLoad: false };
+  }
+}
 
 interface DmcContextType {
   // Active member / persona
@@ -152,6 +208,16 @@ interface DmcContextType {
   adminUpdatePromotion: (promoId: string, updates: Partial<DmcPromotionItem>) => void;
   adminDeletePromotion: (promoId: string) => boolean;
   adminResetPromotions: () => void;
+  privacyPolicySections: DmcPrivacyPolicySection[];
+  adminAddPrivacyPolicySection: (
+    section: Omit<DmcPrivacyPolicySection, 'id' | 'updatedAt'> & { id?: string }
+  ) => DmcPrivacyPolicySection;
+  adminUpdatePrivacyPolicySection: (
+    sectionId: string,
+    updates: Partial<DmcPrivacyPolicySection>
+  ) => void;
+  adminDeletePrivacyPolicySection: (sectionId: string) => boolean;
+  adminResetPrivacyPolicySections: () => void;
   customHomeIcons: { academy?: string; musicHub?: string; staff?: string; promotions?: string; support?: string };
   adminUpdateHomeIcon: (key: 'academy' | 'musicHub' | 'staff' | 'promotions' | 'support', iconUrl: string) => void;
   adminAddSong: (song: SongProductionProject) => void;
@@ -176,6 +242,8 @@ interface DmcContextType {
   
   // System logs
   auditLogs: SystemAuditLog[];
+  adminUpdateAuditLog: (logId: string, updates: Partial<SystemAuditLog>) => void;
+  adminDeleteAuditLog: (logId: string) => boolean;
 }
 
 const DmcContext = createContext<DmcContextType | null>(null);
@@ -1081,6 +1149,125 @@ const INITIAL_PROMOTIONS: DmcPromotionItem[] = [
   },
 ];
 
+export const INITIAL_PRIVACY_POLICY_SECTIONS: DmcPrivacyPolicySection[] = [
+  {
+    id: 'pol-01',
+    articleNo: 'Article 1',
+    category: 'MEMBERSHIP_TERMS',
+    title: 'Free Member Registration (0 LAK Enrollment)',
+    titleLo: 'ການສະໝັກສະມາຊິກຟຣີ (0 ກີບ)',
+    summary:
+      'Joining Xayraxa Digital Music Center (DMC) as a Registered Free Member (FREE_MEMBER) is 100% free with zero upfront charge.',
+    bulletPoints: [
+      'Registration as a DMC Free Member (FREE_MEMBER) costs 0 LAK (100% Free). No upfront fee or subscription charge is required.',
+      'Each new member receives a unique official Member ID (DMC-LA-XXXXX), personal QR referral code, and immediate access to the DMC Xayraxa platform.',
+      'Every member must register with a valid Lao mobile phone number (+856 20) verified via 6-digit SMS OTP.',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'pol-02',
+    articleNo: 'Article 2',
+    category: 'MEMBERSHIP_TERMS',
+    title: 'Two Pathways to Active Lifetime Membership (1,600,000 LAK)',
+    titleLo: '2 ຊ່ອງທາງການເປີດສະມາຊິກຕະຫຼອດຊີບ (1,600,000 ກີບ)',
+    summary:
+      'Members may upgrade from Free Member to Active Lifetime Member (ACTIVE_LIFETIME_MEMBER) via direct package purchase or zero-cash earned qualification.',
+    bulletPoints: [
+      'Pathway A (Direct Package Purchase): Purchase the official 1,600,000 LAK Music Production Package via Lao Bank QR or cash to unlock instant Lifetime Membership and 1 full Studio Song Production project.',
+      'Pathway B (Zero-Cash Earned Qualification): Accumulate 1,600,000 LAK in Held for Qualification balance from referral commissions and redeem it for Active Lifetime Membership and 1 Studio Song Production project.',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'pol-03',
+    articleNo: 'Article 3',
+    category: 'COMMISSION_FINANCE',
+    title: '3-Level Unilevel Sponsor & Commission Distribution Policy',
+    titleLo: 'ນະໂຍບາຍໂຄງສ້າງຜູ້ແນະນຳ ແລະ ຄ່າຄອມມິດຊັ່ນ 3 ຊັ້ນ (L1, L2, L3)',
+    summary:
+      'Transparent 3-tier unilevel commission allocation for Music Packages, Musical Instruments, and Academy Courses.',
+    bulletPoints: [
+      'Strict Unilevel Hierarchy: Each member has 1 direct sponsor parent (L1) and can sponsor unlimited direct members on their frontline across 3 levels (L1, L2, L3).',
+      'Music Production Package (1,600,000 LAK): Fixed unilevel rewards of L1 = 400,000 LAK, L2 = 200,000 LAK, and L3 = 100,000 LAK.',
+      'DMC Instruments & Music Courses: Normal Price 6,200,000 LAK • DMC Member Price 4,200,000 LAK (Member Discount: 2,000,000 LAK). Commission Pool 450,000 LAK (100%): L1 (50%) = 225,000 LAK, L2 (30%) = 135,000 LAK, L3 (20%) = 90,000 LAK.',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'pol-04',
+    articleNo: 'Article 4',
+    category: 'COMMISSION_FINANCE',
+    title: 'Qualification Escrow & Withdrawable Wallet Rules',
+    titleLo: 'ກົດລະບຽບບັນຊີສະສົມເງື່ອນໄຂ ແລະ ບັນຊີຖອນເງິນສົດ',
+    summary:
+      'Rules governing Held for Qualification escrow credits and Withdrawable Balance payouts to Lao banks.',
+    bulletPoints: [
+      'While a member is in FREE_MEMBER status, earned commissions are credited to the Qualification (Locked) balance (HELD_FOR_QUALIFICATION) until reaching 1,600,000 LAK.',
+      'Once upgraded to ACTIVE_LIFETIME_MEMBER, all subsequent settled commissions flow directly into the Withdrawable Balance (AVAILABLE) for payout to verified Lao bank accounts (BCEL One, LDB Trust, JDB Yes, APB).',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'pol-05',
+    articleNo: 'Article 5',
+    category: 'COPYRIGHT_LAW',
+    title: 'Studio Song Entitlement & Copyright Protection (Lao PDR Law No. 38/NA)',
+    titleLo: 'ສິດທິການສ້າງເພງຫ້ອງອັດ ແລະ ກົດໝາຍລິຂະສິດ ສປປ ລາວ ສະບັບເລກທີ 38/ສພຊ',
+    summary:
+      'Statutory intellectual property and master recording protection for all DMC studio productions.',
+    bulletPoints: [
+      'Active Lifetime Members receive official entitlement for professional vocal recording, arrangement, mixing, and mastering at Xayraxa Digital Music Center (DMC).',
+      'Musical works and sound recordings are documented and protected in accordance with Lao PDR Intellectual Property Law No. 38/NA.',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'pol-06',
+    articleNo: 'Article 6',
+    category: 'PRIVACY_POLICY',
+    title: 'Personal Data Privacy & Lao Banking Confidentiality Policy',
+    titleLo: 'ນະໂຍບາຍຄວາມເປັນສ່ວນຕົວ ແລະ ການຮັກສາຄວາມລັບຂໍ້ມູນທະນາຄານ',
+    summary:
+      'Strict protection of member identity, mobile phone numbers (+856), KYC verification records, and Lao bank payout details.',
+    bulletPoints: [
+      'DMC Xayraxa collects only essential member profile data: Full Name, Lao Mobile Phone (+856 20), optional Email, Sponsor ID, and verified Lao Bank Account details for commission payouts.',
+      'Member personal data and banking credentials are encrypted and never sold or shared with unauthorized third parties.',
+      'Members and Administrators can update their profile, phone number, bank account, and PIN at any time via verified SMS OTP.',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'pol-07',
+    articleNo: 'Article 7',
+    category: 'DATA_SECURITY',
+    title: 'Account Security & 12-Hour Active Session Auto Sign-Out Policy',
+    titleLo: 'ຄວາມປອດໄພບັນຊີ ແລະ ລະບົບອອກຈາກລະບົບອັດຕະໂນມັດຫຼັງ 12 ຊົ່ວໂມງ',
+    summary:
+      'Mandatory 12-hour active session protection and SMS OTP verification for both Members and Administrators.',
+    bulletPoints: [
+      'Members and Administrators are responsible for safeguarding their Password / PIN and 6-digit SMS OTP codes.',
+      'For security, both User and Administrator sessions remain active for 12 hours and automatically sign out after 12 hours of inactivity.',
+      'Duplicate fraudulent accounts, unauthorized scraping, or misrepresentation of official DMC pricing is strictly prohibited.',
+    ],
+    effectiveDate: '2026-10-01',
+    status: 'ACTIVE',
+    updatedAt: '2026-10-18T10:00:00Z',
+  },
+];
+
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>(() => {
     try {
@@ -1094,24 +1281,79 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_MEMBERS;
   });
-  const [currentMemberId, setCurrentMemberId] = useState<string>('DMC-LA-00404'); // Default to Khamla (FREE with 1.2M held)
+  const initialSessionState = useMemo(() => loadInitialActiveSession(), []);
+  const [currentMemberId, setCurrentMemberId] = useState<string>(
+    initialSessionState.session.currentMemberId
+  ); // Default to Khamla (FREE with 1.2M held)
   const [language, setLanguage] = useState<Language>('en');
-  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
-  // Default Startup requires User or Administrator to Sign In first (Active: Signed Out)
-  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(true);
-  const [sessionExpiredNotice, setSessionExpiredNotice] = useState<string | null>(null);
-  const [lastActivityAt, setLastActivityAt] = useState<number>(() => Date.now());
-  const lastActivityRef = useRef<number>(Date.now());
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(
+    initialSessionState.session.isAdminMode
+  );
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(
+    initialSessionState.session.isAdminAuthenticated
+  );
+  // Active Session (12 Hours): Restores active User/Administrator session if used within 12 hours, otherwise signs out
+  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(
+    initialSessionState.session.isLoggedOut
+  );
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState<string | null>(
+    initialSessionState.expiredOnLoad
+      ? 'Session Expired: Automatically signed out after 12 hours of inactivity. Please sign in again.'
+      : null
+  );
+  const [lastActivityAt, setLastActivityAt] = useState<number>(
+    () => initialSessionState.session.lastActivityAt
+  );
+  const lastActivityRef = useRef<number>(initialSessionState.session.lastActivityAt);
 
-  // 4-Hour Automatic Inactivity Session Sign-Out for both User and Administrator
+  // Sync active session state to localStorage so User & Administrator stay signed in during their 12-hour active session
+  useEffect(() => {
+    try {
+      if (isLoggedOut) {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      } else {
+        const payload: StoredActiveSession = {
+          isLoggedOut: false,
+          currentMemberId,
+          isAdminMode,
+          isAdminAuthenticated,
+          lastActivityAt: lastActivityRef.current,
+        };
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, JSON.stringify(payload));
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [isLoggedOut, currentMemberId, isAdminMode, isAdminAuthenticated, lastActivityAt]);
+
+  // 12-Hour Automatic Inactivity Session Sign-Out for both User and Administrator
   useEffect(() => {
     if (isLoggedOut) return;
 
+    const signOutForInactivity = () => {
+      setIsAdminMode(false);
+      setIsAdminAuthenticated(false);
+      setIsLoggedOut(true);
+      setSessionExpiredNotice(
+        'Session Expired: Automatically signed out after 12 hours of inactivity. Please sign in again.'
+      );
+      try {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+        localStorage.removeItem('dmc_rev26_last_activity_ts');
+      } catch {
+        // ignore storage errors
+      }
+    };
+
     const recordActivity = () => {
       const now = Date.now();
+      // If 12 hours already elapsed before this event, sign out instead of extending
+      if (now - lastActivityRef.current >= TWELVE_HOURS_INACTIVITY_MS) {
+        signOutForInactivity();
+        return;
+      }
       lastActivityRef.current = now;
-      // Throttle state updates to once every 15 seconds while active
+      // Throttle state & storage updates to once every 15 seconds while active
       setLastActivityAt((prev) => (now - prev > 15000 ? now : prev));
       try {
         localStorage.setItem('dmc_rev26_last_activity_ts', String(now));
@@ -1120,21 +1362,29 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    // Initialize activity timestamp upon sign-in
-    recordActivity();
-
     const checkInactivityTimeout = () => {
       const now = Date.now();
-      const elapsed = now - lastActivityRef.current;
-      if (elapsed >= FOUR_HOURS_INACTIVITY_MS) {
-        setIsAdminMode(false);
-        setIsAdminAuthenticated(false);
-        setIsLoggedOut(true);
-        setSessionExpiredNotice(
-          'Session Expired: Automatically signed out after 4 hours of inactivity. Please sign in again.'
-        );
+      let latestKnownActivity = lastActivityRef.current;
+      try {
+        const storedTs = Number(localStorage.getItem('dmc_rev26_last_activity_ts'));
+        if (!Number.isNaN(storedTs) && storedTs > latestKnownActivity) {
+          latestKnownActivity = storedTs;
+          lastActivityRef.current = storedTs;
+        }
+      } catch {
+        // ignore storage errors
+      }
+      const elapsed = now - latestKnownActivity;
+      if (elapsed >= TWELVE_HOURS_INACTIVITY_MS) {
+        signOutForInactivity();
       }
     };
+
+    // Initialize activity timestamp if freshly signed in
+    if (Date.now() - lastActivityRef.current >= TWELVE_HOURS_INACTIVITY_MS) {
+      lastActivityRef.current = Date.now();
+    }
+    recordActivity();
 
     const activityEvents: (keyof WindowEventMap)[] = [
       'mousedown',
@@ -1150,18 +1400,20 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.addEventListener(evt, recordActivity, { passive: true })
     );
 
-    const handleVisibilityChange = () => {
+    const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         checkInactivityTimeout();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', checkInactivityTimeout);
 
     const intervalId = window.setInterval(checkInactivityTimeout, 15000);
 
     return () => {
       activityEvents.forEach((evt) => window.removeEventListener(evt, recordActivity));
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', checkInactivityTimeout);
       window.clearInterval(intervalId);
     };
   }, [isLoggedOut]);
@@ -1179,7 +1431,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeSmsOtps, setActiveSmsOtps] = useState<Record<string, string>>({});
   const [products, setProducts] = useState<ProductSKU[]>(() => {
     try {
-      const saved = localStorage.getItem('dmc_rev26_products_v2');
+      const saved = localStorage.getItem('dmc_rev26_products_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -1248,6 +1500,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore storage errors
     }
     return INITIAL_PROMOTIONS;
+  });
+  const [privacyPolicySections, setPrivacyPolicySections] = useState<DmcPrivacyPolicySection[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_privacy_policy_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_PRIVACY_POLICY_SECTIONS;
   });
   const [customHomeIcons, setCustomHomeIcons] = useState<{
     academy?: string;
@@ -2746,7 +3010,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const filtered = prev.filter(p => p.sku !== prod.sku);
       const next = [prod, ...filtered];
       try {
-        localStorage.setItem('dmc_rev26_products_v2', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_products_v3', JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -2770,7 +3034,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(prev => {
       const next = prev.map(p => (p.sku === sku ? { ...p, ...updates } : p));
       try {
-        localStorage.setItem('dmc_rev26_products_v2', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_products_v3', JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -2794,7 +3058,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(prev => {
       const next = prev.filter(p => p.sku !== sku);
       try {
-        localStorage.setItem('dmc_rev26_products_v2', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_products_v3', JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -3573,6 +3837,116 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // 3E. Privacy & Policy Sections CRUD (Administrator)
+  const adminAddPrivacyPolicySection = (
+    section: Omit<DmcPrivacyPolicySection, 'id' | 'updatedAt'> & { id?: string }
+  ): DmcPrivacyPolicySection => {
+    const newSection: DmcPrivacyPolicySection = {
+      ...section,
+      id: section.id || `pol-${Date.now()}`,
+      updatedAt: new Date().toISOString(),
+    };
+    setPrivacyPolicySections(prev => {
+      const next = [...prev, newSection];
+      try {
+        localStorage.setItem('dmc_rev26_privacy_policy_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_ADD_PRIVACY_POLICY',
+        entityType: 'PRIVACY_POLICY',
+        entityId: newSection.id,
+        details: newSection,
+      },
+      ...prev,
+    ]);
+    return newSection;
+  };
+
+  const adminUpdatePrivacyPolicySection = (
+    sectionId: string,
+    updates: Partial<DmcPrivacyPolicySection>
+  ) => {
+    setPrivacyPolicySections(prev => {
+      const next = prev.map(item =>
+        item.id === sectionId
+          ? { ...item, ...updates, updatedAt: new Date().toISOString() }
+          : item
+      );
+      try {
+        localStorage.setItem('dmc_rev26_privacy_policy_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_UPDATE_PRIVACY_POLICY',
+        entityType: 'PRIVACY_POLICY',
+        entityId: sectionId,
+        details: updates,
+      },
+      ...prev,
+    ]);
+  };
+
+  const adminDeletePrivacyPolicySection = (sectionId: string): boolean => {
+    setPrivacyPolicySections(prev => {
+      const next = prev.filter(item => item.id !== sectionId);
+      try {
+        localStorage.setItem('dmc_rev26_privacy_policy_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    setAuditLogs(prev => [
+      {
+        id: `aud-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_DELETE_PRIVACY_POLICY',
+        entityType: 'PRIVACY_POLICY',
+        entityId: sectionId,
+        details: { deletedAt: new Date().toISOString() },
+      },
+      ...prev,
+    ]);
+    return true;
+  };
+
+  const adminResetPrivacyPolicySections = () => {
+    setPrivacyPolicySections(INITIAL_PRIVACY_POLICY_SECTIONS);
+    try {
+      localStorage.setItem(
+        'dmc_rev26_privacy_policy_v1',
+        JSON.stringify(INITIAL_PRIVACY_POLICY_SECTIONS)
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const adminUpdateAuditLog = (logId: string, updates: Partial<SystemAuditLog>) => {
+    setAuditLogs(prev => prev.map(l => (l.id === logId ? { ...l, ...updates } : l)));
+  };
+
+  const adminDeleteAuditLog = (logId: string): boolean => {
+    setAuditLogs(prev => prev.filter(l => l.id !== logId));
+    return true;
+  };
+
   const adminUpdateHomeIcon = (
     key: 'academy' | 'musicHub' | 'staff' | 'promotions' | 'support',
     iconUrl: string
@@ -4052,6 +4426,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminUpdatePromotion,
         adminDeletePromotion,
         adminResetPromotions,
+        privacyPolicySections,
+        adminAddPrivacyPolicySection,
+        adminUpdatePrivacyPolicySection,
+        adminDeletePrivacyPolicySection,
+        adminResetPrivacyPolicySections,
         customHomeIcons,
         adminUpdateHomeIcon,
         adminAddSong,
@@ -4070,6 +4449,8 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         uatResults,
         runAllUatTests,
         auditLogs,
+        adminUpdateAuditLog,
+        adminDeleteAuditLog,
       }}
     >
       {children}

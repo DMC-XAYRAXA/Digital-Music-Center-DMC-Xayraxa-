@@ -607,7 +607,7 @@ export const AcademyScreen: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in">
+    <div className="@container space-y-6 pb-12 animate-in fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -704,7 +704,7 @@ export const AcademyScreen: React.FC = () => {
       )}
 
       {/* Featured Lesson Banner */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col @2xl:flex-row items-start @2xl:items-center justify-between gap-4 shadow-lg">
         <div className="space-y-1.5 max-w-xl">
           <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500 text-slate-950">
             {t.currentModuleInProgress}
@@ -765,7 +765,7 @@ export const AcademyScreen: React.FC = () => {
       />
 
       {/* Course List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
         {displayCourses.map((c) => {
           const Icon = c.icon;
           return (
@@ -908,12 +908,12 @@ export const AcademyScreen: React.FC = () => {
                     style={{ width: `${c.progress}%` }}
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2 pt-1">
                   <button
                     onClick={() => setActiveCourseId(c.id)}
-                    className="flex-1 mt-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="flex-1 min-w-[140px] py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                   >
-                    <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                    <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span>
                       {c.progress === 100
                         ? t.reviewCourseMaterial
@@ -933,21 +933,21 @@ export const AcademyScreen: React.FC = () => {
                         commissionPoolLak: c.commissionPoolLak,
                       })
                     }
-                    className="mt-1 px-3 py-2 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                    className="px-3.5 py-2.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap shrink-0"
                     title="Enroll at DMC Member Price via Lao Bank QR"
                   >
-                    <QrCode className="w-3.5 h-3.5" />
+                    <QrCode className="w-3.5 h-3.5 shrink-0" />
                     <span>Buy QR</span>
                   </button>
 
                   {c.id === 'c3' && (
-                    <div className="flex gap-1.5 mt-1">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => {
                           setAutoDownload(false);
                           setIsCertOpen(true);
                         }}
-                        className="px-2.5 py-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                        className="px-2.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                         title="View Official Certificate"
                       >
                         <Award className="w-3.5 h-3.5" />
@@ -955,7 +955,7 @@ export const AcademyScreen: React.FC = () => {
                       <button
                         onClick={handleDirectDownload}
                         disabled={isDownloading}
-                        className="px-2.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer disabled:opacity-60"
+                        className="px-2.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer disabled:opacity-60"
                         title="Download Certificate PNG"
                       >
                         <Download className="w-3.5 h-3.5" />

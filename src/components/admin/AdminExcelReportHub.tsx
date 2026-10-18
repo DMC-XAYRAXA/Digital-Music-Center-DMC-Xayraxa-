@@ -19,8 +19,14 @@ import {
   FileCheck2,
   Search,
   Layers,
+  Pencil,
+  Save,
+  RotateCcw,
+  FileText,
+  X,
 } from 'lucide-react';
 import { DmcOfficialLogo } from '../common/DmcLogo';
+import { DmcPrivacyPolicyCategory } from '../../types/dmc';
 
 export type AdminReportId =
   | '1_MEMBERS'
@@ -29,7 +35,8 @@ export type AdminReportId =
   | '4_ORDERS'
   | '5_SONGS'
   | '6_PAYMENT_PROVED'
-  | '7_ORGANIZE_TREE';
+  | '7_ORGANIZE_TREE'
+  | '8_PRIVACY_POLICY';
 
 export interface CustomPaymentProofRecord {
   id: string;
@@ -48,6 +55,15 @@ export interface CustomPaymentProofRecord {
 }
 
 const PAYMENT_PROOF_STORAGE_KEY = 'dmc_rev26_payment_proved_records_v1';
+const REPORT_CUSTOM_OVERRIDES_KEY = 'dmc_rev26_report_overrides_v1';
+
+interface ReportSheetCustomizations {
+  editedRows: Record<string, (string | number)[]>;
+  deletedRowKeys: string[];
+  addedRows: { key: string; cells: (string | number)[] }[];
+}
+
+type AllReportCustomizations = Partial<Record<AdminReportId, ReportSheetCustomizations>>;
 
 export const AdminExcelReportHub: React.FC<{
   initialReport?: AdminReportId;
@@ -59,15 +75,49 @@ export const AdminExcelReportHub: React.FC<{
     getSponsorChain,
     getMemberSongs,
     superAdminProfile,
+    updateSuperAdminProfile,
     products,
     orders,
     withdrawals,
     corporateBankAccounts,
+    privacyPolicySections,
+    adminAddMember,
+    adminUpdateMember,
+    adminDeleteMember,
+    adminUpdateProduct,
+    adminDeleteProduct,
+    adminUpdateOrder,
+    adminDeleteOrder,
+    adminUpdateSong,
+    adminDeleteSong,
+    adminAddPrivacyPolicySection,
+    adminUpdatePrivacyPolicySection,
+    adminDeletePrivacyPolicySection,
   } = useDmc();
 
   const [selectedReport, setSelectedReport] = useState<AdminReportId>(initialReport);
   const [searchQuery, setSearchQuery] = useState('');
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  // Per-report custom row edits, additions, and deletions persisted in localStorage
+  const [reportOverrides, setReportOverrides] = useState<AllReportCustomizations>(() => {
+    try {
+      const raw = localStorage.getItem(REPORT_CUSTOM_OVERRIDES_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return {};
+  });
+
+  const saveReportOverrides = (next: AllReportCustomizations) => {
+    setReportOverrides(next);
+    try {
+      localStorage.setItem(REPORT_CUSTOM_OVERRIDES_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  };
 
   // Additional Custom Payment Proof Records (persisted in localStorage)
   const [customProofs, setCustomProofs] = useState<CustomPaymentProofRecord[]>(() => {
@@ -116,8 +166,9 @@ export const AdminExcelReportHub: React.FC<{
     ];
   });
 
-  // Add Payment Proof Modal State
+  // Add / Edit Payment Proof Modal State
   const [showAddProofModal, setShowAddProofModal] = useState(false);
+  const [editingProofId, setEditingProofId] = useState<string | null>(null);
   const [proofForm, setProofForm] = useState({
     referenceNo: `BCEL-QR-${Math.floor(10000000 + Math.random() * 90000000)}`,
     memberId: allMembers[0]?.memberId || 'DMC-LA-00404',
@@ -130,20 +181,64 @@ export const AdminExcelReportHub: React.FC<{
     note: 'Verified BCEL One / Lao QR Payment Slip',
   });
 
+  // Universal Row Edit / Add Modal State (for editing or adding any row in Reports 1 - 8)
+  const [editingRowModal, setEditingRowModal] = useState<{
+    mode: 'EDIT' | 'ADD';
+    reportId: AdminReportId;
+    rowKey: string;
+    headers: string[];
+    values: (string | number)[];
+  } | null>(null);
+
   const triggerNotice = (msg: string) => {
     setExportNotice(msg);
     setTimeout(() => setExportNotice(null), 4000);
   };
 
+  // Helper to apply custom edits, additions, and deletions to any report sheet
+  const applySheetCustomizations = (
+    reportId: AdminReportId,
+    baseSheet: ExcelSheetData,
+    getRowKey: (row: (string | number)[], idx: number) => string
+  ): ExcelSheetData & { keyedRows: { key: string; cells: (string | number)[] }[] } => {
+    const custom = reportOverrides[reportId];
+    const deletedSet = new Set(custom?.deletedRowKeys || []);
+    const editedMap = custom?.editedRows || {};
+    const addedList = custom?.addedRows || [];
+
+    const keyedBase = baseSheet.rows
+      .map((row, idx) => {
+        const key = getRowKey(row, idx);
+        const cells = editedMap[key] ? [...editedMap[key]] : [...row];
+        return { key, cells };
+      })
+      .filter((item) => !deletedSet.has(item.key));
+
+    const combined = [
+      ...keyedBase,
+      ...addedList.filter((item) => !deletedSet.has(item.key)),
+    ].map((item, idx) => {
+      const updatedCells = [...item.cells];
+      updatedCells[0] = idx + 1; // Keep sequential row No.
+      return { key: item.key, cells: updatedCells };
+    });
+
+    return {
+      ...baseSheet,
+      rows: combined.map((c) => c.cells),
+      keyedRows: combined,
+    };
+  };
+
   // ============================================================================
-  // BUILD ALL 6 OFFICIAL EXCEL SHEETS
+  // BUILD ALL 8 OFFICIAL EXCEL SHEETS (WITH FULL ADMIN EDIT/DELETE/UPDATE SUPPORT)
   // ============================================================================
   const sheetsMap = useMemo(() => {
     // 1/ Register Member Crud file
-    const sheet1Members: ExcelSheetData = {
+    const rawSheet1: ExcelSheetData = {
       sheetName: '1_Register_Member_CRUD',
       title: '1/ REGISTER MEMBER CRUD REPORT — DMC XAYRAXA SUPER APP',
-      subtitle: `Total Registered Members: ${allMembers.length} • Exported from Administrator Panel`,
+      subtitle: `Total Registered Members: ${allMembers.length} • Full Admin Edit, Update & Delete Enabled`,
       headers: [
         'No.',
         'Member ID',
@@ -195,10 +290,10 @@ export const AdminExcelReportHub: React.FC<{
     };
 
     // 2/ Admin and user password File
-    const sheet2Passwords: ExcelSheetData = {
+    const rawSheet2: ExcelSheetData = {
       sheetName: '2_Admin_User_Password',
       title: '2/ ADMIN AND USER PASSWORD & SECURITY FILE — DMC XAYRAXA',
-      subtitle: `Includes Master Super Administrator Credentials + ${allMembers.length} Member Login Credentials & SMS Recovery Status`,
+      subtitle: `Includes Master Super Administrator Credentials + ${allMembers.length} Member Login Credentials`,
       headers: [
         'No.',
         'Account Role',
@@ -254,7 +349,7 @@ export const AdminExcelReportHub: React.FC<{
     };
 
     // 3/ Products & SKUs File
-    const sheet3Products: ExcelSheetData = {
+    const rawSheet3: ExcelSheetData = {
       sheetName: '3_Products_And_SKUs',
       title: '3/ PRODUCTS & SKUs INVENTORY & UNILEVEL COMMISSION REPORT',
       subtitle: `Total Catalog SKUs: ${products.length} • Retail Prices, Stock & L1/L2/L3 Unilevel Splits`,
@@ -311,7 +406,7 @@ export const AdminExcelReportHub: React.FC<{
     };
 
     // 4/ Orders and Shipping File
-    const sheet4Orders: ExcelSheetData = {
+    const rawSheet4: ExcelSheetData = {
       sheetName: '4_Orders_And_Shipping',
       title: '4/ ORDERS AND SHIPPING LOGISTICS REPORT (ANOUSITH / HAL / LOCAL)',
       subtitle: `Total Orders: ${orders.length} • Full Order Line Items, Carrier Tracking & Delivery Destinations`,
@@ -369,7 +464,7 @@ export const AdminExcelReportHub: React.FC<{
     const allSongs = allMembers.flatMap((m) =>
       getMemberSongs(m.memberId).map((s) => ({ song: s, owner: m }))
     );
-    const sheet5Songs: ExcelSheetData = {
+    const rawSheet5: ExcelSheetData = {
       sheetName: '5_Studio_Song_File',
       title: '5/ STUDIO SONG PRODUCTION & ENTITLEMENT REPORT',
       subtitle: `Total Studio Song Projects: ${allSongs.length} • 1,600,000 LAK Single Song Production Entitlements`,
@@ -407,7 +502,7 @@ export const AdminExcelReportHub: React.FC<{
       ]),
     };
 
-    // 6/ Payment proved (Combines Custom Payment Proofs + Order Payment Proofs + Withdrawal Payout Approvals)
+    // 6/ Payment proved
     const orderProofRows = orders.map((o, idx) => {
       const buyer = allMembers.find((m) => m.memberId === o.buyerMemberId);
       return [
@@ -472,7 +567,7 @@ export const AdminExcelReportHub: React.FC<{
       cp.timestamp,
     ]);
 
-    const sheet6PaymentProved: ExcelSheetData = {
+    const rawSheet6: ExcelSheetData = {
       sheetName: '6_Payment_Proved',
       title: '6/ PAYMENT PROVED & BANK SETTLEMENT VERIFICATION REPORT',
       subtitle: `Verified Bank QR Slips, Order Payment Proofs & Maker-Checker Withdrawal Payout Proofs`,
@@ -555,19 +650,17 @@ export const AdminExcelReportHub: React.FC<{
       directChildren.forEach((child) => appendOrganizeSubtree(child.memberId, depth + 1));
     };
 
-    // Start from Root members (no sponsorId or sponsorId not in allMembers)
     const rootMembers = allMembers.filter(
       (m) => !m.sponsorId || !allMembers.some((p) => p.memberId === m.sponsorId)
     );
     rootMembers.forEach((root) => appendOrganizeSubtree(root.memberId, 0));
-    // Ensure any remaining unvisited members are also included
     allMembers.forEach((m) => {
       if (!visitedIds.has(m.memberId)) {
         appendOrganizeSubtree(m.memberId, 0);
       }
     });
 
-    const sheet7OrganizeTree: ExcelSheetData = {
+    const rawSheet7: ExcelSheetData = {
       sheetName: '7_Downline_Organize_Tree',
       title: '7/ REPORT DOWN LINE ORGANIZE TREE FILE — 3-LEVEL UNILEVEL HIERARCHY',
       subtitle: `Total Organize Nodes: ${organizeTreeRows.length} • Full Root → L1 → L2 → L3 Hierarchy, Upline Chain & Team Balances`,
@@ -596,14 +689,60 @@ export const AdminExcelReportHub: React.FC<{
       rows: organizeTreeRows,
     };
 
+    // 8/ Privacy & Policy File
+    const rawSheet8: ExcelSheetData = {
+      sheetName: '8_Privacy_And_Policy',
+      title: '8/ PRIVACY & POLICY AND MEMBERSHIP TERMS REPORT — DMC XAYRAXA',
+      subtitle: `Total Policy Articles: ${privacyPolicySections.length} • Official Membership Terms (0 LAK) & Data Protection Clauses`,
+      headers: [
+        'No.',
+        'Policy ID',
+        'Article Number',
+        'Category',
+        'Policy Title (English)',
+        'Policy Title (Lao ພາສາລາວ)',
+        'Summary Description',
+        'Detailed Clauses / Bullet Points',
+        'Effective Date',
+        'Status',
+        'Last Updated At',
+      ],
+      rows: privacyPolicySections.map((sec, idx) => [
+        idx + 1,
+        sec.id,
+        sec.articleNo,
+        sec.category,
+        sec.title,
+        sec.titleLo || '-',
+        sec.summary,
+        sec.bulletPoints.join(' | '),
+        sec.effectiveDate,
+        sec.status,
+        sec.updatedAt ? sec.updatedAt.slice(0, 19).replace('T', ' ') : '-',
+      ]),
+    };
+
     return {
-      '1_MEMBERS': sheet1Members,
-      '2_PASSWORDS': sheet2Passwords,
-      '3_PRODUCTS': sheet3Products,
-      '4_ORDERS': sheet4Orders,
-      '5_SONGS': sheet5Songs,
-      '6_PAYMENT_PROVED': sheet6PaymentProved,
-      '7_ORGANIZE_TREE': sheet7OrganizeTree,
+      '1_MEMBERS': applySheetCustomizations('1_MEMBERS', rawSheet1, (r) => String(r[1])),
+      '2_PASSWORDS': applySheetCustomizations('2_PASSWORDS', rawSheet2, (r) => String(r[2])),
+      '3_PRODUCTS': applySheetCustomizations('3_PRODUCTS', rawSheet3, (r) => String(r[1])),
+      '4_ORDERS': applySheetCustomizations('4_ORDERS', rawSheet4, (r) => String(r[1])),
+      '5_SONGS': applySheetCustomizations('5_SONGS', rawSheet5, (r) => String(r[1])),
+      '6_PAYMENT_PROVED': applySheetCustomizations(
+        '6_PAYMENT_PROVED',
+        rawSheet6,
+        (r) => String(r[1])
+      ),
+      '7_ORGANIZE_TREE': applySheetCustomizations(
+        '7_ORGANIZE_TREE',
+        rawSheet7,
+        (r) => String(r[3])
+      ),
+      '8_PRIVACY_POLICY': applySheetCustomizations(
+        '8_PRIVACY_POLICY',
+        rawSheet8,
+        (r) => String(r[1])
+      ),
     };
   }, [
     allMembers,
@@ -616,6 +755,8 @@ export const AdminExcelReportHub: React.FC<{
     orders,
     withdrawals,
     customProofs,
+    privacyPolicySections,
+    reportOverrides,
   ]);
 
   const reportCards: {
@@ -699,16 +840,27 @@ export const AdminExcelReportHub: React.FC<{
       colorClass: 'from-violet-600/25 to-purple-600/20 border-violet-400/50 text-violet-300',
       badgeCount: sheetsMap['7_ORGANIZE_TREE'].rows.length,
     },
+    {
+      id: '8_PRIVACY_POLICY',
+      numberLabel: '8/',
+      title: 'Privacy & Policy File',
+      subtitle:
+        'Official DMC Membership Terms (Free 0 LAK Registration), Privacy Policy & Data Protection clauses',
+      filenameBase: '8_DMC_Privacy_And_Policy_File',
+      icon: FileText,
+      colorClass: 'from-teal-600/25 to-emerald-600/20 border-teal-400/50 text-teal-300',
+      badgeCount: sheetsMap['8_PRIVACY_POLICY'].rows.length,
+    },
   ];
 
   const activeSheet = sheetsMap[selectedReport];
   const activeCard = reportCards.find((c) => c.id === selectedReport) || reportCards[0];
 
-  const filteredRows = useMemo(() => {
-    if (!searchQuery.trim()) return activeSheet.rows;
+  const filteredKeyedRows = useMemo(() => {
+    if (!searchQuery.trim()) return activeSheet.keyedRows;
     const q = searchQuery.toLowerCase();
-    return activeSheet.rows.filter((row) =>
-      row.some((cell) => String(cell).toLowerCase().includes(q))
+    return activeSheet.keyedRows.filter((item) =>
+      item.cells.some((cell) => String(cell).toLowerCase().includes(q))
     );
   }, [activeSheet, searchQuery]);
 
@@ -735,16 +887,318 @@ export const AdminExcelReportHub: React.FC<{
       sheetsMap['5_SONGS'],
       sheetsMap['6_PAYMENT_PROVED'],
       sheetsMap['7_ORGANIZE_TREE'],
+      sheetsMap['8_PRIVACY_POLICY'],
     ];
-    downloadExcelWorkbook('DMC_Master_All_7_Admin_Reports.xls', allSheets);
+    downloadExcelWorkbook('DMC_Master_All_8_Admin_Reports.xls', allSheets);
     triggerNotice(
-      'Downloaded Master 7-Sheet Excel Workbook (DMC_Master_All_7_Admin_Reports.xls)!'
+      'Downloaded Master 8-Sheet Excel Workbook (DMC_Master_All_8_Admin_Reports.xls)!'
+    );
+  };
+
+  // ============================================================================
+  // SYNCHRONIZED ROW EDIT, UPDATE, ADD & DELETE FOR ALL 8 REPORT FILES
+  // ============================================================================
+  const handleOpenEditRowModal = (rowKey: string, cells: (string | number)[]) => {
+    setEditingRowModal({
+      mode: 'EDIT',
+      reportId: selectedReport,
+      rowKey,
+      headers: activeSheet.headers,
+      values: [...cells],
+    });
+  };
+
+  const handleOpenAddRowModal = () => {
+    const nextRowNo = activeSheet.rows.length + 1;
+    const defaultCells: (string | number)[] = activeSheet.headers.map((h, idx) => {
+      if (idx === 0) return nextRowNo;
+      if (h.toLowerCase().includes('amount') || h.toLowerCase().includes('price') || h.toLowerCase().includes('(lak)')) {
+        return 0;
+      }
+      if (h.toLowerCase().includes('date') || h.toLowerCase().includes('timestamp') || h.toLowerCase().includes('updated')) {
+        return new Date().toISOString().slice(0, 10);
+      }
+      return '';
+    });
+
+    setEditingRowModal({
+      mode: 'ADD',
+      reportId: selectedReport,
+      rowKey: `CUSTOM-${selectedReport}-${Date.now()}`,
+      headers: activeSheet.headers,
+      values: defaultCells,
+    });
+  };
+
+  const handleSaveRowModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRowModal) return;
+
+    const { mode, reportId, rowKey, values } = editingRowModal;
+
+    // 1. Synchronize with core DmcContext state where applicable
+    if (mode === 'EDIT') {
+      if (reportId === '1_MEMBERS') {
+        const memberId = String(values[1]);
+        adminUpdateMember(memberId, {
+          name: String(values[2]),
+          phone: String(values[3]),
+          email: String(values[4]) === '-' ? '' : String(values[4]),
+          membershipState: String(values[5]).includes('ACTIVE')
+            ? 'ACTIVE_LIFETIME_MEMBER'
+            : 'FREE_MEMBER',
+        });
+      } else if (reportId === '2_PASSWORDS') {
+        const userId = String(values[2]);
+        if (userId === superAdminProfile.operatorId || String(values[1]).includes('ADMIN')) {
+          updateSuperAdminProfile({
+            name: String(values[3]),
+            phone: String(values[4]),
+            email: String(values[5]),
+            passwordPin: String(values[6]),
+          });
+        } else {
+          adminUpdateMember(userId, {
+            name: String(values[3]),
+            phone: String(values[4]),
+            email: String(values[5]) === '-' ? '' : String(values[5]),
+            password: String(values[6]),
+          });
+        }
+      } else if (reportId === '3_PRODUCTS') {
+        const sku = String(values[1]);
+        adminUpdateProduct(sku, {
+          titleEn: String(values[3]),
+          titleLo: String(values[4]),
+          titleTh: String(values[5]),
+          priceLak: Number(values[7]) || 0,
+          commissionPoolLak: Number(values[8]) || 0,
+          stockSellable: Number(values[14]) || 0,
+        });
+      } else if (reportId === '4_ORDERS') {
+        const orderId = String(values[1]);
+        adminUpdateOrder(orderId, {
+          totalLak: Number(values[8]) || 0,
+          status: String(values[10]) as any,
+          carrierName: String(values[11]),
+          trackingNumber: String(values[12]),
+        });
+      } else if (reportId === '5_SONGS') {
+        const songId = String(values[1]);
+        adminUpdateSong(songId, {
+          title: String(values[5]),
+          genre: String(values[6]),
+          tempo: String(values[7]),
+          status: String(values[8]) as any,
+          progressPercent: Number(values[9]) || 0,
+          producer: String(values[10]),
+        });
+      } else if (reportId === '6_PAYMENT_PROVED') {
+        const proofId = String(values[1]);
+        if (customProofs.some((p) => p.id === proofId)) {
+          const nextProofs = customProofs.map((p) =>
+            p.id === proofId
+              ? {
+                  ...p,
+                  referenceNo: String(values[2]),
+                  memberId: String(values[3]),
+                  memberName: String(values[4]),
+                  bankName: String(values[6]),
+                  accountOrTxNo: String(values[7]),
+                  amountLak: Number(values[8]) || 0,
+                  status: String(values[9]) as any,
+                  note: String(values[11]),
+                }
+              : p
+          );
+          setCustomProofs(nextProofs);
+          try {
+            localStorage.setItem(PAYMENT_PROOF_STORAGE_KEY, JSON.stringify(nextProofs));
+          } catch {
+            // ignore
+          }
+        }
+      } else if (reportId === '7_ORGANIZE_TREE') {
+        const memberId = String(values[3]);
+        adminUpdateMember(memberId, {
+          name: String(values[4]),
+          phone: String(values[5]),
+          membershipState: String(values[6]).includes('ACTIVE')
+            ? 'ACTIVE_LIFETIME_MEMBER'
+            : 'FREE_MEMBER',
+        });
+      } else if (reportId === '8_PRIVACY_POLICY') {
+        const policyId = String(values[1]);
+        adminUpdatePrivacyPolicySection(policyId, {
+          articleNo: String(values[2]),
+          category: (String(values[3]) as DmcPrivacyPolicyCategory) || 'PRIVACY_POLICY',
+          title: String(values[4]),
+          titleLo: String(values[5]) === '-' ? '' : String(values[5]),
+          summary: String(values[6]),
+          bulletPoints: String(values[7])
+            .split('|')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          effectiveDate: String(values[8]),
+          status: String(values[9]) === 'DRAFT' ? 'DRAFT' : 'ACTIVE',
+        });
+      }
+    } else if (mode === 'ADD') {
+      if (reportId === '1_MEMBERS') {
+        adminAddMember({
+          name: String(values[2]) || 'New DMC Member',
+          phone: String(values[3]) || '+856 20 5500 0000',
+          email: String(values[4]) || '',
+          membershipState: String(values[5]).includes('ACTIVE')
+            ? 'ACTIVE_LIFETIME_MEMBER'
+            : 'FREE_MEMBER',
+          initialHeldLak: Number(values[10]) || 0,
+          initialAvailableLak: Number(values[11]) || 0,
+        });
+        setEditingRowModal(null);
+        triggerNotice(`Added new Member row to ${activeCard.numberLabel} ${activeCard.title}!`);
+        return;
+      } else if (reportId === '8_PRIVACY_POLICY') {
+        adminAddPrivacyPolicySection({
+          articleNo: String(values[2]) || `Article ${privacyPolicySections.length + 1}`,
+          category: (String(values[3]) as DmcPrivacyPolicyCategory) || 'PRIVACY_POLICY',
+          title: String(values[4]) || 'New DMC Privacy & Policy Clause',
+          titleLo: String(values[5]) || '',
+          summary: String(values[6]) || 'Official DMC Policy Summary',
+          bulletPoints: String(values[7])
+            ? String(values[7])
+                .split('|')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : ['Official DMC Policy Requirement'],
+          effectiveDate: String(values[8]) || new Date().toISOString().slice(0, 10),
+          status: 'ACTIVE',
+        });
+        setEditingRowModal(null);
+        triggerNotice(`Added new Privacy & Policy clause to Report #8!`);
+        return;
+      }
+    }
+
+    // 2. Save exact row cells in reportOverrides so any cell in any report is 100% editable
+    const currentCustom: ReportSheetCustomizations = reportOverrides[reportId] || {
+      editedRows: {},
+      deletedRowKeys: [],
+      addedRows: [],
+    };
+
+    if (mode === 'EDIT') {
+      const isAddedRow = currentCustom.addedRows.some((r) => r.key === rowKey);
+      const nextCustom: ReportSheetCustomizations = isAddedRow
+        ? {
+            ...currentCustom,
+            addedRows: currentCustom.addedRows.map((r) =>
+              r.key === rowKey ? { ...r, cells: values } : r
+            ),
+          }
+        : {
+            ...currentCustom,
+            editedRows: {
+              ...currentCustom.editedRows,
+              [rowKey]: values,
+            },
+          };
+      saveReportOverrides({ ...reportOverrides, [reportId]: nextCustom });
+      triggerNotice(`Updated row "${rowKey}" in ${activeCard.numberLabel} ${activeCard.title}!`);
+    } else {
+      const nextCustom: ReportSheetCustomizations = {
+        ...currentCustom,
+        addedRows: [...currentCustom.addedRows, { key: rowKey, cells: values }],
+      };
+      saveReportOverrides({ ...reportOverrides, [reportId]: nextCustom });
+      triggerNotice(`Added new row to ${activeCard.numberLabel} ${activeCard.title}!`);
+    }
+
+    setEditingRowModal(null);
+  };
+
+  const handleDeleteReportRow = (rowKey: string, cells: (string | number)[]) => {
+    // Also delete from underlying context where applicable
+    if (selectedReport === '1_MEMBERS') {
+      adminDeleteMember(String(cells[1]));
+    } else if (selectedReport === '3_PRODUCTS') {
+      adminDeleteProduct(String(cells[1]));
+    } else if (selectedReport === '4_ORDERS') {
+      adminDeleteOrder(String(cells[1]));
+    } else if (selectedReport === '5_SONGS') {
+      adminDeleteSong(String(cells[1]));
+    } else if (selectedReport === '6_PAYMENT_PROVED') {
+      const proofId = String(cells[1]);
+      if (customProofs.some((p) => p.id === proofId)) {
+        const next = customProofs.filter((p) => p.id !== proofId);
+        setCustomProofs(next);
+        try {
+          localStorage.setItem(PAYMENT_PROOF_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+    } else if (selectedReport === '8_PRIVACY_POLICY') {
+      adminDeletePrivacyPolicySection(String(cells[1]));
+    }
+
+    const currentCustom: ReportSheetCustomizations = reportOverrides[selectedReport] || {
+      editedRows: {},
+      deletedRowKeys: [],
+      addedRows: [],
+    };
+    const nextCustom: ReportSheetCustomizations = {
+      ...currentCustom,
+      deletedRowKeys: Array.from(new Set([...currentCustom.deletedRowKeys, rowKey])),
+      addedRows: currentCustom.addedRows.filter((r) => r.key !== rowKey),
+    };
+    saveReportOverrides({ ...reportOverrides, [selectedReport]: nextCustom });
+    triggerNotice(`Deleted row "${rowKey}" from ${activeCard.numberLabel} ${activeCard.title}.`);
+  };
+
+  const handleResetReportCustomizations = () => {
+    const next = { ...reportOverrides };
+    delete next[selectedReport];
+    saveReportOverrides(next);
+    triggerNotice(
+      `Reset custom table overrides for ${activeCard.numberLabel} ${activeCard.title}.`
     );
   };
 
   const handleAddProofSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const member = allMembers.find((m) => m.memberId === proofForm.memberId);
+
+    if (editingProofId) {
+      const next = customProofs.map((cp) =>
+        cp.id === editingProofId
+          ? {
+              ...cp,
+              referenceNo: proofForm.referenceNo.trim() || cp.referenceNo,
+              memberId: proofForm.memberId,
+              memberName: member?.name || proofForm.memberId,
+              paymentType: proofForm.paymentType,
+              bankName: proofForm.bankName.trim() || 'BCEL One',
+              accountOrTxNo: proofForm.accountOrTxNo.trim() || '-',
+              amountLak: Number(proofForm.amountLak) || 0,
+              status: proofForm.status,
+              proofImageUrl: proofForm.proofImageUrl.trim() || undefined,
+              note: proofForm.note.trim() || 'Verified by Administrator',
+            }
+          : cp
+      );
+      setCustomProofs(next);
+      try {
+        localStorage.setItem(PAYMENT_PROOF_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      setEditingProofId(null);
+      setShowAddProofModal(false);
+      triggerNotice(`Updated Payment Proved Record (${proofForm.referenceNo})!`);
+      return;
+    }
+
     const newRecord: CustomPaymentProofRecord = {
       id: `PRF-${Date.now().toString().slice(-6)}`,
       referenceNo: proofForm.referenceNo.trim() || `BCEL-${Date.now().toString().slice(-6)}`,
@@ -773,6 +1227,22 @@ export const AdminExcelReportHub: React.FC<{
     triggerNotice(`Added Payment Proved Record (${newRecord.referenceNo}) to Report #6!`);
   };
 
+  const handleOpenEditProof = (cp: CustomPaymentProofRecord) => {
+    setEditingProofId(cp.id);
+    setProofForm({
+      referenceNo: cp.referenceNo,
+      memberId: cp.memberId,
+      paymentType: cp.paymentType,
+      bankName: cp.bankName,
+      accountOrTxNo: cp.accountOrTxNo,
+      amountLak: cp.amountLak,
+      status: cp.status,
+      proofImageUrl: cp.proofImageUrl || '',
+      note: cp.note,
+    });
+    setShowAddProofModal(true);
+  };
+
   const handleDeleteCustomProof = (id: string) => {
     const next = customProofs.filter((p) => p.id !== id);
     setCustomProofs(next);
@@ -786,7 +1256,7 @@ export const AdminExcelReportHub: React.FC<{
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      {/* Top Banner & Master All-6 Workbook Export */}
+      {/* Top Banner & Master All-8 Workbook Export */}
       <div className="bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 border-2 border-emerald-500/40 rounded-3xl p-5 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -795,14 +1265,14 @@ export const AdminExcelReportHub: React.FC<{
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
                   <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-                  <span>Administrator Excel Report Center (Files 1 – 7)</span>
+                  <span>Administrator Report Files Center (Files 1 – 8 • Full CRUD)</span>
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
-                  OFFICIAL EXCEL (.XLS) & CSV
+                  EDIT • UPDATE • DELETE • EXCEL (.XLS) & CSV
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Instant 1-click download for all 7 required Administrator Excel Reports (including 7/ Report Down line Organize Tree File) with full Lao, Thai & English Unicode formatting.
+                Administrator can Edit, Update, Add, Delete, and Export all 8 Official Report Files (including 8/ Privacy & Policy File) in real time.
               </p>
             </div>
           </div>
@@ -810,11 +1280,23 @@ export const AdminExcelReportHub: React.FC<{
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowAddProofModal(true)}
+              onClick={handleOpenAddRowModal}
+              className="px-3.5 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/50 text-sky-300 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Row to {activeCard.numberLabel}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEditingProofId(null);
+                setShowAddProofModal(true);
+              }}
               className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Add Payment Proved Slip (Report #6)</span>
+              <span>+ Add Payment Proved (Report #6)</span>
             </button>
 
             <button
@@ -823,7 +1305,7 @@ export const AdminExcelReportHub: React.FC<{
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center gap-2 cursor-pointer shadow-lg"
             >
               <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Download All 7 Reports in 1 Excel Workbook (.xls)</span>
+              <span>Download All 8 Reports in 1 Excel Workbook (.xls)</span>
             </button>
           </div>
         </div>
@@ -846,9 +1328,9 @@ export const AdminExcelReportHub: React.FC<{
       </div>
 
       {/* ========================================================================
-          6 EXCEL REPORT CARDS (1-CLICK DOWNLOAD EXCEL .XLS OR .CSV + PREVIEW)
+          8 EXCEL REPORT CARDS (1-CLICK DOWNLOAD EXCEL .XLS OR .CSV + PREVIEW)
          ======================================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {reportCards.map((card) => {
           const Icon = card.icon;
           const isSelected = selectedReport === card.id;
@@ -866,13 +1348,13 @@ export const AdminExcelReportHub: React.FC<{
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.colorClass} border flex items-center justify-center font-black text-sm`}
+                      className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.colorClass} border flex items-center justify-center font-black text-sm shrink-0`}
                     >
                       <Icon className="w-4.5 h-4.5" />
                     </span>
                     <div>
                       <div className="text-[10px] font-mono uppercase font-black text-amber-400">
-                        EXCEL REPORT {card.numberLabel}
+                        REPORT FILE {card.numberLabel}
                       </div>
                       <h4 className="text-sm font-black text-white leading-tight">
                         {card.numberLabel} {card.title}
@@ -897,7 +1379,7 @@ export const AdminExcelReportHub: React.FC<{
                   className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Download Excel (.xls)</span>
+                  <span>Excel (.xls)</span>
                 </button>
 
                 <button
@@ -924,7 +1406,7 @@ export const AdminExcelReportHub: React.FC<{
                       ? 'bg-amber-500/20 border-amber-400 text-amber-300'
                       : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
                   }`}
-                  title="Preview Report Table Below"
+                  title="Preview & Edit Report Table Below"
                 >
                   <Eye className="w-3.5 h-3.5" />
                 </button>
@@ -946,12 +1428,15 @@ export const AdminExcelReportHub: React.FC<{
                 <span>6/ Verified Payment Proved Slips & Bank Settlement Records</span>
               </h4>
               <p className="text-[11px] text-slate-400">
-                Administrator can upload or log new verified BCEL One / Lao QR payment proof slips here; all records are automatically included in the 6/ Payment Proved Excel file.
+                Administrator can upload, edit, update, or delete verified BCEL One / Lao QR payment proof slips here.
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setShowAddProofModal(true)}
+              onClick={() => {
+                setEditingProofId(null);
+                setShowAddProofModal(true);
+              }}
               className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
             >
               <Upload className="w-3.5 h-3.5" />
@@ -994,14 +1479,24 @@ export const AdminExcelReportHub: React.FC<{
                     <div className="text-[10px] text-slate-500 truncate">{cp.note}</div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteCustomProof(cp.id)}
-                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 cursor-pointer shrink-0"
-                  title="Delete Payment Proof Record"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditProof(cp)}
+                    className="p-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/25 text-sky-400 cursor-pointer"
+                    title="Edit Payment Proof Record"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomProof(cp.id)}
+                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 cursor-pointer"
+                    title="Delete Payment Proof Record"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1009,17 +1504,17 @@ export const AdminExcelReportHub: React.FC<{
       )}
 
       {/* ========================================================================
-          LIVE INTERACTIVE EXCEL SPREADSHEET TABLE PREVIEW
+          LIVE INTERACTIVE EXCEL SPREADSHEET TABLE PREVIEW (WITH EDIT & DELETE)
          ======================================================================== */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
         <div className="p-4 sm:p-5 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
-                LIVE EXCEL PREVIEW
+                LIVE EDITABLE REPORT FILE
               </span>
               <h4 className="text-sm sm:text-base font-black text-white">
-                {activeCard.numberLabel} {activeCard.title} ({filteredRows.length} rows)
+                {activeCard.numberLabel} {activeCard.title} ({filteredKeyedRows.length} rows)
               </h4>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">{activeSheet.subtitle}</p>
@@ -1033,9 +1528,30 @@ export const AdminExcelReportHub: React.FC<{
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter rows in sheet..."
-                className="bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 w-44 sm:w-56"
+                className="bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 w-44 sm:w-52"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={handleOpenAddRowModal}
+              className="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Row</span>
+            </button>
+
+            {reportOverrides[selectedReport] && (
+              <button
+                type="button"
+                onClick={handleResetReportCustomizations}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                title="Reset custom row edits for this report"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Sheet</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -1057,10 +1573,13 @@ export const AdminExcelReportHub: React.FC<{
           </div>
         </div>
 
-        <div className="overflow-x-auto max-h-[460px]">
+        <div className="overflow-x-auto max-h-[500px]">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-slate-950 text-amber-300 border-b-2 border-amber-500/40">
               <tr>
+                <th className="py-2.5 px-3 font-black uppercase tracking-wider text-[10px] whitespace-nowrap border-r border-slate-800/80 bg-slate-950 sticky left-0 z-20">
+                  Admin Actions
+                </th>
                 {activeSheet.headers.map((h, i) => (
                   <th
                     key={i}
@@ -1072,28 +1591,53 @@ export const AdminExcelReportHub: React.FC<{
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/70">
-              {filteredRows.length > 0 ? (
-                filteredRows.map((row, rIdx) => (
+              {filteredKeyedRows.length > 0 ? (
+                filteredKeyedRows.map(({ key, cells }, rIdx) => (
                   <tr
-                    key={rIdx}
+                    key={key}
                     className={
                       rIdx % 2 === 0
                         ? 'bg-slate-900/60 hover:bg-slate-800/70'
                         : 'bg-slate-950/40 hover:bg-slate-800/70'
                     }
                   >
-                    {row.map((cell, cIdx) => {
+                    {/* Admin Edit / Update / Delete Action Buttons on Every Row */}
+                    <td className="py-2 px-3 whitespace-nowrap border-r border-slate-800/60 bg-slate-950/90 sticky left-0 z-10">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditRowModal(key, cells)}
+                          className="px-2 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-500/40 text-sky-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                          title="Edit / Update this Report Row"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteReportRow(key, cells)}
+                          className="p-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 cursor-pointer"
+                          title="Delete this Report Row"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </td>
+
+                    {cells.map((cell, cIdx) => {
                       const isNum = typeof cell === 'number';
                       return (
                         <td
                           key={cIdx}
-                          className={`py-2 px-3 whitespace-nowrap border-r border-slate-800/40 last:border-r-0 ${
+                          onClick={() => handleOpenEditRowModal(key, cells)}
+                          className={`py-2 px-3 whitespace-nowrap border-r border-slate-800/40 last:border-r-0 cursor-pointer ${
                             isNum
                               ? 'text-right font-mono font-bold text-emerald-300'
                               : cIdx === 1 || cIdx === 2
                               ? 'font-bold text-white'
                               : 'text-slate-300'
                           }`}
+                          title="Click to edit this row"
                         >
                           {isNum ? cell.toLocaleString() : cell}
                         </td>
@@ -1104,7 +1648,7 @@ export const AdminExcelReportHub: React.FC<{
               ) : (
                 <tr>
                   <td
-                    colSpan={activeSheet.headers.length}
+                    colSpan={activeSheet.headers.length + 1}
                     className="py-8 text-center text-slate-500 font-semibold"
                   >
                     No matching records found for "{searchQuery}".
@@ -1117,7 +1661,124 @@ export const AdminExcelReportHub: React.FC<{
       </div>
 
       {/* ========================================================================
-          MODAL: ADD / UPLOAD PAYMENT PROVED RECORD (FOR REPORT #6)
+          MODAL: UNIVERSAL REPORT ROW EDITOR (EDIT / UPDATE / ADD ANY REPORT ROW)
+         ======================================================================== */}
+      {editingRowModal && (
+        <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl text-white overflow-hidden">
+            <div className="px-5 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white">
+                    {editingRowModal.mode === 'EDIT'
+                      ? `Edit & Update Report Row (${editingRowModal.rowKey})`
+                      : `Add New Row to ${activeCard.numberLabel} ${activeCard.title}`}
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Changes automatically synchronize with live system records and exported Excel (.xls) / CSV files.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRowModal(null)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSaveRowModal}
+              className="flex-1 overflow-y-auto p-5 space-y-3 text-xs"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {editingRowModal.headers.map((headerLabel, colIdx) => {
+                  const val = editingRowModal.values[colIdx] ?? '';
+                  const isRowNumber = colIdx === 0;
+                  const isNumericCol =
+                    typeof val === 'number' ||
+                    headerLabel.toLowerCase().includes('(lak)') ||
+                    headerLabel.toLowerCase().includes('amount') ||
+                    headerLabel.toLowerCase().includes('price') ||
+                    headerLabel.toLowerCase().includes('count') ||
+                    headerLabel.toLowerCase().includes('progress');
+
+                  return (
+                    <div
+                      key={colIdx}
+                      className={
+                        headerLabel.toLowerCase().includes('clause') ||
+                        headerLabel.toLowerCase().includes('summary') ||
+                        headerLabel.toLowerCase().includes('note') ||
+                        headerLabel.toLowerCase().includes('sku')
+                          ? 'sm:col-span-2'
+                          : ''
+                      }
+                    >
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        {headerLabel}
+                      </label>
+                      <input
+                        type={isNumericCol && !isRowNumber ? 'number' : 'text'}
+                        disabled={isRowNumber}
+                        value={val}
+                        onChange={(e) => {
+                          const rawVal = e.target.value;
+                          const parsedVal =
+                            isNumericCol && !isRowNumber
+                              ? rawVal === ''
+                                ? 0
+                                : Number(rawVal)
+                              : rawVal;
+                          setEditingRowModal((prev) => {
+                            if (!prev) return null;
+                            const nextVals = [...prev.values];
+                            nextVals[colIdx] = parsedVal;
+                            return { ...prev, values: nextVals };
+                          });
+                        }}
+                        className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-400 ${
+                          isRowNumber
+                            ? 'text-slate-500 cursor-not-allowed'
+                            : isNumericCol
+                            ? 'text-emerald-300 font-mono font-bold'
+                            : 'text-white'
+                        }`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRowModal(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-lg"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>
+                    {editingRowModal.mode === 'EDIT' ? 'Save & Update Report Row' : 'Add Report Row'}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================
+          MODAL: ADD / EDIT PAYMENT PROVED RECORD (FOR REPORT #6)
          ======================================================================== */}
       {showAddProofModal && (
         <div className="fixed inset-0 z-[130] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -1126,12 +1787,17 @@ export const AdminExcelReportHub: React.FC<{
               <div className="flex items-center gap-2">
                 <FileCheck2 className="w-5 h-5 text-emerald-400" />
                 <h4 className="text-sm font-black text-white">
-                  Add / Upload Payment Proved Record (Report #6)
+                  {editingProofId
+                    ? 'Edit Payment Proved Record (Report #6)'
+                    : 'Add / Upload Payment Proved Record (Report #6)'}
                 </h4>
               </div>
               <button
                 type="button"
-                onClick={() => setShowAddProofModal(false)}
+                onClick={() => {
+                  setEditingProofId(null);
+                  setShowAddProofModal(false);
+                }}
                 className="px-2 py-1 rounded bg-slate-800 text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
               >
                 ✕
@@ -1297,7 +1963,10 @@ export const AdminExcelReportHub: React.FC<{
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddProofModal(false)}
+                  onClick={() => {
+                    setEditingProofId(null);
+                    setShowAddProofModal(false);
+                  }}
                   className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold cursor-pointer"
                 >
                   Cancel
@@ -1306,7 +1975,7 @@ export const AdminExcelReportHub: React.FC<{
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 text-slate-950 font-black cursor-pointer shadow"
                 >
-                  Save Payment Proved Record
+                  {editingProofId ? 'Update Payment Proved Record' : 'Save Payment Proved Record'}
                 </button>
               </div>
             </form>

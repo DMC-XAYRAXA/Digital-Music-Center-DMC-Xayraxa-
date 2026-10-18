@@ -60,6 +60,7 @@ import { AdminExcelReportHub, AdminReportId } from './AdminExcelReportHub';
 import { AdminCompanyProfilePdfHub } from './AdminCompanyProfilePdfHub';
 import { AdminBusinessCardStudio } from './AdminBusinessCardStudio';
 import { AdminStepByStepPdfHub } from './AdminStepByStepPdfHub';
+import { AdminPrivacyPolicyHub } from './AdminPrivacyPolicyHub';
 import {
   DEFAULT_COMPANY_PROFILE_DATA,
   downloadCompanyProfilePdf,
@@ -145,10 +146,11 @@ export const AdminPortal: React.FC = () => {
     adminDeleteStaffMember,
     adminResetStaffMembers,
     adminUpgradeMemberToStaff,
-    adminDowngradeStaffToMember
+    adminDowngradeStaffToMember,
+    privacyPolicySections,
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'MEMBERS' | 'STAFF' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
+  const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'PRIVACY_POLICY' | 'MEMBERS' | 'STAFF' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
   const [adminStaffFilterPos, setAdminStaffFilterPos] = useState<StaffPosition | 'ALL'>('ALL');
   const [adminEditingStaffId, setAdminEditingStaffId] = useState<string | null>(null);
   const [adminSelectedMemberToUpgrade, setAdminSelectedMemberToUpgrade] = useState<string>('');
@@ -762,356 +764,12 @@ export const AdminPortal: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-16 animate-in fade-in">
-      {/* Admin Title & Security Level Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <DmcOfficialLogo size={46} rounded="2xl" withGoldRing={true} className="shrink-0" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-white tracking-tight">
-                  DMC Internal Web Admin Portal
-                </h2>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-red-500/20 text-red-300 border border-red-500/30 font-bold">
-                  MASTER CRUD CONTROL
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Full Add, Edit, Update & Delete permissions across Members, Products, Orders, Songs, and Commission Rules.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setActiveAdminTab('BUSINESS_CARDS')}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#df1c2d] via-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              title="Open 1/ Design Business Cards Studio & Print Hub"
-            >
-              <CreditCard className="w-4 h-4 stroke-[2.5]" />
-              <span>1/ Design Business Cards</span>
-            </button>
-
-            <button
-              onClick={() => setActiveAdminTab('STEP_BY_STEP_PDF')}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-[#df1c2d] hover:from-indigo-500 hover:to-red-500 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              title="Open 2/ DMC_Xayraxa_Step_By_Step_Summary PDF Hub"
-            >
-              <FileText className="w-4 h-4 stroke-[2.5]" />
-              <span>2/ DMC_Xayraxa_Step_By_Step_Summary (.PDF)</span>
-            </button>
-
-            <button
-              onClick={() => setActiveAdminTab('COMPANY_PROFILE_PDF')}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              title="Open Company Profile Digital Music Center PDF File Hub"
-            >
-              <FileText className="w-4 h-4 stroke-[2.5]" />
-              <span>Company Profile DMC (.PDF)</span>
-            </button>
-
-            <button
-              onClick={() => setActiveAdminTab('EXCEL_REPORTS')}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
-              title="Open Administrator Excel Report Center (Files 1 - 7)"
-            >
-              <FileSpreadsheet className="w-4 h-4 stroke-[2.5]" />
-              <span>Excel Reports (Files 1–7)</span>
-            </button>
-
-            <button
-              onClick={() => setActiveAdminTab('ADMIN_PROFILE')}
-              className="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-              title="Update Super Admin or Member Profile, Password & Phone SMS Recovery (+856)"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-sky-400" />
-              <span>Profile, Password & SMS Recovery (+856)</span>
-            </button>
-
-            <button
-              onClick={() => {
-                const musicCore = products.find(p => p.sku === 'MUSIC_SINGLE_1600');
-                if (musicCore) setEditingProduct(musicCore);
-              }}
-              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-              title="Edit MUSIC_SINGLE_1600 price, 1 song entitlement, and 400k/200k/100k splits"
-            >
-              <Music className="w-3.5 h-3.5 text-amber-400" />
-              <span>Edit Core Product (MUSIC_SINGLE_1600)</span>
-            </button>
-            <div className="text-right text-xs font-mono text-slate-400 hidden sm:block">
-              <div>Logged in: <strong className="text-amber-300">{superAdminProfile.operatorId}</strong></div>
-              <div className="text-emerald-400 text-[11px]">{superAdminProfile.phone} • SMS READY</div>
-            </div>
-          </div>
+      {successBanner && (
+        <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-semibold">{successBanner}</span>
         </div>
-
-        {/* Official PDF Dossier, Business Cards & Quick 7-File Excel Report Strip in Admin Header */}
-        <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
-          {/* Featured 1/ Design Business Cards & 2/ DMC_Xayraxa_Step_By_Step_Summary PDF Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-            {/* 1/ Design Business Cards Card */}
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-[#df1c2d]/20 via-slate-900 to-amber-500/15 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-[#df1c2d] text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-black text-white">
-                      1/ Design Business Cards (Front & Back + A4 8-Card Print Sheet)
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      300 DPI .PDF & .PNG
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">
-                    ອອກແບບນາມບັດບໍລິຫານ ແລະ ສະມາຊິກ DMC Xayraxa (4 ຮູບແບບ • ພາສາລາວ & English)
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveAdminTab('BUSINESS_CARDS')}
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
-                >
-                  <CreditCard className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Open Business Card Studio</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 2/ DMC_Xayraxa_Step_By_Step_Summary PDF Card */}
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/20 via-slate-900 to-emerald-500/15 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-amber-400 text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-black text-white">
-                      2/ DMC_Xayraxa_Step_By_Step_Summary PDF (ພາສາລາວ & English)
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      10 STEPS • 3-PAGE .PDF
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">
-                    ຄູ່ມືສະຫຼຸບ 10 ຂັ້ນຕອນ: ສະໝັກສະມາຊິກ, 1.6M LAK, Unilevel 3 ຊັ້ນ, ກະເປົາເງິນ 5 ບັນຊີ & ຫ້ອງອັດສຽງ
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setActiveAdminTab('STEP_BY_STEP_PDF')}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs cursor-pointer"
-                >
-                  Preview PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadStepByStepSummaryPdf(
-                      DEFAULT_STEP_BY_STEP_SUMMARY_DATA,
-                      '2_DMC_Xayraxa_Step_By_Step_Summary_Lao.pdf',
-                      'LO'
-                    );
-                    showNotification(
-                      'ດາວໂຫຼດ 2_DMC_Xayraxa_Step_By_Step_Summary_Lao.pdf (ພາສາລາວ) ສຳເລັດແລ້ວ!'
-                    );
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center gap-1 shadow cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>🇱🇦 Lao .PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadStepByStepSummaryPdf(
-                      DEFAULT_STEP_BY_STEP_SUMMARY_DATA,
-                      '2_DMC_Xayraxa_Step_By_Step_Summary.pdf',
-                      'EN'
-                    );
-                    showNotification(
-                      'Downloaded 2_DMC_Xayraxa_Step_By_Step_Summary.pdf (English Version)!'
-                    );
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1 shadow cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>🇬🇧 EN .PDF</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Featured Company Profile Digital Music Center PDF Strip */}
-          <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-black text-white">
-                    1/ Company Profile — Digital Music Center (DMC) Official PDF File (ພາສາລາວ & English)
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    LAO & EN 4-PAGE A4 .PDF
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300">
-                  ໂປຣໄຟລ໌ບໍລິສັດ ສະບັບພາສາລາວ ແລະ ພາສາອັງກິດ • Statutory Registration, 5-Stage Music Studio, 1.6M LAK Package & Lao Banks
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveAdminTab('COMPANY_PROFILE_PDF')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs cursor-pointer transition-colors"
-              >
-                Preview & Edit PDF
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  let savedProfile = DEFAULT_COMPANY_PROFILE_DATA;
-                  try {
-                    const raw = localStorage.getItem('dmc_company_profile_pdf_v28');
-                    if (raw) savedProfile = { ...DEFAULT_COMPANY_PROFILE_DATA, ...JSON.parse(raw) };
-                  } catch {
-                    // ignore
-                  }
-                  const activeLifetimeMembers = allMembers.filter(
-                    m => m.membershipState === 'ACTIVE_LIFETIME_MEMBER'
-                  ).length;
-                  const totalSongs = allMembers.reduce(
-                    (sum, m) => sum + getMemberSongs(m.memberId).length,
-                    0
-                  );
-                  downloadCompanyProfilePdf(
-                    savedProfile,
-                    {
-                      totalMembers: allMembers.length,
-                      activeLifetimeMembers,
-                      totalProducts: products.length,
-                      totalOrders: orders.length,
-                      totalSongs,
-                      totalBanks: laoBanks.length,
-                      supportedBanksList: laoBanks.map(b => `${b.code} (${b.name})`),
-                      shippingCarriersList: shippingCarriers.map(c => c.name),
-                    },
-                    '1_DMC_Company_Profile_Lao_Version.pdf',
-                    'LO'
-                  );
-                  showNotification(
-                    'ດາວໂຫຼດ ໂປຣໄຟລ໌ບໍລິສັດ ສະບັບພາສາລາວ (1_DMC_Company_Profile_Lao_Version.pdf) ສຳເລັດແລ້ວ!'
-                  );
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#df1c2d] to-[#b50f1f] hover:from-red-600 hover:to-red-700 text-white font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>🇱🇦 PDF ພາສາລາວ (.pdf)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  let savedProfile = DEFAULT_COMPANY_PROFILE_DATA;
-                  try {
-                    const raw = localStorage.getItem('dmc_company_profile_pdf_v28');
-                    if (raw) savedProfile = { ...DEFAULT_COMPANY_PROFILE_DATA, ...JSON.parse(raw) };
-                  } catch {
-                    // ignore
-                  }
-                  const activeLifetimeMembers = allMembers.filter(
-                    m => m.membershipState === 'ACTIVE_LIFETIME_MEMBER'
-                  ).length;
-                  const totalSongs = allMembers.reduce(
-                    (sum, m) => sum + getMemberSongs(m.memberId).length,
-                    0
-                  );
-                  downloadCompanyProfilePdf(
-                    savedProfile,
-                    {
-                      totalMembers: allMembers.length,
-                      activeLifetimeMembers,
-                      totalProducts: products.length,
-                      totalOrders: orders.length,
-                      totalSongs,
-                      totalBanks: laoBanks.length,
-                      supportedBanksList: laoBanks.map(b => `${b.code} (${b.name})`),
-                      shippingCarriersList: shippingCarriers.map(c => c.name),
-                    },
-                    '1_DMC_Company_Profile_English_Version.pdf',
-                    'EN'
-                  );
-                  showNotification(
-                    'Downloaded English Company Profile PDF (1_DMC_Company_Profile_English_Version.pdf)!'
-                  );
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>🇬🇧 PDF English (.pdf)</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Administrator Official Excel Report Files (1 – 7):</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setActiveAdminTab('EXCEL_REPORTS')}
-              className="text-[11px] font-bold text-amber-300 hover:underline cursor-pointer"
-            >
-              Open Full Excel Report Center →
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-            {[
-              { id: '1_MEMBERS' as AdminReportId, label: '1/ Register Member CRUD' },
-              { id: '2_PASSWORDS' as AdminReportId, label: '2/ Admin & User Password' },
-              { id: '3_PRODUCTS' as AdminReportId, label: '3/ Products & SKUs' },
-              { id: '4_ORDERS' as AdminReportId, label: '4/ Orders & Shipping' },
-              { id: '5_SONGS' as AdminReportId, label: '5/ Studio Song File' },
-              { id: '6_PAYMENT_PROVED' as AdminReportId, label: '6/ Payment Proved' },
-              { id: '7_ORGANIZE_TREE' as AdminReportId, label: '7/ Downline Organize Tree' },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setSelectedExcelReport(item.id);
-                  setActiveAdminTab('EXCEL_REPORTS');
-                }}
-                className={`px-2.5 py-2 rounded-xl border text-left text-[11px] font-extrabold flex items-center justify-between gap-1.5 transition-all cursor-pointer ${
-                  activeAdminTab === 'EXCEL_REPORTS' && selectedExcelReport === item.id
-                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-md'
-                    : 'bg-slate-950/90 hover:bg-slate-800 text-slate-200 border-slate-800 hover:border-emerald-500/50'
-                }`}
-              >
-                <span className="truncate">{item.label}</span>
-                <Download className="w-3 h-3 shrink-0 text-emerald-400" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {successBanner && (
-          <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="font-semibold">{successBanner}</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
@@ -1119,7 +777,8 @@ export const AdminPortal: React.FC = () => {
           { id: 'BUSINESS_CARDS', label: '1/ Design Business Cards', icon: CreditCard, count: 4 },
           { id: 'STEP_BY_STEP_PDF', label: '2/ Step-By-Step Summary PDF', icon: FileText, count: 10 },
           { id: 'COMPANY_PROFILE_PDF', label: 'Company Profile PDF', icon: FileText, count: 4 },
-          { id: 'EXCEL_REPORTS', label: 'Excel Reports (1-7)', icon: FileSpreadsheet, count: 7 },
+          { id: 'EXCEL_REPORTS', label: 'Report Files CRUD (1-8)', icon: FileSpreadsheet, count: 8 },
+          { id: 'PRIVACY_POLICY', label: 'Privacy & Policy CRUD', icon: ShieldCheck, count: privacyPolicySections.length },
           { id: 'MEMBERS', label: 'Members CRUD', icon: Users, count: allMembers.length },
           { id: 'STAFF', label: 'Staff & Positions (8)', icon: Users, count: staffMembers.length },
           { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
@@ -1173,9 +832,14 @@ export const AdminPortal: React.FC = () => {
         <AdminCompanyProfilePdfHub />
       )}
 
-      {/* ================= TAB: EXCEL REPORTS CENTER (FILES 1 - 7) ================= */}
+      {/* ================= TAB: EXCEL REPORTS CENTER (FILES 1 - 8) ================= */}
       {activeAdminTab === 'EXCEL_REPORTS' && (
         <AdminExcelReportHub key={selectedExcelReport} initialReport={selectedExcelReport} />
+      )}
+
+      {/* ================= TAB: PRIVACY & POLICY + MEMBERSHIP TERMS CRUD ================= */}
+      {activeAdminTab === 'PRIVACY_POLICY' && (
+        <AdminPrivacyPolicyHub />
       )}
 
       {/* ================= TAB: DOWNLINE ORGANIZE TREE ================= */}

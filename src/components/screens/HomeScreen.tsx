@@ -1969,7 +1969,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Button 4: Academy (Cyan Gradient with Clean White Graduation Cap Icon) */}
             <button
               onClick={() => onNavigate('academy')}
-              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.academy ? (
@@ -1985,7 +1985,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   </svg>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
+              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnAcademy}
               </span>
             </button>
@@ -1993,7 +1993,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Button 5: Music Hub (Electric Sky Blue Gradient with Clean White Headphones Icon — Placed between Academy and Staff) */}
             <button
               onClick={() => onNavigate('musichub')}
-              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.musicHub ? (
@@ -2003,21 +2003,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Headphones className="w-4 h-4 text-white stroke-[2.2]" />
+                  <Headphones className="w-5 h-5 text-white stroke-[2.2]" />
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
+              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnMusicHub}
               </span>
             </button>
 
-            {/* Button 6: Staff (Electric Sky Blue Gradient with Clean White 3-People Team Icon — Opens DMC Staff & 8 Positions Modal) */}
+            {/* Button 6: Staff (Royal Blue Gradient with Clean White 3-People Team Icon — Opens DMC Staff & 8 Positions Modal) */}
             <button
               onClick={() => {
                 setStaffModalMode('LIST');
                 setShowStaffModal(true);
               }}
-              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
+              className="bg-gradient-to-br from-[#1d63dc] to-[#1545a8] shadow-md shadow-blue-600/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
               title="DMC Staff & 8 Positions (Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time)"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
@@ -2042,18 +2042,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   </svg>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
-                Staff ({staffMembers.length})
+              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+                Staff
               </span>
             </button>
 
-            {/* Button 6: Promotions (Hot Pink Gradient with Clean White Guitar Icon) */}
+            {/* Button 7: Promotions (Hot Pink Gradient with Clean White Guitar Icon) */}
             <button
               onClick={() => {
                 setPromotionModalMode('LIST');
                 setShowPromotionsModal(true);
               }}
-              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.promotions ? (
@@ -2064,20 +2064,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   />
                 ) : (
                   /* Clean White Acoustic Guitar Icon (Larger & Fuller Proportion) */
-                  <svg viewBox="2.5 0.2 19.8 20.2" className="w-6 h-6 text-white" fill="currentColor">
+                  <svg viewBox="2.5 0.2 19.8 20.2" className="w-5 h-5 text-white" fill="currentColor">
                     <path d="M19.8 2.2L21.8 4.2C22.2 4.6 22.2 5.2 21.8 5.6L19.9 7.5L18.5 6.1L14.2 10.4C15.3 11.8 15.4 13.7 14.2 15.2C13.6 15.9 12.8 16.4 12 16.6C11.8 17.5 11.3 18.3 10.6 19C8.9 20.6 6.1 20.4 4.4 18.7L5.3 17.8C3.6 16.1 3.4 13.3 5 11.6C5.7 10.9 6.5 10.4 7.4 10.2C7.6 9.4 8.1 8.6 8.8 8C10.3 6.8 12.2 6.9 13.6 8L17.9 3.7L16.5 2.3L18.4 0.4C18.8 0 19.4 0 19.8 2.2ZM9.6 12.6C8.8 13.4 8.8 14.7 9.6 15.5C10.4 16.3 11.7 16.3 12.5 15.5C13.3 14.7 13.3 13.4 12.5 12.6C11.7 11.8 10.4 11.8 9.6 12.6ZM6.4 15.3L8.7 17.6L7.5 18.8L5.2 16.5L6.4 15.3Z" />
                   </svg>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
-                {t.btnPromotions} ({promotions.length})
+              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+                {t.btnPromotions}
               </span>
             </button>
 
-            {/* Button 7: Support (Deep Purple Gradient) */}
+            {/* Button 8: Support (Deep Purple Gradient) */}
             <button
               onClick={() => setShowSupportModal(true)}
-              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl p-2 flex flex-col items-center justify-between text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.support ? (
@@ -2087,409 +2087,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <HelpCircle className="w-4 h-4 text-white stroke-[2.2]" />
+                  <HelpCircle className="w-5 h-5 text-white stroke-[2.2]" />
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
+              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnSupport}
               </span>
             </button>
-          </div>
-
-          {/* 3B: DOWNLINE ORGANIZE TREE BANNER (Allow Administrator and User to see their Downline Organize) */}
-          <div className="rounded-2xl bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 text-white p-3 shadow-lg border border-purple-400/40 flex items-center justify-between gap-2.5">
-            <div
-              onClick={() => setShowOrganizeModal(true)}
-              className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/15 border border-purple-300/30 flex items-center justify-center shrink-0">
-                <Users className="w-5 h-5 text-amber-300" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-white truncate">
-                    Downline Organize (3-Level Tree)
-                  </span>
-                  <span className="px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
-                    {totalMyDownlines} Members
-                  </span>
-                </div>
-                <div className="text-[10px] text-purple-200 truncate mt-0.5 font-mono">
-                  L1: {myDownlines.l1.length} • L2: {myDownlines.l2.length} • L3: {myDownlines.l3.length} ({isAdmin ? 'Admin & User Tree' : 'My Organize Tree'})
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowOrganizeModal(true)}
-                className="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black cursor-pointer shadow"
-              >
-                Organize Chart
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('network')}
-                className="px-2 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[10px] font-bold cursor-pointer"
-              >
-                Full View →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* =====================================================================
-            Section 4: BANNER PRODUCTS SHOWCASE (Hero Carousel + Product Banners + Admin CRUD)
-           ===================================================================== */}
-        <div className="pt-2 space-y-3">
-          {/* Header Row with Administrator Upload / Add Product Button */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div className="p-1.5 rounded-lg bg-red-50 text-[#df1c2d] shrink-0">
-                <Flame className="w-4 h-4 fill-[#df1c2d]" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-black text-indigo-950 tracking-tight leading-none truncate">
-                  {t.featuredBannerProductsTitle}
-                </h3>
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
-                  {t.featuredBannerProductsSub}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={openCreateProductModal}
-                  className="px-2.5 py-1 rounded-full bg-indigo-950 hover:bg-slate-800 text-amber-300 text-[10px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
-                  title="Administrator: Upload New Product Image & Details"
-                >
-                  <Upload className="w-3 h-3" />
-                  <span>+ Product</span>
-                </button>
-              )}
-              <button
-                onClick={() => onNavigate('catalog')}
-                className="px-2.5 py-1 rounded-full bg-[#df1c2d]/10 hover:bg-[#df1c2d]/20 text-[#df1c2d] text-[10px] font-extrabold transition-colors cursor-pointer shrink-0"
-              >
-                {t.viewAllFour}
-              </button>
-            </div>
-          </div>
-
-          {/* DMC Product & Music Course Official Pricing Structure Card */}
-          <DmcPricingStructureCard
-            marketPriceLak={currentHeroProduct?.marketPriceLak ?? DMC_STANDARD_PRICING.marketPriceLak}
-            memberPriceLak={currentHeroProduct?.priceLak ?? DMC_STANDARD_PRICING.memberPriceLak}
-            memberDiscountLak={currentHeroProduct?.memberDiscountLak ?? DMC_STANDARD_PRICING.memberDiscountLak}
-            commissionPoolLak={currentHeroProduct?.commissionPoolLak ?? DMC_STANDARD_PRICING.commissionPoolLak}
-            l1Percent={
-              currentHeroProduct?.splitRule.ruleType === 'POOL_PERCENTAGE'
-                ? currentHeroProduct.splitRule.l1Share
-                : DMC_STANDARD_PRICING.l1Percent
-            }
-            l2Percent={
-              currentHeroProduct?.splitRule.ruleType === 'POOL_PERCENTAGE'
-                ? currentHeroProduct.splitRule.l2Share
-                : DMC_STANDARD_PRICING.l2Percent
-            }
-            l3Percent={
-              currentHeroProduct?.splitRule.ruleType === 'POOL_PERCENTAGE'
-                ? currentHeroProduct.splitRule.l3Share
-                : DMC_STANDARD_PRICING.l3Percent
-            }
-            title="DMC Product & Music Course Pricing Structure"
-            subtitle="Commission calculated from 450,000 LAK pool (not member discount)"
-            compact={true}
-            onSavePricing={
-              isAdmin && currentHeroProduct
-                ? (values) => {
-                    adminUpdateProduct(currentHeroProduct.sku, {
-                      marketPriceLak: values.marketPriceLak,
-                      priceLak: values.memberPriceLak,
-                      memberDiscountLak: values.memberDiscountLak,
-                      commissionPoolLak: values.commissionPoolLak,
-                      splitRule: {
-                        ruleType: 'POOL_PERCENTAGE',
-                        l1Share: values.l1Percent,
-                        l2Share: values.l2Percent,
-                        l3Share: values.l3Percent,
-                      },
-                    });
-                    setRedemptionNotice(
-                      `Updated pricing for ${currentHeroProduct.sku} (${formatNumberWithCommas(values.memberPriceLak)} LAK)`
-                    );
-                    setTimeout(() => setRedemptionNotice(null), 3500);
-                  }
-                : undefined
-            }
-          />
-
-          {/* 4A. Interactive Hero Product Banner Carousel */}
-          {currentHeroProduct && currentHeroLocalized && (
-            <div className="relative rounded-2xl overflow-hidden shadow-lg border border-amber-400/50 bg-slate-900 text-white group">
-              {/* Background Product Image with Rich Overlay */}
-              <div className="relative h-44 sm:h-48 w-full overflow-hidden">
-                <img
-                  src={currentHeroProduct.imageUrl}
-                  alt={currentHeroLocalized.title}
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/20" />
-
-                {/* Top Badges + Admin Edit/Upload/Delete Controls */}
-                <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#f5a623] to-[#e69110] text-slate-950 text-[10px] font-black uppercase tracking-wider shadow truncate">
-                      {currentHeroLocalized.categoryBadge}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-slate-950 text-[10px] font-black font-mono shadow hidden xs:inline">
-                      {t.poolLabel}: {formatNumberWithCommas(currentHeroProduct.commissionPoolLak)} LAK
-                    </span>
-                  </div>
-
-                  {/* Admin Quick Upload Image / Edit / Delete on Hero Product — ADMINISTRATOR ONLY */}
-                  {isAdmin && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditProductModal(currentHeroProduct);
-                        }}
-                        className="px-2 py-1 rounded-lg bg-sky-500/90 hover:bg-sky-500 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
-                        title="Administrator Only: Upload Product Image / Edit / Update"
-                      >
-                        <Pencil className="w-3 h-3" />
-                        <span>Edit / Image</span>
-                      </button>
-                      {products.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            adminDeleteProduct(currentHeroProduct.sku);
-                            setActiveBannerIdx(0);
-                            setRedemptionNotice(`Deleted product ${currentHeroProduct.sku}`);
-                            setTimeout(() => setRedemptionNotice(null), 3500);
-                          }}
-                          className="p-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
-                          title="Administrator Only: Delete Product"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Prev / Next Carousel Buttons */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActiveBannerIdx((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length)
-                  }
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 text-white border border-white/20 flex items-center justify-center cursor-pointer"
-                  aria-label="Previous Product Banner"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveBannerIdx((prev) => (prev + 1) % featuredProducts.length)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 text-white border border-white/20 flex items-center justify-center cursor-pointer"
-                  aria-label="Next Product Banner"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-
-                {/* Bottom Product Banner Info & CTA */}
-                <div className="absolute bottom-0 inset-x-0 p-3.5 flex items-end justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-mono text-amber-300 font-bold uppercase truncate">
-                      SKU: {currentHeroProduct.sku}
-                    </div>
-                    <h4 className="text-sm sm:text-base font-black text-white leading-tight line-clamp-1">
-                      {currentHeroLocalized.title}
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                      {currentHeroProduct.marketPriceLak && currentHeroProduct.marketPriceLak > currentHeroProduct.priceLak && (
-                        <span className="text-[11px] font-mono text-slate-300 line-through">
-                          Market: {formatNumberWithCommas(currentHeroProduct.marketPriceLak)} LAK
-                        </span>
-                      )}
-                      <span className="text-sm font-black text-amber-400 font-mono">
-                        DMC Member: {formatNumberWithCommas(currentHeroProduct.priceLak)} LAK
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (currentHeroProduct.sku === 'MUSIC_SINGLE_1600') {
-                        setShowDirectPayQr(true);
-                      } else {
-                        setSelectedBannerProductForQr(currentHeroProduct);
-                      }
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#e0192d] to-[#bd0d1e] hover:from-red-600 hover:to-red-700 text-white font-black text-xs shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer"
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>{t.buyNowBtn}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Carousel Dots Bar */}
-              <div className="bg-slate-950 px-3 py-1.5 flex items-center justify-between border-t border-white/10">
-                <span className="text-[10px] text-slate-400 font-medium truncate">
-                  {currentHeroLocalized.description}
-                </span>
-                <div className="flex items-center gap-1 shrink-0 ml-2">
-                  {featuredProducts.map((p, idx) => (
-                    <button
-                      key={p.sku}
-                      type="button"
-                      onClick={() => setActiveBannerIdx(idx)}
-                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        idx === activeBannerIdx ? 'w-4 bg-amber-400' : 'w-1.5 bg-slate-600'
-                      }`}
-                      aria-label={`Slide ${idx + 1}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4B. Visual Banner Products Grid (With Admin Upload Image / Edit / Delete on every card) */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {featuredProducts.map((prod) => {
-              const loc = getLocalizedProduct(prod, language);
-              const marketPrice = prod.marketPriceLak;
-              const discount = prod.memberDiscountLak ?? (marketPrice && marketPrice > prod.priceLak ? marketPrice - prod.priceLak : 0);
-              return (
-                <div
-                  key={prod.sku}
-                  onClick={() => {
-                    onNavigate('catalog');
-                  }}
-                  className="group rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-red-300 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                  {/* Product Banner Image */}
-                  <div className="relative h-28 w-full overflow-hidden bg-slate-900">
-                    <img
-                      src={prod.imageUrl}
-                      alt={loc.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
-                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-amber-300 text-[8px] font-bold uppercase max-w-[55%] truncate">
-                      {loc.categoryBadge}
-                    </span>
-
-                    {/* Admin Quick Edit/Upload & Delete Buttons — ADMINISTRATOR ONLY */}
-                    {isAdmin && (
-                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditProductModal(prod);
-                          }}
-                          className="p-1 rounded-md bg-sky-500/90 hover:bg-sky-500 text-white shadow cursor-pointer"
-                          title="Administrator Only: Upload Product Image / Edit / Update"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        {products.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              adminDeleteProduct(prod.sku);
-                              setActiveBannerIdx(0);
-                              setRedemptionNotice(`Deleted product ${prod.sku}`);
-                              setTimeout(() => setRedemptionNotice(null), 3500);
-                            }}
-                            className="p-1 rounded-md bg-red-600/90 hover:bg-red-600 text-white shadow cursor-pointer"
-                            title="Administrator Only: Delete Product"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="absolute bottom-1.5 left-2 right-2">
-                      {marketPrice && marketPrice > prod.priceLak && (
-                        <div className="text-[9px] font-mono text-slate-300 line-through leading-none">
-                          Market: {formatNumberWithCommas(marketPrice)} LAK
-                        </div>
-                      )}
-                      <div className="text-white font-black font-mono text-xs drop-shadow leading-tight">
-                        {formatNumberWithCommas(prod.priceLak)} LAK
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Product Banner Details */}
-                  <div className="p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
-                    <div>
-                      <div className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2 group-hover:text-[#df1c2d]">
-                        {loc.title}
-                      </div>
-                      {discount > 0 && (
-                        <div className="text-[9px] font-bold text-amber-700 font-mono mt-0.5">
-                          Discount: {formatNumberWithCommas(discount)} LAK
-                        </div>
-                      )}
-                      <div className="text-[10px] font-semibold text-emerald-700 font-mono mt-0.5">
-                        Pool: {formatNumberWithCommas(prod.commissionPoolLak)} LAK (100%)
-                      </div>
-                    </div>
-
-                    <div className="pt-1 border-t border-slate-100 flex items-center justify-between gap-1">
-                      {isAdmin ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditProductModal(prod);
-                          }}
-                          className="text-[9px] font-bold text-sky-700 hover:underline flex items-center gap-0.5 truncate cursor-pointer"
-                          title="Administrator Only: Edit / Update Product"
-                        >
-                          <Camera className="w-2.5 h-2.5 shrink-0" />
-                          <span>Image / Edit</span>
-                        </button>
-                      ) : (
-                        <span className="text-[9px] font-mono font-semibold text-slate-400 truncate">
-                          {prod.sku}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (prod.sku === 'MUSIC_SINGLE_1600') {
-                            setShowDirectPayQr(true);
-                          } else {
-                            setSelectedBannerProductForQr(prod);
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-[10px] cursor-pointer shrink-0 ml-auto"
-                      >
-                        {t.buyQrBtn}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>

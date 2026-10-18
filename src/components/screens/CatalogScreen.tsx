@@ -1058,35 +1058,61 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
       </div>
 
       {/* 3B. OFFICIAL DMC PRODUCT & MUSIC COURSE PRICING STRUCTURE */}
-      <DmcPricingStructureCard
-        title="DMC Product Pricing – Official Member Discount & Commission Pool"
-        onSavePricing={(payload) => {
-          products
-            .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
-            .forEach((p) => {
-              adminUpdateProduct(p.sku, {
-                marketPriceLak: payload.marketPriceLak,
-                priceLak: payload.memberPriceLak,
-                memberDiscountLak: payload.memberDiscountLak,
-                commissionPoolLak: payload.commissionPoolLak,
-                splitRule: {
-                  ruleType: 'POOL_PERCENTAGE',
-                  l1Share: payload.l1Percent,
-                  l2Share: payload.l2Percent,
-                  l3Share: payload.l3Percent,
-                },
-              });
-            });
-          setCoreEditSuccessNotice(
-            `Updated DMC Product Pricing: Market ${formatLak(payload.marketPriceLak)} • Member ${formatLak(
-              payload.memberPriceLak
-            )} • Discount ${formatLak(payload.memberDiscountLak)} • Pool ${formatLak(
-              payload.commissionPoolLak
-            )}`
-          );
-          setTimeout(() => setCoreEditSuccessNotice(null), 5000);
-        }}
-      />
+      {(() => {
+        const refProd = products.find((p) => p.sku !== 'MUSIC_SINGLE_1600');
+        return (
+          <DmcPricingStructureCard
+            title="DMC Product Pricing – Official Member Discount & Commission Pool"
+            marketPriceLak={refProd?.marketPriceLak ?? DMC_STANDARD_PRICING.marketPriceLak}
+            memberPriceLak={refProd?.priceLak ?? DMC_STANDARD_PRICING.memberPriceLak}
+            memberDiscountLak={refProd?.memberDiscountLak ?? DMC_STANDARD_PRICING.memberDiscountLak}
+            commissionPoolLak={
+              refProd?.commissionPoolLak ?? DMC_STANDARD_PRICING.commissionPoolLak
+            }
+            l1Percent={
+              refProd?.splitRule.ruleType === 'POOL_PERCENTAGE'
+                ? refProd.splitRule.l1Share
+                : DMC_STANDARD_PRICING.l1Percent
+            }
+            l2Percent={
+              refProd?.splitRule.ruleType === 'POOL_PERCENTAGE'
+                ? refProd.splitRule.l2Share
+                : DMC_STANDARD_PRICING.l2Percent
+            }
+            l3Percent={
+              refProd?.splitRule.ruleType === 'POOL_PERCENTAGE'
+                ? refProd.splitRule.l3Share
+                : DMC_STANDARD_PRICING.l3Percent
+            }
+            onSavePricing={(payload) => {
+              products
+                .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
+                .forEach((p) => {
+                  adminUpdateProduct(p.sku, {
+                    marketPriceLak: payload.marketPriceLak,
+                    priceLak: payload.memberPriceLak,
+                    memberDiscountLak: payload.memberDiscountLak,
+                    commissionPoolLak: payload.commissionPoolLak,
+                    splitRule: {
+                      ruleType: 'POOL_PERCENTAGE',
+                      l1Share: payload.l1Percent,
+                      l2Share: payload.l2Percent,
+                      l3Share: payload.l3Percent,
+                    },
+                  });
+                });
+              setCoreEditSuccessNotice(
+                `Updated DMC Product Pricing: Market ${formatLak(payload.marketPriceLak)} • Member ${formatLak(
+                  payload.memberPriceLak
+                )} • Discount ${formatLak(payload.memberDiscountLak)} • Pool ${formatLak(
+                  payload.commissionPoolLak
+                )}`
+              );
+              setTimeout(() => setCoreEditSuccessNotice(null), 5000);
+            }}
+          />
+        );
+      })()}
 
       {/* 4. CATEGORY FILTER TABS (Clean Wrap, Zero Ugly Scrollbar) */}
       <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs">

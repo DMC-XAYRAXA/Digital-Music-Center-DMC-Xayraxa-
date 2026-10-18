@@ -30,6 +30,7 @@ import {
 import { QrCodeModal } from '../common/QrCodeModal';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
 import { CopyrightCertificateModal, downloadDmcCertificateImage } from '../common/CopyrightCertificateModal';
+import { DmcMembershipTermsModal } from '../common/DmcMembershipTermsModal';
 
 interface MembershipScreenProps {
   onNavigate: (tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet') => void;
@@ -63,6 +64,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
   const [copiedLink, setCopiedLink] = useState(false);
   const [activeQrModal, setActiveQrModal] = useState<'MEMBER' | 'REFERRAL' | null>(null);
   const [isActivationQrOpen, setIsActivationQrOpen] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [activationSuccessNotice, setActivationSuccessNotice] = useState<string | null>(null);
   const [isCertificateOpen, setIsCertificateOpen] = useState(false);
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
@@ -166,7 +168,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in">
+    <div className="@container space-y-6 pb-12 animate-in fade-in">
       {/* Title & Introduction */}
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -232,7 +234,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
 
         {!otpStep ? (
           <form onSubmit={handleStartRegistration} className="space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-3.5">
               {/* Full Name */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -266,7 +268,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 @2xl:grid-cols-3 gap-3.5">
               {/* Email */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -424,7 +426,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-3 pt-1">
           {/* Referral link box */}
           <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700 space-y-2">
             <span className="text-[11px] font-semibold text-slate-400">
@@ -521,7 +523,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
           {/* Method 1: Direct Pay */}
           <div className="p-4 rounded-xl bg-gradient-to-br from-slate-900 to-amber-950/30 border border-amber-500/30 space-y-3">
             <div className="flex items-center justify-between">
@@ -611,7 +613,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
 
         {!otpStep ? (
           <form onSubmit={handleStartRegistration} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
               {/* Full Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
@@ -645,7 +647,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
               {/* Email */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
@@ -690,18 +692,35 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
 
             {/* Consents (NO PRE-CHECKED BOXES AS REQUIRED BY SPEC) */}
             <div className="space-y-3 pt-2 border-t border-slate-800">
-              <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/40 border border-slate-800 hover:border-slate-700 cursor-pointer">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/40 border border-slate-800 hover:border-slate-700">
                 <input
+                  id="membership-screen-terms-checkbox"
                   type="checkbox"
                   required
                   checked={formData.termsConsent}
                   onChange={e => setFormData({ ...formData, termsConsent: e.target.checked })}
-                  className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500"
+                  className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0"
                 />
-                <span className="text-xs text-slate-300 leading-relaxed">
-                  {t.consentTerms}
-                </span>
-              </label>
+                <div className="text-xs text-slate-300 leading-relaxed">
+                  <label htmlFor="membership-screen-terms-checkbox" className="cursor-pointer">
+                    I agree to the{' '}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsTermsModalOpen(true)}
+                    className="font-bold text-amber-400 hover:text-amber-300 underline underline-offset-2 cursor-pointer text-left"
+                  >
+                    DMC XAYRAXA Membership Terms (Free 0 LAK Registration).
+                  </button>{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsTermsModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-[10px] font-bold cursor-pointer ml-1"
+                  >
+                    <span>Read Terms & Conditions</span>
+                  </button>
+                </div>
+              </div>
 
               <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/40 border border-slate-800 hover:border-slate-700 cursor-pointer">
                 <input
@@ -799,6 +818,12 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
         memberName={currentMember.name}
         isActiveLifetime={currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER'}
         songs={memberSongs}
+      />
+
+      <DmcMembershipTermsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        onAcceptTerms={() => setFormData(prev => ({ ...prev, termsConsent: true }))}
       />
     </div>
   );
