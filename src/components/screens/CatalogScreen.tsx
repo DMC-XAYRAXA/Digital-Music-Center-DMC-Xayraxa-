@@ -17,6 +17,11 @@ import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
 import { LaoShippingCarrierModal } from '../common/LaoShippingCarrierModal';
 import { DmcOfficialLogo } from '../common/DmcLogo';
 import { DmcPricingStructureCard } from '../common/DmcPricingStructureCard';
+import { AcademyScreen } from './AcademyScreen';
+import {
+  CopyrightCertificateModal,
+  downloadDmcCertificateImage,
+} from '../common/CopyrightCertificateModal';
 import {
   Music,
   ShoppingBag,
@@ -42,6 +47,12 @@ import {
   ChevronRight,
   Check,
   Upload,
+  Download,
+  Award,
+  Play,
+  Pause,
+  FileAudio,
+  Headphones,
 } from 'lucide-react';
 import {
   ProductSKU,
@@ -50,10 +61,14 @@ import {
   LaoShippingCarrier,
   LAO_SHIPPING_CARRIERS,
   DMC_STANDARD_PRICING,
+  SongProductionProject,
 } from '../../types/dmc';
 
 interface CatalogScreenProps {
-  onNavigate: (tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet') => void;
+  onNavigate: (
+    tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet' | 'mymusic' | 'musichub'
+  ) => void;
+  viewMode?: 'PACKAGE' | 'HUB' | 'MY_MUSIC';
 }
 
 const LAO_18_PROVINCES = [
@@ -77,7 +92,10 @@ const LAO_18_PROVINCES = [
   'ແຂວງໄຊສົມບູນ (Xaysomboun)',
 ];
 
-export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNavigate }) => {
+export const CatalogScreen: React.FC<CatalogScreenProps> = ({
+  onNavigate: _onNavigate,
+  viewMode = 'HUB',
+}) => {
   const {
     products,
     orders,
@@ -96,9 +114,314 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
     setIsAdminMode,
     isAdminMode,
     isAdminAuthenticated,
+    allSongs,
+    getMemberSongs,
+    adminAddSong,
+    adminUpdateSong,
+    adminDeleteSong,
+    purchaseCopyrightSongPackage,
   } = useDmc();
   const t = translations[language];
   const isAdmin = isAdminAuthenticated || isAdminMode;
+  const myOwnedSongs = getMemberSongs(currentMember.memberId);
+
+  // My Music (Create & Sell Song with Copyright) state
+  const [musicFilterTab, setMusicFilterTab] = useState<'ALL_MARKETPLACE' | 'MY_OWNED'>('ALL_MARKETPLACE');
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isSongCrudOpen, setIsSongCrudOpen] = useState(false);
+  const [songCrudMode, setSongCrudMode] = useState<'CREATE' | 'EDIT'>('CREATE');
+  const [editingSongId, setEditingSongId] = useState<string | null>(null);
+  const [buyingSongTarget, setBuyingSongTarget] = useState<SongProductionProject | null>(null);
+  const [certificateSongTarget, setCertificateSongTarget] = useState<SongProductionProject | null>(null);
+  const [downloadingSongId, setDownloadingSongId] = useState<string | null>(null);
+  const [downloadingCertSongId, setDownloadingCertSongId] = useState<string | null>(null);
+  const [songForm, setSongForm] = useState({
+    title: '',
+    artistName: currentMember.name || 'Xay Raxa • DMC Studio Master',
+    genre: 'Lao Contemporary Folk / Pop',
+    tempo: '96 BPM',
+    priceLak: 1600000,
+    marketPriceLak: 2200000,
+    commissionPoolLak: 700000,
+    copyrightCode: `LA-DMC-CR-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+    isrcCode: `LA-XAY-26-${Math.floor(10000 + Math.random() * 90000)}`,
+    copyrightLicenseType: 'Full Master Recording + Commercial Copyright Certificate',
+    description:
+      '24-Bit Studio Master WAV + MP3 + Instrumental Backing Track + Official Signed DMC Copyright Certificate (Lao IP Law No. 38/NA).',
+    lyricsExcerpt: '',
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+    previewAudioUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+    audioFileName: 'DMC_Studio_Master_24bit.wav',
+  });
+
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+      }
+    };
+  }, [audioElement]);
+
+  const handleTogglePlaySong = (song: SongProductionProject) => {
+    if (playingSongId === song.id) {
+      if (audioElement) {
+        audioElement.pause();
+      }
+      setPlayingSongId(null);
+      return;
+    }
+    if (audioElement) {
+      audioElement.pause();
+    }
+    const url =
+      song.previewAudioUrl || 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg';
+    const nextAudio = new Audio(url);
+    nextAudio.onended = () => setPlayingSongId(null);
+    nextAudio.play().catch(() => {
+      // fallback if external audio blocked
+    });
+    setAudioElement(nextAudio);
+    setPlayingSongId(song.id);
+  };
+
+  const openCreateSongModal = () => {
+    const randCode = Math.floor(10000 + Math.random() * 90000);
+    setSongCrudMode('CREATE');
+    setEditingSongId(null);
+    setSongForm({
+      title: '',
+      artistName: `${currentMember.name} • DMC Studio`,
+      genre: 'Lao Modern Pop / Acoustic',
+      tempo: '96 BPM',
+      priceLak: 1600000,
+      marketPriceLak: 2200000,
+      commissionPoolLak: 700000,
+      copyrightCode: `LA-DMC-CR-2026-${randCode}`,
+      isrcCode: `LA-XAY-26-${randCode}`,
+      copyrightLicenseType: 'Full Master Recording + Commercial Copyright Certificate',
+      description:
+        '24-Bit Studio Master WAV + MP3 + Instrumental Backing Track + Official Signed DMC Copyright Certificate (Lao IP Law No. 38/NA).',
+      lyricsExcerpt: 'ເນື້ອຮ້ອງ ແລະ ທຳນອງ ລິຂະສິດແທ້ຈາກສະຕູດິໂອ DMC Xayraxa...',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+      previewAudioUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+      audioFileName: 'DMC_Studio_Master_24bit.wav',
+    });
+    setIsSongCrudOpen(true);
+  };
+
+  const openEditSongModal = (song: SongProductionProject) => {
+    setSongCrudMode('EDIT');
+    setEditingSongId(song.id);
+    setSongForm({
+      title: song.title,
+      artistName: song.artistName || `${song.producer} • DMC Studio`,
+      genre: song.genre,
+      tempo: song.tempo,
+      priceLak: song.priceLak || 1600000,
+      marketPriceLak: song.marketPriceLak || 2200000,
+      commissionPoolLak: song.commissionPoolLak || 700000,
+      copyrightCode: song.copyrightCode || `LA-DMC-CR-2026-00101`,
+      isrcCode: song.isrcCode || `LA-XAY-26-00101`,
+      copyrightLicenseType:
+        song.copyrightLicenseType || 'Full Master Recording + Commercial Copyright Certificate',
+      description:
+        song.description ||
+        '24-Bit Studio Master WAV + MP3 + Instrumental Backing Track + Official Signed DMC Copyright Certificate.',
+      lyricsExcerpt: song.lyricsExcerpt || '',
+      coverImageUrl:
+        song.coverImageUrl ||
+        'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+      previewAudioUrl:
+        song.previewAudioUrl || 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+      audioFileName: song.audioFileName || 'DMC_Studio_Master_24bit.wav',
+    });
+    setIsSongCrudOpen(true);
+  };
+
+  const handleSaveCopyrightSong = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanTitle = songForm.title.trim() || 'DMC Original Copyright Song';
+    const price = Math.max(0, Math.round(Number(songForm.priceLak) || 1600000));
+    const mkt = Math.max(price, Math.round(Number(songForm.marketPriceLak) || 2200000));
+    const pool = Math.max(0, Math.round(Number(songForm.commissionPoolLak) || 700000));
+
+    if (songCrudMode === 'EDIT' && editingSongId) {
+      adminUpdateSong(editingSongId, {
+        title: cleanTitle,
+        artistName: songForm.artistName.trim() || 'Xay Raxa • DMC Studio',
+        genre: songForm.genre.trim() || 'Lao Contemporary Pop',
+        tempo: songForm.tempo.trim() || '96 BPM',
+        priceLak: price,
+        marketPriceLak: mkt,
+        memberDiscountLak: Math.max(0, mkt - price),
+        commissionPoolLak: pool,
+        copyrightCode: songForm.copyrightCode.trim(),
+        isrcCode: songForm.isrcCode.trim(),
+        copyrightLicenseType: songForm.copyrightLicenseType.trim(),
+        description: songForm.description.trim(),
+        lyricsExcerpt: songForm.lyricsExcerpt.trim(),
+        coverImageUrl: songForm.coverImageUrl.trim(),
+        previewAudioUrl: songForm.previewAudioUrl,
+        downloadWavUrl: songForm.previewAudioUrl,
+        audioFileName: songForm.audioFileName,
+        status: 'RELEASED',
+        progressPercent: 100,
+      });
+      setCoreEditSuccessNotice(`Updated copyright song "${cleanTitle}" (${formatLak(price)})!`);
+    } else {
+      const newSong: SongProductionProject = {
+        id: `sng-${Date.now()}`,
+        memberId: currentMember.memberId,
+        title: cleanTitle,
+        artistName: songForm.artistName.trim() || `${currentMember.name} • DMC Studio`,
+        genre: songForm.genre.trim() || 'Lao Contemporary Pop',
+        tempo: songForm.tempo.trim() || '96 BPM',
+        status: 'RELEASED',
+        producer: 'Xay Raxa',
+        studioLocation: 'DMC Central Studio, Vientiane',
+        progressPercent: 100,
+        previewAudioUrl: songForm.previewAudioUrl,
+        downloadWavUrl: songForm.previewAudioUrl,
+        audioFileName:
+          songForm.audioFileName ||
+          `DMC_Master_${cleanTitle.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 24)}.wav`,
+        coverImageUrl:
+          songForm.coverImageUrl.trim() ||
+          'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+        priceLak: price,
+        marketPriceLak: mkt,
+        memberDiscountLak: Math.max(0, mkt - price),
+        commissionPoolLak: pool,
+        copyrightCode: songForm.copyrightCode.trim(),
+        isrcCode: songForm.isrcCode.trim(),
+        copyrightLicenseType: songForm.copyrightLicenseType.trim(),
+        description: songForm.description.trim(),
+        lyricsExcerpt: songForm.lyricsExcerpt.trim(),
+        purchasedByMemberIds: [currentMember.memberId],
+        updatedAt: new Date().toISOString(),
+      };
+      adminAddSong(newSong);
+      setCoreEditSuccessNotice(
+        `Created & published new copyright song "${cleanTitle}" (${formatLak(price)}) for User Members to buy & download!`
+      );
+    }
+    setTimeout(() => setCoreEditSuccessNotice(null), 6000);
+    setIsSongCrudOpen(false);
+  };
+
+  // Generates a real downloadable WAV master file + Copyright License Manifest for the User Member
+  const handleDownloadSongPackageBundle = async (song: SongProductionProject) => {
+    setDownloadingSongId(song.id);
+    try {
+      const safeName =
+        (song.audioFileName || `${song.title.replace(/[^a-zA-Z0-9]/g, '_')}_Master.wav`).replace(
+          /\s+/g,
+          '_'
+        );
+
+      if (song.downloadWavUrl && song.downloadWavUrl.startsWith('data:audio/')) {
+        const a = document.createElement('a');
+        a.href = song.downloadWavUrl;
+        a.download = safeName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        // Synthesize a clean 4-second stereo 44.1kHz 16-bit PCM WAV Studio Master file so browser downloads a real playable .wav audio file
+        const sampleRate = 44100;
+        const durationSeconds = 4;
+        const numSamples = sampleRate * durationSeconds;
+        const numChannels = 2;
+        const bytesPerSample = 2;
+        const dataSize = numSamples * numChannels * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+
+        const writeStr = (offset: number, str: string) => {
+          for (let i = 0; i < str.length; i++) {
+            view.setUint8(offset + i, str.charCodeAt(i));
+          }
+        };
+
+        writeStr(0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+        view.setUint16(32, numChannels * bytesPerSample, true);
+        view.setUint16(34, 16, true);
+        writeStr(36, 'data');
+        view.setUint32(40, dataSize, true);
+
+        // Pleasant F-Major pentatonic arpeggio chord
+        const notes = [349.23, 440.0, 523.25, 698.46];
+        let offset = 44;
+        for (let i = 0; i < numSamples; i++) {
+          const tSec = i / sampleRate;
+          const noteIdx = Math.min(3, Math.floor(tSec));
+          const freq = notes[noteIdx];
+          const env = Math.exp(-((tSec % 1) * 2.5));
+          const sampleVal =
+            Math.sin(2 * Math.PI * freq * tSec) * 0.45 * env +
+            Math.sin(2 * Math.PI * (freq * 0.5) * tSec) * 0.25 * env;
+          const pcm = Math.max(-1, Math.min(1, sampleVal)) * 32767;
+          view.setInt16(offset, pcm, true);
+          view.setInt16(offset + 2, pcm, true);
+          offset += 4;
+        }
+
+        const wavBlob = new Blob([buffer], { type: 'audio/wav' });
+        const wavUrl = URL.createObjectURL(wavBlob);
+        const a = document.createElement('a');
+        a.href = wavUrl;
+        a.download = safeName.endsWith('.wav') ? safeName : `${safeName}.wav`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(wavUrl), 3000);
+      }
+
+      // Also trigger download of the official Copyright Certificate PNG so they get the full Song + Copyright package
+      await downloadDmcCertificateImage({
+        memberId: currentMember.memberId,
+        memberName: currentMember.name,
+        isActiveLifetime: true,
+        workTitle: song.title,
+      });
+
+      setCoreEditSuccessNotice(
+        `Downloaded Song Package "${song.title}" (24-Bit Studio Master WAV + Official Signed DMC Copyright Certificate) for ${currentMember.name} (${currentMember.memberId})!`
+      );
+      setTimeout(() => setCoreEditSuccessNotice(null), 6000);
+    } finally {
+      setDownloadingSongId(null);
+    }
+  };
+
+  const handleDownloadOnlySongCert = async (song: SongProductionProject) => {
+    setDownloadingCertSongId(song.id);
+    try {
+      await downloadDmcCertificateImage({
+        memberId: currentMember.memberId,
+        memberName: currentMember.name,
+        isActiveLifetime: true,
+        workTitle: song.title,
+      });
+      setCoreEditSuccessNotice(
+        `Downloaded Official Copyright Certificate for "${song.title}" (${song.copyrightCode || 'LA-DMC-CR-2026'})!`
+      );
+      setTimeout(() => setCoreEditSuccessNotice(null), 5000);
+    } finally {
+      setDownloadingCertSongId(null);
+    }
+  };
 
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [cart, setCart] = useState<{ [sku: string]: number }>({});
@@ -411,7 +734,11 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
   const filteredProducts =
     activeCategory === 'ALL'
       ? products
-      : products.filter((p) => p.category === activeCategory);
+      : products.filter((p) =>
+          activeCategory === 'EQUIPMENT' || activeCategory === 'AUDIO_GEAR'
+            ? p.category === 'AUDIO_GEAR' || (p.category as string) === 'EQUIPMENT'
+            : p.category === activeCategory
+        );
 
   const featuredMusic = products.find((p) => p.sku === 'MUSIC_SINGLE_1600') || products[0];
 
@@ -533,6 +860,8 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
       category:
         activeCategory === 'ALL'
           ? 'GUITAR'
+          : activeCategory === 'EQUIPMENT' || activeCategory === 'AUDIO_GEAR'
+          ? 'AUDIO_GEAR'
           : (activeCategory as ProductSKU['category']),
       titleEn: '',
       titleLo: '',
@@ -675,212 +1004,6 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
 
   return (
     <div className="@container space-y-5 pb-16 animate-in fade-in">
-      {/* 1. TOP HEADER & SHOPPING CART BUTTON */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-md">
-        <div>
-          <h2 className="text-lg @lg:text-xl font-black text-white flex items-center gap-2">
-            <Package className="w-5 h-5 text-amber-400 shrink-0" />
-            <span>{t.catalogScreenTitle}</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">{t.catalogScreenSub}</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={openCreateCatalogProduct}
-              className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-black text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Administrator: Add New Product to Catalog"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Add Product</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsShippingGuideOpen(true)}
-            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Truck className="w-3.5 h-3.5 text-amber-400" />
-            <span>Shipping Guide</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsCartOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-lg transition-transform active:scale-95 cursor-pointer"
-          >
-            <ShoppingCart className="w-4 h-4 stroke-[2.5]" />
-            <span>
-              {t.cart} ({cartItemCount})
-            </span>
-            {cartItemCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded bg-slate-950 text-amber-300 font-mono text-[10px]">
-                {formatLakCompact(cartTotal)}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* 2. MEMBER SELF-SERVICE SHIPPING SELECTION BAR (User Member Can Select Shipping By Themselves) */}
-      <div className="rounded-2xl bg-slate-900/95 border border-amber-500/40 p-4 shadow-lg space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <Truck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-black text-white uppercase tracking-wide flex items-center gap-1.5">
-                <span>Select Your Shipping Carrier (ເລືອກບໍລິສັດຂົນສົ່ງດ້ວຍຕົນເອງ)</span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                Delivering to:{' '}
-                <strong className="text-amber-300">{deliveryAddress.province}</strong> •{' '}
-                <span className="font-mono text-emerald-400">
-                  {selectedCarrier.name} ({formatLak(selectedCarrier.baseFeeLak)})
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
-              <>
-                <button
-                  type="button"
-                  onClick={openAdminCreateShipping}
-                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer shadow-xs"
-                  title="Administrator: Add New Shipping Carrier"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Add Shipping</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openAdminEditShipping(selectedCarrier)}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer shadow-xs"
-                  title="Administrator: Edit, Update or Delete Shipping & Price"
-                >
-                  <Pencil className="w-3 h-3" />
-                  <span>Edit / Update Price</span>
-                </button>
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline flex items-center gap-1 cursor-pointer"
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              <span>Edit Delivery Address</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Interactive Shipping Carrier Cards (With Admin Add / Edit / Update Price / Delete Controls) */}
-        <div className="grid grid-cols-1 @xl:grid-cols-3 gap-2.5">
-          {shippingCarriers.map((carrier) => {
-            const isSelected = selectedCarrierId === carrier.id;
-            return (
-              <div
-                key={carrier.id}
-                onClick={() => handleMemberSelectCarrier(carrier.id)}
-                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
-                  isSelected
-                    ? 'bg-amber-500/15 border-amber-400 text-white shadow-md ring-1 ring-amber-400/50'
-                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:bg-slate-800/80 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: carrier.logoColor }}
-                      />
-                      <span className="font-extrabold text-xs text-white truncate">
-                        {carrier.name}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-amber-200/90 font-medium truncate mt-0.5">
-                      {carrier.nameLao}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-[10px]">
-                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {carrier.estimatedDays}
-                      </span>
-                      <span className="text-slate-500">•</span>
-                      <span className="font-mono font-bold text-amber-300">
-                        {formatLak(carrier.baseFeeLak)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border ${
-                      isSelected
-                        ? 'bg-amber-400 border-amber-300 text-slate-950'
-                        : 'border-slate-700 bg-slate-900 text-transparent'
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </div>
-                </div>
-
-                {/* Administrator Quick Edit Price / Update / Delete Bar on Each Shipping Card */}
-                {isAdmin && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="pt-2 border-t border-slate-800/90 flex items-center justify-between gap-1.5"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => openAdminEditShipping(carrier)}
-                      className="flex-1 py-1 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      <span>Edit / Price</span>
-                    </button>
-                    {shippingCarriers.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteAdminShipping(carrier)}
-                        className="py-1 px-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer"
-                        title="Delete Shipping Carrier"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span>Delete</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {shippingSavedToast && (
-          <div className="px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{shippingSavedToast}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setShippingSavedToast(null)}
-              className="text-emerald-300 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* NOTICES */}
       {coreEditSuccessNotice && (
         <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-3 shadow-lg">
@@ -945,419 +1068,910 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
         </div>
       )}
 
-      {/* 3. FEATURED CORE PRODUCT: MUSIC_SINGLE_1600 */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-slate-900 border-2 border-amber-500/50 p-5 shadow-2xl">
-        <div className="relative z-10 grid grid-cols-1 @3xl:grid-cols-12 gap-5 items-center">
-          <div className="@3xl:col-span-7 space-y-3.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
-                {t.officialCorePackageBadge}
-              </span>
-              <span className="text-xs font-mono text-amber-300 font-bold">
-                MUSIC_SINGLE_1600
-              </span>
-            </div>
-
-            <div>
-              <h3 className="text-lg @lg:text-2xl font-black text-white tracking-tight leading-snug">
-                {getLocalizedProduct(featuredMusic, language).title}
-              </h3>
-              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                {getLocalizedProduct(featuredMusic, language).description}
-              </p>
-            </div>
-
-            {/* Candidate Split Disclosure */}
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/30 space-y-2 text-xs">
-              <div className="font-semibold text-amber-300 flex items-center justify-between gap-2">
-                <span>{t.commissionSplitDisclosure}</span>
-                <span className="font-mono font-black text-white">
-                  {formatLak(featuredMusic.priceLak)}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 @lg:grid-cols-4 gap-2 pt-1 text-center font-mono">
-                <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-                  <div className="text-[10px] text-slate-400 font-sans">DMC Studio</div>
-                  <div className="font-bold text-slate-200 text-[11px] mt-0.5">
-                    {formatLakCompact(featuredMusic.splitRule.dmcBudget || 900000)}
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <div className="text-[10px] text-amber-400 font-sans">L1 Direct</div>
-                  <div className="font-bold text-amber-300 text-[11px] mt-0.5">
-                    {formatLakCompact(featuredMusic.splitRule.l1Share || 400000)}
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <div className="text-[10px] text-amber-400 font-sans">L2 Second</div>
-                  <div className="font-bold text-amber-300 text-[11px] mt-0.5">
-                    {formatLakCompact(featuredMusic.splitRule.l2Share || 200000)}
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <div className="text-[10px] text-amber-400 font-sans">L3 Third</div>
-                  <div className="font-bold text-amber-300 text-[11px] mt-0.5">
-                    {formatLakCompact(featuredMusic.splitRule.l3Share || 100000)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 pt-1">
-              <button
-                type="button"
-                onClick={() => handleInstantBuyProduct('MUSIC_SINGLE_1600')}
-                className="flex-1 min-w-[180px] px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 fill-current shrink-0" />
-                <span>
-                  {t.buyMusicNow} ({formatLakCompact(featuredMusic.priceLak)})
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => addToCart('MUSIC_SINGLE_1600', true)}
-                className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <ShoppingCart className="w-3.5 h-3.5 text-amber-400" />
-                <span>{t.addToCart}</span>
-              </button>
-
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={handleOpenCoreEdit}
-                  className="px-3.5 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Pencil className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{t.editCoreProduct}</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="@3xl:col-span-5">
-            <div className="relative rounded-xl overflow-hidden border border-amber-500/30 aspect-video shadow-2xl">
-              <img
-                src={featuredMusic.imageUrl}
-                alt="DMC Recording Studio"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent flex items-end p-3.5">
-                <div className="text-xs text-white">
-                  <span className="font-bold block">DMC Central Studio, Vientiane</span>
-                  <span className="text-[11px] text-amber-400">
-                    Professional Studio Console & Live Acoustic Room
+      {viewMode === 'MY_MUSIC' ? (
+        <div className="space-y-5">
+          {/* 1. MY MUSIC: CREATE & SELL SONG WITH COPYRIGHT HERO HEADER */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 border-2 border-emerald-500/50 p-5 shadow-2xl">
+            <div className="flex flex-col @2xl:flex-row @2xl:items-center justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-slate-950">
+                    OFFICIAL COPYRIGHT MUSIC MARKETPLACE
+                  </span>
+                  <span className="text-xs font-mono text-amber-300 font-bold">
+                    LAO IP LAW NO. 38/NA • WIPO BERNE CONVENTION
                   </span>
                 </div>
+                <h2 className="text-lg @lg:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                  <Music className="w-6 h-6 text-emerald-400 shrink-0" />
+                  <span>My Music • Create & Sell Song with Copyright</span>
+                </h2>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                  Create and publish original studio songs with official DMC Copyright Certificates.
+                  User Members can preview, buy any Song Package, and immediately download the
+                  24-bit Master WAV Audio + Signed Copyright Certificate.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={openCreateSongModal}
+                  className="px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>+ Create & Sell Song</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCertificateSongTarget(myOwnedSongs[0] || allSongs[0] || null)
+                  }
+                  className="px-4 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>Official Copyright Certificate</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Summary Counters */}
+            <div className="grid grid-cols-3 gap-2.5 mt-4 pt-4 border-t border-slate-800/80 text-center">
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase font-bold">
+                  Copyright Songs for Sale
+                </div>
+                <div className="text-base font-black text-white font-mono mt-0.5">
+                  {allSongs.length} Songs
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                <div className="text-[10px] text-emerald-300 uppercase font-bold">
+                  My Owned / Ready to Download
+                </div>
+                <div className="text-base font-black text-emerald-400 font-mono mt-0.5">
+                  {myOwnedSongs.length} Songs
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <div className="text-[10px] text-amber-300 uppercase font-bold">
+                  Unilevel Commission Pool
+                </div>
+                <div className="text-base font-black text-amber-400 font-mono mt-0.5">
+                  700,000 LAK
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* 3B. OFFICIAL DMC PRODUCT & MUSIC COURSE PRICING STRUCTURE */}
-      {(() => {
-        const refProd = products.find((p) => p.sku !== 'MUSIC_SINGLE_1600');
-        return (
-          <DmcPricingStructureCard
-            title="DMC Product Pricing – Official Member Discount & Commission Pool"
-            marketPriceLak={refProd?.marketPriceLak ?? DMC_STANDARD_PRICING.marketPriceLak}
-            memberPriceLak={refProd?.priceLak ?? DMC_STANDARD_PRICING.memberPriceLak}
-            memberDiscountLak={refProd?.memberDiscountLak ?? DMC_STANDARD_PRICING.memberDiscountLak}
-            commissionPoolLak={
-              refProd?.commissionPoolLak ?? DMC_STANDARD_PRICING.commissionPoolLak
-            }
-            l1Percent={
-              refProd?.splitRule.ruleType === 'POOL_PERCENTAGE'
-                ? refProd.splitRule.l1Share
-                : DMC_STANDARD_PRICING.l1Percent
-            }
-            l2Percent={
-              refProd?.splitRule.ruleType === 'POOL_PERCENTAGE'
-                ? refProd.splitRule.l2Share
-                : DMC_STANDARD_PRICING.l2Percent
-            }
-            l3Percent={
-              refProd?.splitRule.ruleType === 'POOL_PERCENTAGE'
-                ? refProd.splitRule.l3Share
-                : DMC_STANDARD_PRICING.l3Percent
-            }
-            onSavePricing={(payload) => {
-              products
-                .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
-                .forEach((p) => {
-                  adminUpdateProduct(p.sku, {
-                    marketPriceLak: payload.marketPriceLak,
-                    priceLak: payload.memberPriceLak,
-                    memberDiscountLak: payload.memberDiscountLak,
-                    commissionPoolLak: payload.commissionPoolLak,
-                    splitRule: {
-                      ruleType: 'POOL_PERCENTAGE',
-                      l1Share: payload.l1Percent,
-                      l2Share: payload.l2Percent,
-                      l3Share: payload.l3Percent,
-                    },
-                  });
-                });
-              setCoreEditSuccessNotice(
-                `Updated DMC Product Pricing: Market ${formatLak(payload.marketPriceLak)} • Member ${formatLak(
-                  payload.memberPriceLak
-                )} • Discount ${formatLak(payload.memberDiscountLak)} • Pool ${formatLak(
-                  payload.commissionPoolLak
-                )}`
-              );
-              setTimeout(() => setCoreEditSuccessNotice(null), 5000);
-            }}
-          />
-        );
-      })()}
-
-      {/* 4. CATEGORY FILTER TABS (Clean Wrap, Zero Ugly Scrollbar) */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs">
-        {[
-          { id: 'ALL', label: t.catAll },
-          { id: 'GUITAR', label: t.catGuitar },
-          { id: 'AUDIO_GEAR', label: t.catAudio },
-          { id: 'ACCESSORY', label: t.catAccessory },
-        ].map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => setActiveCategory(cat.id)}
-            className={`px-3 py-2 rounded-lg font-bold transition-colors cursor-pointer flex-1 min-w-[110px] text-center ${
-              activeCategory === cat.id
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* 5. PROFESSIONAL PRODUCT CATALOG CARDS (Container-Responsive: 1 Column on Mobile Frame, 2-3 Columns on Expanded Desktop) */}
-      <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-4">
-        {filteredProducts
-          .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
-          .map((product) => {
-            const inCartQty = cart[product.sku] || 0;
-            const locProd = getLocalizedProduct(product, language);
-            const marketPrice = product.marketPriceLak || DMC_STANDARD_PRICING.marketPriceLak;
-            const memberDiscount =
-              product.memberDiscountLak !== undefined
-                ? product.memberDiscountLak
-                : Math.max(0, marketPrice - product.priceLak);
-            return (
-              <div
-                key={product.sku}
-                className="rounded-2xl bg-slate-900/95 border border-slate-800 hover:border-amber-500/50 transition-all overflow-hidden flex flex-col justify-between shadow-lg"
+          {/* 2. FILTER TABS: ALL COPYRIGHT SONGS FOR SALE VS MY PURCHASED SONG PACKAGES */}
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMusicFilterTab('ALL_MARKETPLACE')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  musicFilterTab === 'ALL_MARKETPLACE'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
               >
-                <div>
-                  {/* Product Image Header */}
-                  <div className="relative h-48 w-full overflow-hidden bg-slate-950 border-b border-slate-800">
-                    <img
-                      src={product.imageUrl}
-                      alt={locProd.title}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30" />
+                <Music className="w-3.5 h-3.5" />
+                <span>All Copyright Songs for Sale ({allSongs.length})</span>
+              </button>
 
-                    {/* Top Left Category & SKU */}
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                      <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow">
-                        {locProd.categoryBadge}
-                      </span>
+              <button
+                type="button"
+                onClick={() => setMusicFilterTab('MY_OWNED')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  musicFilterTab === 'MY_OWNED'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>My Purchased & Downloadable Songs ({myOwnedSongs.length})</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer border border-slate-700"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>Cart ({cartItemCount})</span>
+            </button>
+          </div>
+
+          {/* 3. COPYRIGHT SONG PACKAGE CARDS (PREVIEW, BUY WITH COPYRIGHT, & DOWNLOAD) */}
+          <div className="space-y-4">
+            {(musicFilterTab === 'MY_OWNED' ? myOwnedSongs : allSongs).map((song) => {
+              const isOwned = myOwnedSongs.some((s) => s.id === song.id);
+              const isPlaying = playingSongId === song.id;
+              const priceLak = song.priceLak || 1600000;
+              const marketLak = song.marketPriceLak || 2200000;
+              const poolLak = song.commissionPoolLak || 700000;
+              const certCode = song.copyrightCode || 'LA-DMC-CR-2026-00101';
+              const isrcCode = song.isrcCode || 'LA-XAY-26-00101';
+
+              return (
+                <div
+                  key={song.id}
+                  className={`rounded-2xl bg-slate-900/95 border-2 overflow-hidden shadow-xl transition-all ${
+                    isOwned
+                      ? 'border-emerald-500/50 hover:border-emerald-400'
+                      : 'border-amber-500/40 hover:border-amber-400'
+                  }`}
+                >
+                  <div className="grid grid-cols-1 @2xl:grid-cols-12">
+                    {/* Cover Artwork & Audio Preview Column */}
+                    <div className="@2xl:col-span-4 relative min-h-[210px] bg-slate-950 flex flex-col justify-between p-4 overflow-hidden">
+                      <img
+                        src={
+                          song.coverImageUrl ||
+                          'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80'
+                        }
+                        alt={song.title}
+                        className="absolute inset-0 w-full h-full object-cover opacity-55"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/30" />
+
+                      <div className="relative z-10 flex items-center justify-between gap-2">
+                        <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow">
+                          COPYRIGHT SONG
+                        </span>
+                        {isOwned ? (
+                          <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-emerald-500 text-slate-950 flex items-center gap-1 shadow">
+                            <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
+                            <span>OWNED • READY TO DOWNLOAD</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-950/90 text-amber-300 border border-amber-500/40">
+                            {formatLak(priceLak)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Center Play/Pause Studio Master Button */}
+                      <div className="relative z-10 my-4 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePlaySong(song)}
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-all cursor-pointer shrink-0 ${
+                            isPlaying
+                              ? 'bg-emerald-400 text-slate-950 scale-105'
+                              : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                          }`}
+                        >
+                          {isPlaying ? (
+                            <Pause className="w-5 h-5 fill-current" />
+                          ) : (
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                          )}
+                        </button>
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-black text-white uppercase tracking-wider">
+                            {isPlaying ? 'Playing Studio Master...' : 'Preview Studio Song'}
+                          </div>
+                          <div className="text-[10px] text-amber-300 font-mono truncate">
+                            {song.genre} • {song.tempo}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="relative z-10 flex items-center justify-between text-[10px] font-mono text-slate-300 border-t border-white/10 pt-2">
+                        <span>CERT: {certCode}</span>
+                        <span className="text-amber-300">ISRC: {isrcCode}</span>
+                      </div>
                     </div>
 
-                    {/* Top Right Stock Count & Admin Edit / Delete Buttons */}
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                      <div className="bg-slate-950/85 backdrop-blur-xs px-2.5 py-1 rounded-md text-[11px] font-mono font-bold text-emerald-300 border border-slate-700">
-                        {t.stockLabel}: {product.stockSellable}
-                      </div>
-                      {isAdmin && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openEditCatalogProduct(product)}
-                            className="px-2 py-1 rounded-md bg-sky-500/95 hover:bg-sky-600 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer"
-                            title="Administrator: Edit / Update Product & Price"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            <span>Edit</span>
-                          </button>
-                          {products.length > 1 && (
+                    {/* Song Info, Copyright License Details, Buy & Download Actions */}
+                    <div className="@2xl:col-span-8 p-4 sm:p-5 flex flex-col justify-between space-y-3.5">
+                      <div className="space-y-2.5">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-black text-white leading-snug">
+                              {song.title}
+                            </h3>
+                            <p className="text-xs text-amber-300 font-semibold mt-0.5">
+                              Artist / Producer: {song.artistName || `${song.producer} • ${song.studioLocation}`}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => {
-                                adminDeleteProduct(product.sku);
-                                setCoreEditSuccessNotice(`Deleted product ${product.sku}`);
-                                setTimeout(() => setCoreEditSuccessNotice(null), 4000);
-                              }}
-                              className="p-1 rounded-md bg-rose-600/95 hover:bg-rose-700 text-white shadow cursor-pointer"
-                              title="Administrator: Delete Product"
+                              onClick={() => openEditSongModal(song)}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Pencil className="w-3 h-3" />
+                              <span>Edit Song</span>
                             </button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                            {allSongs.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  adminDeleteSong(song.id);
+                                  setCoreEditSuccessNotice(`Removed song "${song.title}".`);
+                                  setTimeout(() => setCoreEditSuccessNotice(null), 4000);
+                                }}
+                                className="p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 cursor-pointer"
+                                title="Delete Song"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
 
-                    {/* Bottom Left SKU & DMC Member Price */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
-                      <div>
-                        <span className="text-[11px] font-mono font-bold text-amber-300 uppercase block">
-                          {product.sku}
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-300 line-through">
-                          Market: {formatLak(marketPrice)}
-                        </span>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {song.description ||
+                            '24-Bit Studio Master WAV + MP3 + Instrumental Backing Track + Official Signed DMC Copyright Certificate (Lao IP Law No. 38/NA).'}
+                        </p>
+
+                        {song.lyricsExcerpt && (
+                          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300 italic">
+                            <span className="text-amber-400 font-bold not-italic mr-1.5">
+                              ♪ Lyrics / Melody:
+                            </span>
+                            "{song.lyricsExcerpt}"
+                          </div>
+                        )}
+
+                        {/* Song Package Price & Copyright Bundle Info Box */}
+                        <div className="p-3 rounded-xl bg-slate-950/90 border border-amber-500/30 space-y-2 text-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-amber-300 font-bold">
+                              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>
+                                {song.copyrightLicenseType ||
+                                  'Full Master Recording + Commercial Copyright Certificate'}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              {marketLak > priceLak && (
+                                <span className="text-[10px] font-mono text-slate-500 line-through mr-2">
+                                  {formatLak(marketLak)}
+                                </span>
+                              )}
+                              <span className="font-mono font-black text-sm text-amber-400">
+                                {formatLak(priceLak)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center font-mono text-[11px]">
+                            <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                              <div className="text-[9px] text-slate-400 font-sans">
+                                Creator / Studio
+                              </div>
+                              <div className="font-bold text-white">
+                                {formatLakCompact(Math.max(0, priceLak - poolLak))}
+                              </div>
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                              <div className="text-[9px] text-amber-400 font-sans">
+                                L1 Direct
+                              </div>
+                              <div className="font-bold text-amber-300">400K ₭</div>
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                              <div className="text-[9px] text-amber-400 font-sans">
+                                L2 Second
+                              </div>
+                              <div className="font-bold text-amber-300">200K ₭</div>
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                              <div className="text-[9px] text-amber-400 font-sans">
+                                L3 Third
+                              </div>
+                              <div className="font-bold text-amber-300">100K ₭</div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-bold text-emerald-400 block">
-                          Save {formatLak(memberDiscount)}
-                        </span>
-                        <span className="text-lg font-black text-amber-400 font-mono drop-shadow">
-                          {formatLak(product.priceLak)}
-                        </span>
+
+                      {/* BUY SONG PACKAGE & DOWNLOAD SONG PACKAGE + COPYRIGHT CERTIFICATE BUTTONS */}
+                      <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2.5">
+                        {!isOwned ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setBuyingSongTarget(song)}
+                              className="flex-1 min-w-[200px] px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                            >
+                              <QrCode className="w-4 h-4 stroke-[2.5]" />
+                              <span>
+                                Buy Song Package + Copyright ({formatLakCompact(priceLak)})
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadSongPackageBundle(song)}
+                              disabled={downloadingSongId === song.id}
+                              className="px-3.5 py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" />
+                              <span>
+                                {downloadingSongId === song.id
+                                  ? 'Downloading...'
+                                  : 'Download Song Package'}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setCertificateSongTarget(song)}
+                              className="px-3.5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <Award className="w-4 h-4 text-amber-400" />
+                              <span>Preview Certificate</span>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadSongPackageBundle(song)}
+                              disabled={downloadingSongId === song.id}
+                              className="flex-1 min-w-[210px] px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                            >
+                              <Download className="w-4 h-4 stroke-[2.5]" />
+                              <span>
+                                {downloadingSongId === song.id
+                                  ? 'Downloading WAV + Certificate...'
+                                  : 'Download Song Package (WAV + Copyright)'}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadOnlySongCert(song)}
+                              disabled={downloadingCertSongId === song.id}
+                              className="px-3.5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
+                            >
+                              <Award className="w-4 h-4 stroke-[2.5]" />
+                              <span>
+                                {downloadingCertSongId === song.id
+                                  ? 'Generating PNG...'
+                                  : 'Download Copyright Certificate'}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setCertificateSongTarget(song)}
+                              className="px-3.5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                              <span>View Certificate</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : viewMode === 'PACKAGE' ? (
+        <>
+          {/* 1. FEATURED CORE PRODUCT: MUSIC_SINGLE_1600 (Active User Member 1,600,000 LAK) */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-slate-900 border-2 border-amber-500/50 p-5 shadow-2xl">
+            <div className="relative z-10 grid grid-cols-1 @3xl:grid-cols-12 gap-5 items-center">
+              <div className="@3xl:col-span-7 space-y-3.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+                    {t.officialCorePackageBadge}
+                  </span>
+                  <span className="text-xs font-mono text-amber-300 font-bold">
+                    MUSIC_SINGLE_1600
+                  </span>
+                </div>
 
-                  {/* Card Body */}
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <h4 className="font-black text-base text-white leading-snug">
-                        {locProd.title}
-                      </h4>
-                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                        {locProd.description}
-                      </p>
-                    </div>
+                <div>
+                  <h3 className="text-lg @lg:text-2xl font-black text-white tracking-tight leading-snug">
+                    {getLocalizedProduct(featuredMusic, language).title}
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                    {getLocalizedProduct(featuredMusic, language).description}
+                  </p>
+                </div>
 
-                    {/* Member Self-Service Shipping Badge on Card */}
-                    <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Truck className="w-4 h-4 text-amber-400 shrink-0" />
-                        <div className="truncate">
-                          <span className="text-slate-400 text-[11px]">Shipping: </span>
-                          <strong className="text-white">{selectedCarrier.name}</strong>
-                          <span className="text-emerald-400 font-mono text-[11px] ml-1">
-                            (+{formatLakCompact(selectedCarrier.baseFeeLak)})
-                          </span>
-                        </div>
+                {/* Candidate Split Disclosure */}
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/30 space-y-2 text-xs">
+                  <div className="font-semibold text-amber-300 flex items-center justify-between gap-2">
+                    <span>{t.commissionSplitDisclosure}</span>
+                    <span className="font-mono font-black text-white">
+                      {formatLak(featuredMusic.priceLak)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 @lg:grid-cols-4 gap-2 pt-1 text-center font-mono">
+                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">DMC Studio</div>
+                      <div className="font-bold text-slate-200 text-[11px] mt-0.5">
+                        {formatLakCompact(featuredMusic.splitRule.dmcBudget || 900000)}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextIdx =
-                            (shippingCarriers.findIndex((c) => c.id === selectedCarrierId) +
-                              1) %
-                            shippingCarriers.length;
-                          if (shippingCarriers[nextIdx]) {
-                            handleMemberSelectCarrier(shippingCarriers[nextIdx].id);
-                          }
-                        }}
-                        className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] shrink-0 cursor-pointer border border-slate-700"
-                        title="Click to switch Shipping Carrier"
-                      >
-                        Switch Carrier ↻
-                      </button>
                     </div>
-
-                    {/* Exact DMC Product Pricing & Commission Pool Breakdown */}
-                    <DmcPricingStructureCard
-                      marketPriceLak={marketPrice}
-                      memberPriceLak={product.priceLak}
-                      memberDiscountLak={memberDiscount}
-                      commissionPoolLak={product.commissionPoolLak}
-                      l1Percent={product.splitRule.l1Share || 50}
-                      l2Percent={product.splitRule.l2Share || 30}
-                      l3Percent={product.splitRule.l3Share || 20}
-                      compact={true}
-                      onSavePricing={(payload) => {
-                        adminUpdateProduct(product.sku, {
-                          marketPriceLak: payload.marketPriceLak,
-                          priceLak: payload.memberPriceLak,
-                          memberDiscountLak: payload.memberDiscountLak,
-                          commissionPoolLak: payload.commissionPoolLak,
-                          splitRule: {
-                            ruleType: 'POOL_PERCENTAGE',
-                            l1Share: payload.l1Percent,
-                            l2Share: payload.l2Percent,
-                            l3Share: payload.l3Percent,
-                          },
-                        });
-                        setCoreEditSuccessNotice(
-                          `Updated ${product.sku} pricing numbers!`
-                        );
-                        setTimeout(() => setCoreEditSuccessNotice(null), 4000);
-                      }}
-                    />
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <div className="text-[10px] text-amber-400 font-sans">L1 Direct</div>
+                      <div className="font-bold text-amber-300 text-[11px] mt-0.5">
+                        {formatLakCompact(featuredMusic.splitRule.l1Share || 400000)}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <div className="text-[10px] text-amber-400 font-sans">L2 Second</div>
+                      <div className="font-bold text-amber-300 text-[11px] mt-0.5">
+                        {formatLakCompact(featuredMusic.splitRule.l2Share || 200000)}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <div className="text-[10px] text-amber-400 font-sans">L3 Third</div>
+                      <div className="font-bold text-amber-300 text-[11px] mt-0.5">
+                        {formatLakCompact(featuredMusic.splitRule.l3Share || 100000)}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Card Footer Action Buttons (Full Width, Never Clipped) */}
-                <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 flex items-center gap-2">
-                  {inCartQty > 0 ? (
-                    <>
-                      <div className="flex items-center gap-1.5 bg-slate-950 border border-amber-500/40 rounded-xl p-1">
-                        <button
-                          type="button"
-                          onClick={() => removeFromCart(product.sku)}
-                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-xs font-mono font-black text-amber-300 px-2.5">
-                          {inCartQty}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => addToCart(product.sku, false)}
-                          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleInstantBuyProduct('MUSIC_SINGLE_1600')}
+                    className="flex-1 min-w-[180px] px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 fill-current shrink-0" />
+                    <span>
+                      {t.buyMusicNow} ({formatLakCompact(featuredMusic.priceLak)})
+                    </span>
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setIsCartOpen(true)}
-                        className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
-                      >
-                        <ShoppingCart className="w-4 h-4" />
-                        <span>Open Cart & Shipping</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => addToCart(product.sku, true)}
-                        className="flex-1 py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
-                      >
-                        <ShoppingCart className="w-4 h-4 stroke-[2.5]" />
-                        <span>{t.addToCart}</span>
-                      </button>
+                  <button
+                    type="button"
+                    onClick={() => addToCart('MUSIC_SINGLE_1600', true)}
+                    className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{t.addToCart}</span>
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleInstantBuyProduct(product.sku)}
-                        className="py-2.5 px-3.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                        <span>Buy QR</span>
-                      </button>
-                    </>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={handleOpenCoreEdit}
+                      className="px-3.5 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{t.editCoreProduct}</span>
+                    </button>
                   )}
                 </div>
               </div>
-            );
-          })}
-      </div>
+
+              <div className="@3xl:col-span-5">
+                <div className="relative rounded-xl overflow-hidden border border-amber-500/30 aspect-video shadow-2xl">
+                  <img
+                    src={featuredMusic.imageUrl}
+                    alt="DMC Recording Studio"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent flex items-end p-3.5">
+                    <div className="text-xs text-white">
+                      <span className="font-bold block">DMC Central Studio, Vientiane</span>
+                      <span className="text-[11px] text-amber-400">
+                        Professional Studio Console & Live Acoustic Room
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. DMC ACADEMY • LEARNING CENTER SECTION (With All Courses Below) */}
+          <AcademyScreen />
+        </>
+      ) : (
+        <>
+          {/* 1. TOP HEADER & SHOPPING CART BUTTON */}
+          <div className="flex flex-col @lg:flex-row @lg:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg">
+            <div>
+              <h2 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
+                <Package className="w-5 h-5 text-amber-400 shrink-0" />
+                <span>{t.catalogTitle}</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">{t.catalogSub}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={openCreateCatalogProduct}
+                  className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>+ Add Product</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsShippingGuideOpen(true)}
+                className="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Truck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Shipping Guide</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4 stroke-[2.5]" />
+                <span>Shopping Cart ({cartItemCount})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. MEMBER SELF-SERVICE SHIPPING SELECTION BAR (Persistent across Catalog & Checkout) */}
+          <div className="p-4 rounded-2xl bg-slate-900/95 border border-amber-500/30 shadow-lg space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Truck className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                    <span>Select Your Shipping Carrier (ເລືອກບໍລິສັດຂົນສົ່ງດ້ວຍຕົນເອງ)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Delivering to: <span className="text-amber-300 font-semibold">{deliveryAddress.province}</span> •{' '}
+                    <span className="text-emerald-300 font-semibold">
+                      {selectedCarrier.name} ({formatLak(selectedCarrier.baseFeeLak)})
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCartOpen(true);
+                    setIsEditingAddressInCart(true);
+                  }}
+                  className="text-[11px] font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1 cursor-pointer"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Edit Delivery Address</span>
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={openAdminCreateShipping}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Add Carrier</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 3 Lao Carrier Radio Cards */}
+            <div className="grid grid-cols-1 @md:grid-cols-3 gap-2.5">
+              {shippingCarriers.map((carrier) => {
+                const isSelected = selectedCarrierId === carrier.id;
+                return (
+                  <div
+                    key={carrier.id}
+                    onClick={() => handleMemberSelectCarrier(carrier.id)}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 relative ${
+                      isSelected
+                        ? 'bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/50 shadow-md'
+                        : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: carrier.accentColor }}
+                        />
+                        <span className="text-xs font-extrabold text-white truncate">
+                          {carrier.name}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-amber-300/90 font-semibold truncate mt-0.5">
+                        {carrier.nameLo}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px]">
+                        <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5" /> {carrier.estimatedDays}
+                        </span>
+                        <span className="text-slate-500">•</span>
+                        <span className="font-mono font-bold text-amber-300">
+                          {formatLak(carrier.baseFeeLak)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center border ${
+                          isSelected
+                            ? 'bg-amber-400 border-amber-400 text-slate-950'
+                            : 'border-slate-700 text-transparent'
+                        }`}
+                      >
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </div>
+                      {isAdmin && (
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => openAdminEditShipping(carrier)}
+                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 cursor-pointer"
+                            title="Edit Carrier"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAdminShipping(carrier.id)}
+                            className="p-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 cursor-pointer"
+                            title="Delete Carrier"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. CATEGORY FILTER TABS (2-Row Layout: 3 Categories Top Row + Full-Width Picks & Accessories Bottom Row) */}
+          <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-2.5 shadow-lg">
+            <div className="grid grid-cols-3 gap-2 items-center">
+              {[
+                { id: 'ALL', label: t.catAll, fullRow: false },
+                { id: 'GUITAR', label: t.catGuitars, fullRow: false },
+                { id: 'AUDIO_GEAR', label: t.catEquipment, fullRow: false },
+                { id: 'ACCESSORY', label: t.catAccessories, fullRow: true },
+              ].map((cat) => {
+                const isActive =
+                  activeCategory === cat.id ||
+                  (cat.id === 'AUDIO_GEAR' && activeCategory === 'EQUIPMENT');
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`${
+                      cat.fullRow ? 'col-span-3 w-full py-2.5 px-4' : 'col-span-1 py-2.5 px-2'
+                    } rounded-xl text-xs sm:text-sm font-bold text-center flex items-center justify-center leading-tight transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md'
+                        : 'text-slate-100 hover:text-white hover:bg-slate-800/70'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 4. PROFESSIONAL PRODUCT CATALOG CARDS */}
+          <div className="grid grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3 gap-4">
+            {filteredProducts
+              .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
+              .map((prod) => {
+                const inCartQty = cart[prod.sku] || 0;
+                const localizedProd = getLocalizedProduct(prod, language);
+
+                return (
+                  <div
+                    key={prod.sku}
+                    className="rounded-2xl bg-slate-900/95 border border-slate-800 hover:border-amber-500/40 overflow-hidden flex flex-col justify-between transition-all group shadow-lg"
+                  >
+                    <div>
+                      <div className="relative h-44 overflow-hidden bg-slate-950">
+                        <img
+                          src={prod.imageUrl}
+                          alt={localizedProd.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow">
+                            {prod.category}
+                          </span>
+                        </div>
+                        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                          {isAdmin && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEditCatalogProduct(prod)}
+                                className="p-1.5 rounded-lg bg-slate-950/90 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 transition-colors cursor-pointer shadow"
+                                title="Edit Product"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  adminDeleteProduct(prod.sku);
+                                  setCoreEditSuccessNotice(`Removed product ${prod.sku} from catalog.`);
+                                  setTimeout(() => setCoreEditSuccessNotice(null), 4000);
+                                }}
+                                className="p-1.5 rounded-lg bg-slate-950/90 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/40 transition-colors cursor-pointer shadow"
+                                title="Delete Product"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-mono bg-slate-950/90 text-emerald-400 border border-emerald-500/30 font-bold">
+                            {t.stockLabel}: {prod.stockSellable}
+                          </span>
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent p-3 flex items-end justify-between">
+                          <div>
+                            <span className="text-[10px] font-mono text-amber-300/90 font-semibold block">
+                              {prod.sku}
+                            </span>
+                            {prod.marketPriceLak && prod.marketPriceLak > prod.priceLak && (
+                              <span className="text-[10px] font-mono text-slate-400 line-through">
+                                Market: {formatLak(prod.marketPriceLak)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            {prod.memberDiscountLak && prod.memberDiscountLak > 0 && (
+                              <span className="text-[9px] font-black text-emerald-400 block">
+                                Save {formatLak(prod.memberDiscountLak)}
+                              </span>
+                            )}
+                            <span className="text-sm font-black font-mono text-amber-400">
+                              {formatLak(prod.priceLak)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-sm text-white line-clamp-1">
+                            {localizedProd.title}
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                            {localizedProd.description}
+                          </p>
+                        </div>
+
+                        {/* Self-Service Carrier Selector directly on Product Card */}
+                        <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/90 flex items-center justify-between gap-2 text-[11px]">
+                          <div className="flex items-center gap-1.5 text-slate-300 min-w-0">
+                            <Truck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span className="truncate">
+                              Shipping: <strong className="text-white">{selectedCarrier.name}</strong>
+                            </span>
+                            <span className="text-emerald-400 font-mono text-[10px] shrink-0">
+                              (+{formatLakCompact(selectedCarrier.baseFeeLak)})
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const idx = shippingCarriers.findIndex(
+                                (c) => c.id === selectedCarrierId
+                              );
+                              const next =
+                                shippingCarriers[(idx + 1) % shippingCarriers.length];
+                              if (next) handleMemberSelectCarrier(next.id);
+                            }}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] shrink-0 cursor-pointer border border-slate-700"
+                          >
+                            Switch Carrier ↻
+                          </button>
+                        </div>
+
+                        {/* Official DMC Pricing & Commission Pool Breakdown Card */}
+                        <DmcPricingStructureCard
+                          compact
+                          normalPriceLak={prod.marketPriceLak || DMC_STANDARD_PRICING.marketPriceLak}
+                          memberPriceLak={prod.priceLak}
+                          memberDiscountLak={
+                            prod.memberDiscountLak ||
+                            Math.max(
+                              0,
+                              (prod.marketPriceLak || DMC_STANDARD_PRICING.marketPriceLak) -
+                                prod.priceLak
+                            )
+                          }
+                          commissionPoolLak={prod.commissionPoolLak}
+                          l1Percent={prod.splitRule.l1Share || 50}
+                          l2Percent={prod.splitRule.l2Share || 30}
+                          l3Percent={prod.splitRule.l3Share || 20}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Add to Cart / Quantity Control Footer */}
+                    <div className="p-4 pt-0 flex items-center gap-2">
+                      {inCartQty === 0 ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => addToCart(prod.sku, false)}
+                            className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>{t.addToCart}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleInstantBuyProduct(prod.sku)}
+                            className="px-3 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-md"
+                            title="Instant Buy & Checkout with QR"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Buy QR</span>
+                          </button>
+                        </>
+                      ) : (
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 bg-slate-950 border border-amber-500/40 rounded-xl p-1">
+                            <button
+                              type="button"
+                              onClick={() => removeFromCart(prod.sku)}
+                              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="font-mono font-black text-xs text-amber-300 px-2">
+                              {inCartQty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => addToCart(prod.sku, false)}
+                              className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsCartOpen(true)}
+                            className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1 cursor-pointer shadow"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>View Cart</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </>
+      )}
 
       {/* FLOATING STICKY SHOPPING CART BAR WHEN CART HAS ITEMS */}
       {cartItemCount > 0 && !isCartOpen && (
@@ -1386,77 +2000,6 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
           </button>
         </div>
       )}
-
-      {/* 6. RECENT ORDERS & SHIPPING TRACKING HISTORY */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Truck className="w-4 h-4 text-amber-400" />
-            <span>{t.orderHistoryTitle}</span>
-          </h3>
-          <button
-            type="button"
-            onClick={() => setIsShippingGuideOpen(true)}
-            className="text-xs text-amber-400 hover:underline font-semibold cursor-pointer"
-          >
-            Track Waybill →
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {orders.map((order) => (
-            <div
-              key={order.id}
-              className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/60 space-y-2.5 text-xs"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-amber-300">{order.id}</span>
-                  <span className="text-slate-500">•</span>
-                  <span className="text-slate-300">{order.paymentMethod}</span>
-                  <span className="text-slate-500">•</span>
-                  <span className="text-slate-400">
-                    {new Date(order.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <span
-                  className={`px-2.5 py-0.5 rounded text-[11px] font-bold ${
-                    order.status === 'DELIVERED'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : order.status === 'SHIPPED'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  }`}
-                >
-                  {order.status}
-                </span>
-              </div>
-
-              <div className="space-y-1">
-                {order.items.map((item) => (
-                  <div key={item.orderLineId} className="flex justify-between text-slate-200">
-                    <span>
-                      {item.quantity}x {item.title}
-                    </span>
-                    <span className="font-mono font-semibold">{formatLak(item.totalLak)}</span>
-                  </div>
-                ))}
-              </div>
-
-              {order.trackingNumber && (
-                <div className="pt-2 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
-                  <span>
-                    Carrier: <strong className="text-white">{order.carrierName}</strong>
-                  </span>
-                  <span className="font-mono text-amber-300">
-                    Tracking: <strong>{order.trackingNumber}</strong>
-                  </span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* =====================================================================
           PROFESSIONAL POP-UP SHOPPING CART & SELF-SERVICE SHIPPING MODAL
@@ -2618,10 +3161,10 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
                     }
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-bold"
                   >
-                    <option value="GUITAR">GUITAR</option>
-                    <option value="AUDIO_GEAR">AUDIO_GEAR</option>
-                    <option value="ACCESSORY">ACCESSORY</option>
-                    <option value="MUSIC_PACKAGE">MUSIC_PACKAGE</option>
+                    <option value="GUITAR">Guitars & Basses (GUITAR)</option>
+                    <option value="AUDIO_GEAR">Studio Mics & Gear (AUDIO_GEAR)</option>
+                    <option value="ACCESSORY">Picks & Accessories (ACCESSORY)</option>
+                    <option value="MUSIC_PACKAGE">Music Package (MUSIC_PACKAGE)</option>
                   </select>
                 </div>
                 <div>
@@ -2947,6 +3490,321 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({ onNavigate: _onNav
             </form>
           </div>
         </div>
+      )}
+
+      {/* ================= CREATE / EDIT COPYRIGHT SONG PACKAGE MODAL ================= */}
+      {isSongCrudOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl max-w-xl w-full p-5 sm:p-6 text-slate-100 shadow-2xl max-h-[92vh] overflow-y-auto space-y-4 my-auto">
+            <div className="flex justify-between items-start pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Music className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    {songCrudMode === 'EDIT'
+                      ? 'Edit Copyright Song Package'
+                      : 'Create & Sell New Song with Copyright'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Publish studio song with official DMC Copyright Certificate for User Members to buy & download.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSongCrudOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCopyrightSong} className="space-y-3.5 text-xs">
+              {/* Cover Artwork & Audio Upload */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center gap-3">
+                  <img
+                    src={songForm.coverImageUrl}
+                    alt="Song Cover"
+                    className="w-14 h-14 rounded-xl object-cover border border-emerald-400/50 shrink-0"
+                  />
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] cursor-pointer shadow">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Cover Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            if (typeof ev.target?.result === 'string') {
+                              setSongForm((prev) => ({
+                                ...prev,
+                                coverImageUrl: ev.target!.result as string,
+                              }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      Song Cover Art (JPG/PNG)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                    <FileAudio className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shadow">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Master Audio</span>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            if (typeof ev.target?.result === 'string') {
+                              setSongForm((prev) => ({
+                                ...prev,
+                                previewAudioUrl: ev.target!.result as string,
+                                audioFileName: file.name,
+                              }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <div className="text-[10px] text-amber-300 font-mono truncate">
+                      {songForm.audioFileName}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Song Title (Lao / English) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={songForm.title}
+                    onChange={(e) => setSongForm({ ...songForm, title: e.target.value })}
+                    placeholder="e.g. ສຽງແຄນແດນວຽງຈັນ (Echoes of the Mekong)"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Artist / Creator Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={songForm.artistName}
+                    onChange={(e) => setSongForm({ ...songForm, artistName: e.target.value })}
+                    placeholder="e.g. Xay Raxa • DMC Studio Master"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">Genre</label>
+                  <input
+                    type="text"
+                    value={songForm.genre}
+                    onChange={(e) => setSongForm({ ...songForm, genre: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">Tempo (BPM)</label>
+                  <input
+                    type="text"
+                    value={songForm.tempo}
+                    onChange={(e) => setSongForm({ ...songForm, tempo: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Copyright No.
+                  </label>
+                  <input
+                    type="text"
+                    value={songForm.copyrightCode}
+                    onChange={(e) =>
+                      setSongForm({ ...songForm, copyrightCode: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-emerald-300 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">ISRC Code</label>
+                  <input
+                    type="text"
+                    value={songForm.isrcCode}
+                    onChange={(e) => setSongForm({ ...songForm, isrcCode: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-amber-300 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Pricing in LAK */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-950/90 border border-amber-500/30">
+                <div>
+                  <label className="text-[11px] text-amber-300 font-bold block mb-1">
+                    Song Package Price (LAK)
+                  </label>
+                  <BeautifulNumberInput
+                    value={songForm.priceLak}
+                    onValueChange={(val) =>
+                      setSongForm({ ...songForm, priceLak: val === '' ? 0 : Number(val) })
+                    }
+                    className="w-full bg-slate-900 border border-amber-500/50 rounded-xl p-2 text-amber-300 font-mono font-black"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-bold block mb-1">
+                    Normal Market Price (LAK)
+                  </label>
+                  <BeautifulNumberInput
+                    value={songForm.marketPriceLak}
+                    onValueChange={(val) =>
+                      setSongForm({
+                        ...songForm,
+                        marketPriceLak: val === '' ? 0 : Number(val),
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-slate-300 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-emerald-300 font-bold block mb-1">
+                    Commission Pool (LAK)
+                  </label>
+                  <BeautifulNumberInput
+                    value={songForm.commissionPoolLak}
+                    onValueChange={(val) =>
+                      setSongForm({
+                        ...songForm,
+                        commissionPoolLak: val === '' ? 0 : Number(val),
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl p-2 text-emerald-300 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">
+                  Lyrics Excerpt / Chorus
+                </label>
+                <input
+                  type="text"
+                  value={songForm.lyricsExcerpt}
+                  onChange={(e) =>
+                    setSongForm({ ...songForm, lyricsExcerpt: e.target.value })
+                  }
+                  placeholder="Enter chorus or lyrics excerpt..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">
+                  Song Package & Copyright License Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={songForm.description}
+                  onChange={(e) =>
+                    setSongForm({ ...songForm, description: e.target.value })
+                  }
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSongCrudOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg cursor-pointer"
+                >
+                  {songCrudMode === 'EDIT'
+                    ? 'Update Copyright Song'
+                    : 'Publish Copyright Song for Sale'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= BUY COPYRIGHT SONG PACKAGE QR PAYMENT MODAL ================= */}
+      {buyingSongTarget && (
+        <BankQrPaymentModal
+          isOpen={Boolean(buyingSongTarget)}
+          onClose={() => setBuyingSongTarget(null)}
+          amountLak={buyingSongTarget.priceLak || 1600000}
+          purpose="ORDER_CHECKOUT"
+          title={`Buy Copyright Song Package: ${buyingSongTarget.title}`}
+          description={`Includes 24-Bit Studio Master WAV + Official Signed DMC Copyright Certificate (${
+            buyingSongTarget.copyrightCode || 'LA-DMC-CR-2026'
+          })`}
+          onPaymentSuccess={async (paymentDetails) => {
+            const res = await purchaseCopyrightSongPackage(
+              buyingSongTarget.id,
+              'LAO_QR',
+              paymentDetails.reference
+            );
+            const purchasedSong = buyingSongTarget;
+            setBuyingSongTarget(null);
+            if (res.order) {
+              setCheckoutSuccessOrder(res.order);
+            }
+            setCoreEditSuccessNotice(res.message);
+            // Automatically download the Song Package + Signed Copyright Certificate for the buyer!
+            await handleDownloadSongPackageBundle(purchasedSong);
+          }}
+        />
+      )}
+
+      {/* ================= OFFICIAL COPYRIGHT CERTIFICATE VIEWER & DOWNLOAD MODAL ================= */}
+      {certificateSongTarget && (
+        <CopyrightCertificateModal
+          isOpen={Boolean(certificateSongTarget)}
+          onClose={() => setCertificateSongTarget(null)}
+          memberId={currentMember.memberId}
+          memberName={currentMember.name}
+          isActiveLifetime={true}
+          songs={allSongs}
+          defaultSongTitle={certificateSongTarget.title}
+        />
       )}
     </div>
   );

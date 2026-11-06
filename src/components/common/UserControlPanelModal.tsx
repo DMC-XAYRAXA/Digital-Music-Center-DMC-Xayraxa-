@@ -83,12 +83,37 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
     updateSuperAdminProfile,
     sendSmsRecoveryOtp,
     resetPasswordWithSmsOtp,
-    shippingCarriers
+    shippingCarriers,
+    singerProfiles,
+    updateSingerProfile,
   } = useDmc();
 
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'BANK' | 'SHIPPING' | 'PRESETS' | 'LOGIN' | 'SECURITY'>(initialTab);
-  const [profileRoleTarget, setProfileRoleTarget] = useState<'MEMBER' | 'SUPER_ADMIN'>('MEMBER');
+  const [profileRoleTarget, setProfileRoleTarget] = useState<'MEMBER' | 'SINGER' | 'CUSTOMER' | 'SUPER_ADMIN'>(() => {
+    try {
+      const saved = sessionStorage.getItem('dmc_active_home_role');
+      if (saved === 'SINGER') return 'SINGER';
+      if (saved === 'CUSTOMER') return 'CUSTOMER';
+    } catch {
+      // ignore
+    }
+    return 'MEMBER';
+  });
+
+  const matchedSinger =
+    singerProfiles.find((s) => s.memberId?.toUpperCase() === currentMember.memberId.toUpperCase()) ||
+    singerProfiles[0];
+
   const [profileNameInput, setProfileNameInput] = useState(currentMember.name);
+  const [profileStageNameInput, setProfileStageNameInput] = useState(matchedSinger?.stageName || currentMember.name);
+  const [profileVocalStyleInput, setProfileVocalStyleInput] = useState(matchedSinger?.vocalStyle || 'Lao Modern Pop / Acoustic');
+  const [profileGenderInput, setProfileGenderInput] = useState<'MAN' | 'WOMAN'>(matchedSinger?.gender || 'MAN');
+  const [profileExperienceInput, setProfileExperienceInput] = useState<number>(matchedSinger?.experienceYears || 3);
+  const [profileProvinceInput, setProfileProvinceInput] = useState(
+    matchedSinger?.province || currentMember.deliveryAddress?.province || 'Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)'
+  );
+  const [profileBioInput, setProfileBioInput] = useState(matchedSinger?.bio || '');
+  const [profileAvatarInput, setProfileAvatarInput] = useState(currentMember.avatarUrl || matchedSinger?.avatarUrl || '');
   const [profilePhoneInput, setProfilePhoneInput] = useState(currentMember.phone);
   const [profileEmailInput, setProfileEmailInput] = useState(currentMember.email || '');
   const [profilePasswordInput, setProfilePasswordInput] = useState(currentMember.password || '123456');
@@ -166,7 +191,24 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
   const [customQrImageInput, setCustomQrImageInput] = useState(currentMember.bankAccount?.customQrImageUrl || '');
   const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
 
-  // Keep form in sync when current member changes
+  // Auto-detect active role when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        const savedRole = sessionStorage.getItem('dmc_active_home_role');
+        if (savedRole === 'SINGER') setProfileRoleTarget('SINGER');
+        else if (savedRole === 'CUSTOMER') setProfileRoleTarget('CUSTOMER');
+        else if (savedRole === 'MEMBER') setProfileRoleTarget('MEMBER');
+      } catch {
+        // ignore
+      }
+      if (!isAdminAuthenticated && !isAdminMode && profileRoleTarget === 'SUPER_ADMIN') {
+        setProfileRoleTarget('MEMBER');
+      }
+    }
+  }, [isOpen, isAdminAuthenticated, isAdminMode]);
+
+  // Keep form in sync when current member or role changes
   useEffect(() => {
     if (currentMember.bankAccount) {
       setSelectedBankPreset(currentMember.bankAccount.bankName);
@@ -186,15 +228,31 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
       setProfilePhoneInput(superAdminProfile.phone);
       setProfileEmailInput(superAdminProfile.email);
       setProfilePasswordInput(superAdminProfile.passwordPin);
+    } else if (profileRoleTarget === 'SINGER' && matchedSinger) {
+      setProfileStageNameInput(matchedSinger.stageName);
+      setProfileNameInput(matchedSinger.fullName || currentMember.name);
+      setProfileVocalStyleInput(matchedSinger.vocalStyle);
+      setProfileGenderInput(matchedSinger.gender || 'MAN');
+      setProfileExperienceInput(matchedSinger.experienceYears || 3);
+      setProfileProvinceInput(matchedSinger.province || 'Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)');
+      setProfileBioInput(matchedSinger.bio || '');
+      setProfileAvatarInput(matchedSinger.avatarUrl || currentMember.avatarUrl || '');
+      setProfilePhoneInput(matchedSinger.phone || currentMember.phone);
+      setProfileEmailInput(matchedSinger.email || currentMember.email || '');
+      setProfilePasswordInput(matchedSinger.password || currentMember.password || '123456');
     } else {
       setProfileNameInput(currentMember.name);
       setProfilePhoneInput(currentMember.phone);
       setProfileEmailInput(currentMember.email || '');
       setProfilePasswordInput(currentMember.password || '123456');
+      setProfileProvinceInput(
+        currentMember.deliveryAddress?.province || 'Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)'
+      );
+      setProfileAvatarInput(currentMember.avatarUrl || '');
     }
     setSmsOtpInfo(null);
     setSmsOtpEntered('');
-  }, [currentMember, profileRoleTarget, superAdminProfile]);
+  }, [currentMember, profileRoleTarget, superAdminProfile, matchedSinger]);
 
   if (!isOpen) return null;
 
@@ -598,7 +656,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                 </div>
               </div>
 
-              {/* Update Profile & Password + Phone SMS Recovery Card (User & Super Admin) */}
+              {/* Update Profile & Password + Phone SMS Recovery Card */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-amber-500/40 space-y-3 shadow-md">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -607,16 +665,18 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                     </div>
                     <div>
                       <div className="font-bold text-white text-xs">
-                        Update Profile & Password + Phone SMS Recovery (+856)
+                        Edit Profile & Password — 1/ User Member • 2/ User Singer • 3/ User Customer
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        Edit Member or Super Admin profile, change password, or recover via SMS OTP
+                        {isAdminAuthenticated || isAdminMode
+                          ? 'Administrator Access: Change ALL User Member, User Singer, User Customer & Admin profiles and passwords'
+                          : 'Edit your Member, Singer, or Customer profile, photo, password & SMS OTP (+856)'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Role Toggle: Member vs Super Admin */}
-                  <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                  {/* Role Toggle: 1/ User Member | 2/ User Singer | 3/ User Customer (Super Admin ONLY visible to Administrator) */}
+                  <div className="flex flex-wrap items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
                     <button
                       type="button"
                       onClick={() => setProfileRoleTarget('MEMBER')}
@@ -626,21 +686,84 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      Member ({currentMember.memberId})
+                      1/ User Member ({currentMember.memberId})
                     </button>
                     <button
                       type="button"
-                      onClick={() => setProfileRoleTarget('SUPER_ADMIN')}
+                      onClick={() => setProfileRoleTarget('SINGER')}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                        profileRoleTarget === 'SUPER_ADMIN'
+                        profileRoleTarget === 'SINGER'
+                          ? 'bg-orange-500 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      2/ User Singer ({matchedSinger?.singerCode || currentMember.memberId})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProfileRoleTarget('CUSTOMER')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        profileRoleTarget === 'CUSTOMER'
                           ? 'bg-emerald-500 text-slate-950'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      Super Admin
+                      3/ User Customer ({currentMember.memberId})
                     </button>
+                    {(isAdminAuthenticated || isAdminMode) && (
+                      <button
+                        type="button"
+                        onClick={() => setProfileRoleTarget('SUPER_ADMIN')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          profileRoleTarget === 'SUPER_ADMIN'
+                            ? 'bg-sky-500 text-slate-950'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Super Admin
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Administrator Master Account Selector: Allow Admin to select ANY User Member / User Singer / User Customer */}
+                {(isAdminAuthenticated || isAdminMode) && profileRoleTarget !== 'SUPER_ADMIN' && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/40 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>
+                          Administrator Control: Select Any{' '}
+                          {profileRoleTarget === 'SINGER'
+                            ? 'User Singer'
+                            : profileRoleTarget === 'CUSTOMER'
+                            ? 'User Customer'
+                            : 'User Member'}{' '}
+                          to Edit Password & Profile
+                        </span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 text-[9px] font-mono font-bold">
+                        ADMIN MASTER ACCESS
+                      </span>
+                    </div>
+                    <select
+                      value={currentMember.memberId}
+                      onChange={(e) => setCurrentMemberId(e.target.value)}
+                      className="w-full bg-slate-900 border border-emerald-500/50 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-400"
+                    >
+                      {allMembers.map((m) => {
+                        const sMatch = singerProfiles.find(
+                          (s) => s.memberId?.toUpperCase() === m.memberId.toUpperCase()
+                        );
+                        return (
+                          <option key={m.memberId} value={m.memberId}>
+                            {m.memberId} — {m.name} {sMatch ? `• Singer: ${sMatch.stageName} (${sMatch.singerCode})` : ''} • Pass/PIN: {m.password || '123456'}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
 
                 {profileUpdateNotice && (
                   <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center gap-2">
@@ -656,10 +779,88 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   </div>
                 )}
 
+                {/* Profile Photo Upload & URL Bar for Member / Singer / Customer */}
+                {profileRoleTarget !== 'SUPER_ADMIN' && (
+                  <div className="flex flex-wrap items-center gap-3 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                    <img
+                      src={
+                        profileAvatarInput ||
+                        currentMember.avatarUrl ||
+                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80'
+                      }
+                      alt={profileNameInput}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shrink-0"
+                    />
+                    <div className="flex-1 min-w-[180px] space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] flex items-center gap-1 cursor-pointer shadow">
+                          <Upload className="w-3 h-3" />
+                          <span>
+                            Upload{' '}
+                            {profileRoleTarget === 'SINGER'
+                              ? 'Singer'
+                              : profileRoleTarget === 'CUSTOMER'
+                              ? 'Customer'
+                              : 'Member'}{' '}
+                            Photo
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                if (typeof reader.result === 'string') {
+                                  setProfileAvatarInput(reader.result);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                        <span className="text-[10px] text-slate-400">
+                          Or paste image URL below
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={profileAvatarInput}
+                        onChange={(e) => setProfileAvatarInput(e.target.value)}
+                        placeholder="https://... (Profile Photo URL)"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-[10px] text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {profileRoleTarget === 'SINGER' && (
+                    <div>
+                      <label className="text-[10px] text-orange-300 font-bold block mb-1">
+                        Singer Stage Name (Artist Name)
+                      </label>
+                      <input
+                        type="text"
+                        value={profileStageNameInput}
+                        onChange={(e) => setProfileStageNameInput(e.target.value)}
+                        placeholder="e.g. Nong Souk DMC Vocal"
+                        className="w-full bg-slate-900 border border-orange-500/50 rounded-xl px-3 py-2 text-white text-xs font-bold focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold block mb-1">
-                      {profileRoleTarget === 'SUPER_ADMIN' ? 'Super Admin Name' : 'Member Full Name'}
+                      {profileRoleTarget === 'SUPER_ADMIN'
+                        ? 'Super Admin Name'
+                        : profileRoleTarget === 'SINGER'
+                        ? 'Singer Full Legal Name'
+                        : profileRoleTarget === 'CUSTOMER'
+                        ? 'Customer Full Name'
+                        : 'Member Full Name'}
                     </label>
                     <input
                       type="text"
@@ -668,6 +869,69 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
                     />
                   </div>
+
+                  {profileRoleTarget === 'SINGER' && (
+                    <>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">
+                          Vocal Style / Genre
+                        </label>
+                        <input
+                          type="text"
+                          value={profileVocalStyleInput}
+                          onChange={(e) => setProfileVocalStyleInput(e.target.value)}
+                          placeholder="Lao Modern Pop / Acoustic"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">
+                            Gender (Man / Woman)
+                          </label>
+                          <select
+                            value={profileGenderInput}
+                            onChange={(e) => setProfileGenderInput(e.target.value as 'MAN' | 'WOMAN')}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
+                          >
+                            <option value="MAN">MAN (Male Singer)</option>
+                            <option value="WOMAN">WOMAN (Female Singer)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">
+                            Experience (Years)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={profileExperienceInput}
+                            onChange={(e) => setProfileExperienceInput(Number(e.target.value) || 0)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {(profileRoleTarget === 'SINGER' || profileRoleTarget === 'CUSTOMER') && (
+                    <div>
+                      <label className="text-[10px] text-emerald-300 font-bold block mb-1">
+                        {profileRoleTarget === 'SINGER'
+                          ? 'Singer Province / Location'
+                          : 'Customer Province / Event Location'}
+                      </label>
+                      <input
+                        type="text"
+                        value={profileProvinceInput}
+                        onChange={(e) => setProfileProvinceInput(e.target.value)}
+                        placeholder="Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold block mb-1">
                       Lao Phone Number (SMS Recovery +856)
@@ -688,7 +952,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                       type="email"
                       value={profileEmailInput}
                       onChange={(e) => setProfileEmailInput(e.target.value)}
-                      placeholder="user@dmcxayraxa.la"
+                      placeholder="user@dmcxayraxa.music"
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
                     />
                   </div>
@@ -704,6 +968,120 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                       className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
                     />
                   </div>
+
+                  {profileRoleTarget === 'SINGER' && (
+                    <div className="sm:col-span-2">
+                      <label className="text-[10px] text-slate-400 font-semibold block mb-1">
+                        Singer Bio / Performance Highlights
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={profileBioInput}
+                        onChange={(e) => setProfileBioInput(e.target.value)}
+                        placeholder="Describe vocal range, live party repertoire, and studio experience..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Direct Upline & Downline Sponsor — Locked for Users, Editable only by Administrator */}
+                  <div className="sm:col-span-2 p-3 rounded-xl bg-slate-950/90 border border-slate-800 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-black text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Lock className="w-3 h-3 text-amber-400" />
+                        <span>Direct Upline & Downline Sponsor (Organize Tree)</span>
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                          isAdminMode || isAdminAuthenticated || profileRoleTarget === 'SUPER_ADMIN'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        }`}
+                      >
+                        {isAdminMode || isAdminAuthenticated || profileRoleTarget === 'SUPER_ADMIN'
+                          ? 'ADMINISTRATOR: CAN CHANGE UPLINE / DOWNLINE'
+                          : 'LOCKED — ONLY ADMINISTRATOR CAN CHANGE'}
+                      </span>
+                    </div>
+
+                    {isAdminMode || isAdminAuthenticated || profileRoleTarget === 'SUPER_ADMIN' ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] text-amber-300 font-bold block mb-1">
+                            Direct Upline Sponsor (Admin Editable)
+                          </label>
+                          <select
+                            value={currentMember.sponsorId || ''}
+                            onChange={(e) => {
+                              const nextSponsor = e.target.value || null;
+                              adminUpdateMember(currentMember.memberId, {
+                                sponsorId: nextSponsor,
+                              });
+                              setProfileUpdateNotice(
+                                `Administrator updated Direct Upline Sponsor for ${currentMember.memberId} to ${
+                                  nextSponsor || 'ROOT (No Upline)'
+                                }!`
+                              );
+                            }}
+                            className="w-full bg-slate-900 border-2 border-amber-400/70 rounded-xl px-2.5 py-1.5 text-xs font-bold text-purple-200 focus:outline-none"
+                          >
+                            <option value="">ROOT (Top Head — No Upline Sponsor)</option>
+                            {allMembers
+                              .filter((m) => m.memberId !== currentMember.memberId)
+                              .map((m) => (
+                                <option key={m.memberId} value={m.memberId}>
+                                  {m.name} ({m.memberId})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-bold block mb-1">
+                            Direct L1 Downlines ({allMembers.filter((m) => m.sponsorId === currentMember.memberId).length})
+                          </label>
+                          <div className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-[11px] text-slate-300 truncate">
+                            {allMembers
+                              .filter((m) => m.sponsorId === currentMember.memberId)
+                              .map((m) => `${m.name.split(' ')[0]} (${m.memberId})`)
+                              .join(', ') || 'No Direct L1 Downline yet'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="p-2 rounded-lg bg-slate-900/60 border border-rose-500/30 flex items-center justify-between gap-2 text-xs text-slate-300 cursor-not-allowed select-none">
+                          <div className="truncate">
+                            <span className="text-[9px] text-slate-500 block">Direct Upline Sponsor:</span>
+                            <strong className="text-purple-200 font-bold">
+                              {currentMember.sponsorId
+                                ? (() => {
+                                    const sp = allMembers.find(
+                                      (m) => m.memberId === currentMember.sponsorId
+                                    );
+                                    return sp ? `${sp.name} (${sp.memberId})` : currentMember.sponsorId;
+                                  })()
+                                : 'ROOT (Top Head — No Upline Sponsor)'}
+                            </strong>
+                          </div>
+                          <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/40 text-[9px] font-black shrink-0 flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" /> Locked
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-900/60 border border-rose-500/30 flex items-center justify-between gap-2 text-xs text-slate-300 cursor-not-allowed select-none">
+                          <div className="truncate">
+                            <span className="text-[9px] text-slate-500 block">Direct Downlines (L1):</span>
+                            <strong className="text-amber-200 font-bold">
+                              {allMembers.filter((m) => m.sponsorId === currentMember.memberId).length}{' '}
+                              Direct L1 Member(s)
+                            </strong>
+                          </div>
+                          <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/40 text-[9px] font-black shrink-0 flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" /> Admin Only
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Phone SMS Recovery OTP Trigger & Live SMS Box */}
@@ -717,7 +1095,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                       type="button"
                       onClick={() => {
                         setProfileUpdateError('');
-                        const res = sendSmsRecoveryOtp(profileRoleTarget, profilePhoneInput);
+                        const otpRole = profileRoleTarget === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'MEMBER';
+                        const res = sendSmsRecoveryOtp(otpRole, profilePhoneInput);
                         if (res.success && res.otpCode) {
                           setSmsOtpInfo({
                             otpCode: res.otpCode,
@@ -760,8 +1139,9 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            const otpRole = profileRoleTarget === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'MEMBER';
                             const out = resetPasswordWithSmsOtp(
-                              profileRoleTarget,
+                              otpRole,
                               smsOtpInfo.matchedId,
                               smsOtpEntered,
                               profilePasswordInput,
@@ -787,42 +1167,152 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   )}
                 </div>
 
-                {/* Direct Save Profile & Password Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileUpdateError('');
-                    if (profileRoleTarget === 'SUPER_ADMIN') {
-                      updateSuperAdminProfile({
-                        name: profileNameInput.trim(),
-                        phone: profilePhoneInput.trim(),
-                        email: profileEmailInput.trim(),
-                        passwordPin: profilePasswordInput.trim(),
-                      });
-                      setProfileUpdateNotice(
-                        `Saved Super Admin (${superAdminProfile.operatorId}) Profile & Master Password!`
-                      );
-                    } else {
-                      adminUpdateMember(currentMember.memberId, {
-                        name: profileNameInput.trim(),
-                        phone: profilePhoneInput.trim(),
-                        email: profileEmailInput.trim(),
-                        password: profilePasswordInput.trim(),
-                        lastPasswordUpdatedAt: new Date().toISOString(),
-                      });
-                      setProfileUpdateNotice(
-                        `Saved Member (${currentMember.memberId}) Profile & Password!`
-                      );
-                    }
-                    setTimeout(() => setProfileUpdateNotice(''), 4000);
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>
-                    Save {profileRoleTarget === 'SUPER_ADMIN' ? 'Super Admin' : 'My Member'} Profile & Password
-                  </span>
-                </button>
+                {/* Direct Save Profile & Password Button + Admin Update All */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileUpdateError('');
+                      if (profileRoleTarget === 'SUPER_ADMIN') {
+                        if (!isAdminAuthenticated && !isAdminMode) {
+                          setProfileUpdateError('Only Administrator can change Super Admin password and profile.');
+                          return;
+                        }
+                        updateSuperAdminProfile({
+                          name: profileNameInput.trim(),
+                          phone: profilePhoneInput.trim(),
+                          email: profileEmailInput.trim(),
+                          passwordPin: profilePasswordInput.trim(),
+                        });
+                        setProfileUpdateNotice(
+                          `Saved Super Admin (${superAdminProfile.operatorId}) Profile & Master Password!`
+                        );
+                      } else if (profileRoleTarget === 'SINGER') {
+                        if (matchedSinger) {
+                          updateSingerProfile(matchedSinger.id, {
+                            stageName: profileStageNameInput.trim() || matchedSinger.stageName,
+                            fullName: profileNameInput.trim() || matchedSinger.fullName,
+                            gender: profileGenderInput,
+                            vocalStyle: profileVocalStyleInput.trim() || matchedSinger.vocalStyle,
+                            experienceYears: Number(profileExperienceInput) || matchedSinger.experienceYears,
+                            province: profileProvinceInput.trim() || matchedSinger.province,
+                            bio: profileBioInput.trim() || matchedSinger.bio,
+                            phone: profilePhoneInput.trim() || matchedSinger.phone,
+                            email: profileEmailInput.trim(),
+                            password: profilePasswordInput.trim() || '123456',
+                            avatarUrl: profileAvatarInput.trim() || matchedSinger.avatarUrl,
+                          });
+                        }
+                        adminUpdateMember(currentMember.memberId, {
+                          name: profileNameInput.trim() || currentMember.name,
+                          phone: profilePhoneInput.trim() || currentMember.phone,
+                          email: profileEmailInput.trim(),
+                          password: profilePasswordInput.trim() || '123456',
+                          avatarUrl: profileAvatarInput.trim() || currentMember.avatarUrl,
+                          lastPasswordUpdatedAt: new Date().toISOString(),
+                        });
+                        setProfileUpdateNotice(
+                          `Saved User Singer (${profileStageNameInput.trim() || currentMember.name}) Profile & Password!`
+                        );
+                      } else if (profileRoleTarget === 'CUSTOMER') {
+                        adminUpdateMember(currentMember.memberId, {
+                          name: profileNameInput.trim() || currentMember.name,
+                          phone: profilePhoneInput.trim() || currentMember.phone,
+                          email: profileEmailInput.trim(),
+                          password: profilePasswordInput.trim() || '123456',
+                          avatarUrl: profileAvatarInput.trim() || currentMember.avatarUrl,
+                          deliveryAddress: {
+                            recipientName: profileNameInput.trim() || currentMember.name,
+                            phone: profilePhoneInput.trim() || currentMember.phone,
+                            province: profileProvinceInput.trim() || 'Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)',
+                            district: currentMember.deliveryAddress?.district || 'Chanthabouly',
+                            village: currentMember.deliveryAddress?.village || 'Dongdok Campus',
+                            note: currentMember.deliveryAddress?.note || '',
+                          },
+                          lastPasswordUpdatedAt: new Date().toISOString(),
+                        });
+                        setProfileUpdateNotice(
+                          `Saved User Customer (${profileNameInput.trim()} • ${currentMember.memberId}) Profile & Password!`
+                        );
+                      } else {
+                        adminUpdateMember(currentMember.memberId, {
+                          name: profileNameInput.trim() || currentMember.name,
+                          phone: profilePhoneInput.trim() || currentMember.phone,
+                          email: profileEmailInput.trim(),
+                          password: profilePasswordInput.trim() || '123456',
+                          avatarUrl: profileAvatarInput.trim() || currentMember.avatarUrl,
+                          lastPasswordUpdatedAt: new Date().toISOString(),
+                        });
+                        setProfileUpdateNotice(
+                          `Saved User Member (${currentMember.memberId}) Profile & Password!`
+                        );
+                      }
+                      setTimeout(() => setProfileUpdateNotice(''), 4000);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>
+                      Save{' '}
+                      {profileRoleTarget === 'SUPER_ADMIN'
+                        ? 'Super Admin'
+                        : profileRoleTarget === 'SINGER'
+                        ? '2/ User Singer'
+                        : profileRoleTarget === 'CUSTOMER'
+                        ? '3/ User Customer'
+                        : '1/ User Member'}{' '}
+                      Profile & Password
+                    </span>
+                  </button>
+
+                  {(isAdminAuthenticated || isAdminMode) && profileRoleTarget !== 'SUPER_ADMIN' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileUpdateError('');
+                        adminUpdateMember(currentMember.memberId, {
+                          name: profileNameInput.trim() || currentMember.name,
+                          phone: profilePhoneInput.trim() || currentMember.phone,
+                          email: profileEmailInput.trim(),
+                          password: profilePasswordInput.trim() || '123456',
+                          avatarUrl: profileAvatarInput.trim() || currentMember.avatarUrl,
+                          deliveryAddress: {
+                            recipientName: profileNameInput.trim() || currentMember.name,
+                            phone: profilePhoneInput.trim() || currentMember.phone,
+                            province: profileProvinceInput.trim() || 'Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)',
+                            district: currentMember.deliveryAddress?.district || 'Chanthabouly',
+                            village: currentMember.deliveryAddress?.village || 'Dongdok Campus',
+                            note: currentMember.deliveryAddress?.note || '',
+                          },
+                          lastPasswordUpdatedAt: new Date().toISOString(),
+                        });
+                        if (matchedSinger) {
+                          updateSingerProfile(matchedSinger.id, {
+                            stageName: profileStageNameInput.trim() || matchedSinger.stageName,
+                            fullName: profileNameInput.trim() || matchedSinger.fullName,
+                            gender: profileGenderInput,
+                            vocalStyle: profileVocalStyleInput.trim() || matchedSinger.vocalStyle,
+                            experienceYears: Number(profileExperienceInput) || matchedSinger.experienceYears,
+                            province: profileProvinceInput.trim() || matchedSinger.province,
+                            bio: profileBioInput.trim() || matchedSinger.bio,
+                            phone: profilePhoneInput.trim() || matchedSinger.phone,
+                            email: profileEmailInput.trim(),
+                            password: profilePasswordInput.trim() || '123456',
+                            avatarUrl: profileAvatarInput.trim() || matchedSinger.avatarUrl,
+                          });
+                        }
+                        setProfileUpdateNotice(
+                          `Administrator Updated ALL (1/ User Member • 2/ User Singer • 3/ User Customer) Profile & Password for ${currentMember.memberId}!`
+                        );
+                        setTimeout(() => setProfileUpdateNotice(''), 4500);
+                      }}
+                      className="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Admin Update All (Member • Singer • Customer)</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Official Copyright Certificate Card */}
@@ -1809,36 +2299,38 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                 </p>
               </div>
 
-              {/* Admin Portal Fast Switch & Profile/SMS Shortcut */}
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-                <div>
-                  <span className="font-bold text-white block">Super Admin & SMS Password Recovery</span>
-                  <span className="text-[10px] text-slate-400">
-                    Admin Phone: {superAdminProfile.phone} ({superAdminProfile.telecomCarrier})
-                  </span>
+              {/* Admin Portal Fast Switch & Profile/SMS Shortcut — ONLY visible to Administrator */}
+              {(isAdminAuthenticated || isAdminMode) && (
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-white block">Super Admin & SMS Password Recovery</span>
+                    <span className="text-[10px] text-slate-400">
+                      Admin Phone: {superAdminProfile.phone} ({superAdminProfile.telecomCarrier})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        setProfileRoleTarget('SUPER_ADMIN');
+                        setActiveTab('PROFILE');
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-xs cursor-pointer"
+                    >
+                      Admin SMS Recovery
+                    </button>
+                    <button
+                      onClick={() => setIsAdminMode(!isAdminMode)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                        isAdminMode
+                          ? 'bg-amber-500 text-slate-950 shadow-md'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {isAdminMode ? 'Admin Active' : 'Switch to Admin'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      setProfileRoleTarget('SUPER_ADMIN');
-                      setActiveTab('PROFILE');
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-xs cursor-pointer"
-                  >
-                    Admin SMS Recovery
-                  </button>
-                  <button
-                    onClick={() => setIsAdminMode(!isAdminMode)}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
-                      isAdminMode
-                        ? 'bg-amber-500 text-slate-950 shadow-md'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    {isAdminMode ? 'Admin Active' : 'Switch to Admin'}
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           )}
         </div>

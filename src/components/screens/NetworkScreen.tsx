@@ -46,7 +46,7 @@ export const NetworkScreen: React.FC<NetworkScreenProps> = ({ onNavigate }) => {
   ).length;
   const freeCount = totalDownlineCount - activeCount;
 
-  const referralUrl = `https://dmcxayraxa.la/register?ref=${currentMember.memberId}`;
+  const referralUrl = `https://dmcxayraxa.music/register?ref=${currentMember.memberId}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralUrl);

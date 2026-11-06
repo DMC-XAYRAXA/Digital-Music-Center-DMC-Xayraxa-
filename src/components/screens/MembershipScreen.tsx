@@ -25,12 +25,14 @@ import {
   Info,
   X,
   Award,
-  Download
+  Download,
+  Mic
 } from 'lucide-react';
 import { QrCodeModal } from '../common/QrCodeModal';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
 import { CopyrightCertificateModal, downloadDmcCertificateImage } from '../common/CopyrightCertificateModal';
 import { DmcMembershipTermsModal } from '../common/DmcMembershipTermsModal';
+import { SingerApplicationDashboardModal } from '../common/SingerApplicationDashboardModal';
 
 interface MembershipScreenProps {
   onNavigate: (tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet') => void;
@@ -68,6 +70,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
   const [activationSuccessNotice, setActivationSuccessNotice] = useState<string | null>(null);
   const [isCertificateOpen, setIsCertificateOpen] = useState(false);
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
+  const [isSingerModalOpen, setIsSingerModalOpen] = useState(false);
 
   const handleDirectCertDownload = async () => {
     setIsDownloadingCert(true);
@@ -159,7 +162,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
     }
   };
 
-  const referralUrl = `https://dmcxayraxa.la/register?ref=${currentMember.memberId}`;
+  const referralUrl = `https://dmcxayraxa.music/register?ref=${currentMember.memberId}`;
 
   const copyReferral = () => {
     navigator.clipboard.writeText(referralUrl);
@@ -220,9 +223,19 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
               {t.newMemberFormSub}
             </p>
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
-            {t.freeSignupBadge}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsSingerModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-[#df1c2d] hover:from-amber-400 hover:to-red-600 text-white text-[11px] font-black flex items-center gap-1.5 shadow cursor-pointer"
+            >
+              <Mic className="w-3.5 h-3.5" />
+              <span>Register Singer (General People)</span>
+            </button>
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
+              {t.freeSignupBadge}
+            </span>
+          </div>
         </div>
 
         {errorMessage && (
@@ -824,6 +837,13 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
         isOpen={isTermsModalOpen}
         onClose={() => setIsTermsModalOpen(false)}
         onAcceptTerms={() => setFormData(prev => ({ ...prev, termsConsent: true }))}
+      />
+
+      <SingerApplicationDashboardModal
+        isOpen={isSingerModalOpen}
+        onClose={() => setIsSingerModalOpen(false)}
+        initialTab="APPLY"
+        onNavigateTab={onNavigate}
       />
     </div>
   );

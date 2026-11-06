@@ -340,7 +340,8 @@ export const AcademyScreen: React.FC = () => {
     ],
   }[language];
 
-  const [, setActiveCourseId] = useState<string | null>(null);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const [activeModuleIndex, setActiveModuleIndex] = useState<number>(0);
   const [selectedCourseForQr, setSelectedCourseForQr] = useState<{
     id: string;
     title: string;
@@ -606,6 +607,10 @@ export const AcademyScreen: React.FC = () => {
     setTimeout(() => setDownloadSuccessNotice(null), 3500);
   };
 
+  const selectedLearningCourse = activeCourseId
+    ? displayCourses.find((c) => c.id === activeCourseId) || displayCourses[0]
+    : null;
+
   return (
     <div className="@container space-y-6 pb-12 animate-in fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -713,7 +718,10 @@ export const AcademyScreen: React.FC = () => {
           <p className="text-xs text-slate-300 leading-relaxed">{t.featuredLessonDesc}</p>
         </div>
         <button
-          onClick={() => setActiveCourseId('c1')}
+          onClick={() => {
+            setActiveModuleIndex(0);
+            setActiveCourseId('c1');
+          }}
           className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 transition-colors shrink-0 shadow cursor-pointer"
         >
           <PlayCircle className="w-4 h-4" />
@@ -764,7 +772,7 @@ export const AcademyScreen: React.FC = () => {
         }}
       />
 
-      {/* Course List */}
+      {/* Course List (All Academy Learning Lessons) */}
       <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
         {displayCourses.map((c) => {
           const Icon = c.icon;
@@ -910,7 +918,10 @@ export const AcademyScreen: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <button
-                    onClick={() => setActiveCourseId(c.id)}
+                    onClick={() => {
+                      setActiveModuleIndex(0);
+                      setActiveCourseId(c.id);
+                    }}
                     className="flex-1 min-w-[140px] py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -968,6 +979,119 @@ export const AcademyScreen: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Interactive Course Lesson Player Modal when User Selects a Course to Learn */}
+      {selectedLearningCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-xl w-full p-5 text-slate-100 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <PlayCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono text-amber-300 uppercase font-bold">
+                    {selectedLearningCourse.category} • {selectedLearningCourse.duration}
+                  </span>
+                  <h3 className="text-sm sm:text-base font-black text-white">
+                    {selectedLearningCourse.title}
+                  </h3>
+                  <span className="text-[11px] text-slate-400">
+                    {t.instructorLabel}: {selectedLearningCourse.instructor}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveCourseId(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/60 via-slate-950 to-slate-950 border border-amber-500/30 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
+                  Lesson Module #{activeModuleIndex + 1}
+                </span>
+                <span className="font-mono text-emerald-400 font-bold">
+                  Progress: {selectedLearningCourse.progress}%
+                </span>
+              </div>
+              <p className="text-xs text-slate-200 leading-relaxed">
+                {selectedLearningCourse.description}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                Select Lesson Module to Learn:
+              </div>
+              {[
+                'Module 1: Studio Debut Preparation — Choosing Genre, Key & BPM',
+                'Module 2: Vocal Warmup, Phrasing & Studio Microphone Distance',
+                'Module 3: Recording Session Workflow at DMC Central Studio Vientiane',
+                'Module 4: Master Rights, Lao PDR Copyright Law No. 38/NA & Distribution',
+              ].map((modTitle, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveModuleIndex(idx)}
+                  className={`w-full p-3 rounded-xl border text-left text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                    activeModuleIndex === idx
+                      ? 'bg-amber-500/20 border-amber-400 text-white font-bold'
+                      : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <PlayCircle
+                      className={`w-4 h-4 shrink-0 ${
+                        activeModuleIndex === idx ? 'text-amber-400' : 'text-slate-500'
+                      }`}
+                    />
+                    <span>{modTitle}</span>
+                  </span>
+                  {activeModuleIndex === idx && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black shrink-0">
+                      Playing
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCourseForQr({
+                    id: selectedLearningCourse.id,
+                    title: selectedLearningCourse.title,
+                    memberPriceLak: selectedLearningCourse.memberPriceLak,
+                    commissionPoolLak: selectedLearningCourse.commissionPoolLak,
+                  });
+                  setActiveCourseId(null);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Enroll Course via Lao QR ({formatLak(selectedLearningCourse.memberPriceLak)})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveCourseId(null)}
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer"
+              >
+                Done Learning
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
 
       {/* Music Course QR Payment Modal */}
       {selectedCourseForQr && (

@@ -78,7 +78,7 @@ export const DEFAULT_COMPANY_PROFILE_DATA: CompanyProfileData = {
   hotlinePhone: '+856 20 5511 2233',
   whatsappOfficial: '+856 20 5511 2233',
   officialEmail: 'xay.raxa@gmail.com',
-  websiteUrl: 'https://dmc-xayraxa.la',
+  websiteUrl: 'https://dmcxayraxa.music',
   executiveSummary:
     'Digital Music Center (DMC Xayraxa Entertainment Sole Co., Ltd) is Lao PDR’s premier integrated music production house, custom song studio, and musical instrument e-commerce platform. Combining world-class vocal arrangement, mixing, and mastering with a transparent 3-Level Unilevel royalty and commission ledger in Integer LAK (₭), DMC empowers Lao artists, creators, and entrepreneurs nationwide.',
   executiveSummaryLao:

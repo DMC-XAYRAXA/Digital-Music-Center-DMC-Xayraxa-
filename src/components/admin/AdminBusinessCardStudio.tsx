@@ -86,7 +86,7 @@ export const DEFAULT_BUSINESS_CARD_DATA: BusinessCardData = {
   phone: '+856 20 5599 8888',
   whatsapp: '+856 20 5511 2233',
   email: 'xay.raxa@gmail.com',
-  website: 'www.dmcxayraxa.la',
+  website: 'www.dmcxayraxa.music',
   addressEn: 'Dongdok Campus, Xaythany District, Vientiane Capital, Lao PDR',
   addressLo: 'ວິທະຍາເຂດດົງໂດກ, ເມືອງໄຊທານີ, ນະຄອນຫຼວງວຽງຈັນ, ສປປ ລາວ',
   sloganEn: 'Build Your Music Future • 1,600,000 LAK Lifetime Studio Membership',
@@ -935,7 +935,7 @@ export const AdminBusinessCardStudio: React.FC = () => {
 
   // Generate QR code whenever memberId or website changes
   useEffect(() => {
-    const payload = `https://dmcxayraxa.la/register?sponsor=${encodeURIComponent(
+    const payload = `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
       cardData.memberId
     )}&name=${encodeURIComponent(cardData.fullNameEn)}&tel=${encodeURIComponent(cardData.phone)}`;
 
@@ -1010,7 +1010,7 @@ export const AdminBusinessCardStudio: React.FC = () => {
         memberId: found.memberId,
         phone: found.phone,
         whatsapp: found.phone,
-        email: found.email || `${found.memberId.toLowerCase()}@dmcxayraxa.la`,
+        email: found.email || `${found.memberId.toLowerCase()}@dmcxayraxa.music`,
         avatarDataUrl: found.avatarUrl || '',
       }));
       showToast(`Loaded Business Card for ${found.name} (${found.memberId})!`);

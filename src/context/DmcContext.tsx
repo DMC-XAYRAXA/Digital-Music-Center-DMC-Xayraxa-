@@ -34,6 +34,21 @@ import {
   DmcStaffMember,
   DmcPromotionItem,
   DmcPrivacyPolicySection,
+  DmcSingerProfile,
+  DmcSingerWithdrawalRecord,
+  DmcSingerAffiliateSaleRecord,
+  DmcSingerBankQrItem,
+  SingerPriceTier,
+  BrandSetPackageType,
+  SingerCopyrightMusicType,
+  DmcBookingPackageCategory,
+  DmcBookingPackageOption,
+  DEFAULT_BOOKING_PACKAGE_OPTIONS,
+  DmcSingerBookingPricingConfig,
+  DEFAULT_SINGER_BOOKING_PRICING,
+  DmcSingerPartyBooking,
+  DmcLoanWalletTransaction,
+  DmcAdminPanelBookingReport,
 } from '../types/dmc';
 
 export const TWELVE_HOURS_INACTIVITY_MS = 12 * 60 * 60 * 1000; // 12 Hours (43,200,000 ms)
@@ -93,6 +108,19 @@ function loadInitialActiveSession(): {
   }
 }
 
+export interface CustomerAffiliateTransferRecord {
+  id: string;
+  txRef: string;
+  memberId: string;
+  amountLak: number;
+  commissionBalanceBeforeLak: number;
+  commissionBalanceAfterLak: number;
+  walletAvailableBeforeLak: number;
+  walletAvailableAfterLak: number;
+  note: string;
+  transferredAt: string;
+}
+
 interface DmcContextType {
   // Active member / persona
   currentMember: Member;
@@ -149,8 +177,14 @@ interface DmcContextType {
   createOrder: (items: { sku: string; quantity: number }[], paymentMethod: Order['paymentMethod'], shippingAddress?: any, carrierId?: LaoShippingCarrierId) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   
-  // Song Entitlements
+  // Song Entitlements & Copyright Song Marketplace
+  allSongs: SongProductionProject[];
   getMemberSongs: (memberId: string) => SongProductionProject[];
+  purchaseCopyrightSongPackage: (
+    songId: string,
+    paymentMethod?: Order['paymentMethod'],
+    paymentRef?: string
+  ) => Promise<{ success: boolean; message: string; order?: Order }>;
   
   // Qualification & Registration
   registerMember: (data: { name: string; phone: string; email?: string; password?: string; sponsorCode?: string; autoRedeemConsent: boolean }) => Promise<Member>;
@@ -162,6 +196,7 @@ interface DmcContextType {
   verifyWithdrawalOtp: (withdrawalId: string, otpCode: string) => boolean;
   makerApproveWithdrawal: (withdrawalId: string, makerAdminId: string) => boolean;
   checkerExecutePayout: (withdrawalId: string, checkerAdminId: string) => boolean;
+  adminApproveWithdrawalRequest: (withdrawalId: string, adminActor?: string) => { success: boolean; message: string };
   rejectWithdrawal: (withdrawalId: string, reason: string) => boolean;
   
   // Admin CRUD Management (Add, Edit, Update, Delete)
@@ -218,8 +253,223 @@ interface DmcContextType {
   ) => void;
   adminDeletePrivacyPolicySection: (sectionId: string) => boolean;
   adminResetPrivacyPolicySections: () => void;
-  customHomeIcons: { academy?: string; musicHub?: string; staff?: string; promotions?: string; support?: string };
-  adminUpdateHomeIcon: (key: 'academy' | 'musicHub' | 'staff' | 'promotions' | 'support', iconUrl: string) => void;
+  customHomeIcons: { academy?: string; musicHub?: string; staff?: string; singer?: string; promotions?: string; support?: string };
+  adminUpdateHomeIcon: (key: 'academy' | 'musicHub' | 'staff' | 'singer' | 'promotions' | 'support', iconUrl: string) => void;
+  singerProfiles: DmcSingerProfile[];
+  applyForSingerJob: (
+    data: {
+      memberId?: string;
+      registrationType?: 'GENERAL_PUBLIC' | 'EXISTING_MEMBER';
+      gender?: 'MAN' | 'WOMAN';
+      password?: string;
+      sponsorMemberId?: string;
+      fullName: string;
+      stageName: string;
+      phone: string;
+      email?: string;
+      province: string;
+      vocalStyle: string;
+      experienceYears: number;
+      demoAudioOrVideoUrl?: string;
+      avatarUrl?: string;
+      bio?: string;
+      startSingerPriceLak?: number;
+      packagePartyPriceLak?: number;
+      recommendedProductSkus?: string[];
+      bankAccount: {
+        bankName: string;
+        accountNumber: string;
+        accountName: string;
+        branch?: string;
+        customQrImageUrl?: string;
+      };
+      bankQrAccounts?: DmcSingerBankQrItem[];
+    }
+  ) => DmcSingerProfile;
+  updateSingerProfile: (singerId: string, updates: Partial<DmcSingerProfile>) => void;
+  deleteSingerProfile: (singerId: string) => boolean;
+  addSingerBankQrAccount: (
+    singerId: string,
+    qrAccount: Omit<DmcSingerBankQrItem, 'id' | 'updatedAt'>
+  ) => DmcSingerBankQrItem | null;
+  updateSingerBankQrAccount: (
+    singerId: string,
+    qrAccountId: string,
+    updates: Partial<DmcSingerBankQrItem>
+  ) => void;
+  deleteSingerBankQrAccount: (singerId: string, qrAccountId: string) => boolean;
+  setDefaultSingerBankQrAccount: (singerId: string, qrAccountId: string) => void;
+  toggleSingerRecommendedProduct: (singerId: string, sku: string) => void;
+  recordSingerAffiliateSale: (
+    singerId: string,
+    sku: string,
+    buyerName?: string
+  ) => { success: boolean; message: string; commissionLak: number };
+  withdrawFromSingerWallet: (
+    singerId: string,
+    amountLak: number,
+    bankDetails: {
+      bankName: string;
+      accountNumber: string;
+      accountName: string;
+      customQrImageUrl?: string;
+    }
+  ) => { success: boolean; message: string; withdrawal?: DmcSingerWithdrawalRecord };
+  resetSingerMemberWalletToZero: (
+    singerId?: string
+  ) => { success: boolean; message: string };
+  // Loan Wallet Center (Administrator Panel: Deposit, Withdraw, 10% Singer Booking Cut)
+  loanWalletBalanceLak: number;
+  loanWalletTransactions: DmcLoanWalletTransaction[];
+  adminDepositLoanWallet: (
+    amountLak: number,
+    note: string,
+    bankDetails?: {
+      bankName?: string;
+      accountNumber?: string;
+      accountName?: string;
+      customQrImageUrl?: string;
+    }
+  ) => { success: boolean; message: string; tx?: DmcLoanWalletTransaction };
+  adminWithdrawLoanWallet: (
+    amountLak: number,
+    note: string,
+    bankDetails?: {
+      bankName?: string;
+      accountNumber?: string;
+      accountName?: string;
+      customQrImageUrl?: string;
+    }
+  ) => { success: boolean; message: string; tx?: DmcLoanWalletTransaction };
+  adminUpdateLoanWalletTransaction: (
+    txId: string,
+    updates: Partial<DmcLoanWalletTransaction>
+  ) => void;
+  adminDeleteLoanWalletTransaction: (txId: string) => boolean;
+  // Booking Singer Music Cain Party Set Package & Admin Price CRUD
+  singerBookingPricing: DmcSingerBookingPricingConfig;
+  updateSingerBookingPricing: (updates: Partial<DmcSingerBookingPricingConfig>) => void;
+  bookingPackageOptions: DmcBookingPackageOption[];
+  adminAddBookingPackageOption: (
+    opt: Omit<DmcBookingPackageOption, 'id' | 'updatedAt'>
+  ) => DmcBookingPackageOption;
+  adminUpdateBookingPackageOption: (
+    id: string,
+    updates: Partial<DmcBookingPackageOption>
+  ) => void;
+  adminDeleteBookingPackageOption: (id: string) => boolean;
+  adminResetBookingPackageOptions: () => void;
+  singerBookings: DmcSingerPartyBooking[];
+  createSingerPartyBooking: (input: {
+    singerId: string;
+    customerMemberId?: string;
+    customerName: string;
+    customerPhone: string;
+    customerPassword?: string;
+    partyEventName: string;
+    eventLocation: string;
+    bookingDate: string;
+    bookingTimeSlot: string;
+    singerPriceTier: SingerPriceTier;
+    customSingerPriceLak?: number;
+    brandSetPackageType: BrandSetPackageType;
+    customBrandSetPriceLak?: number;
+    copyrightMusicType: SingerCopyrightMusicType;
+    customCopyrightMusicPriceLak?: number;
+    ownMusicSongTitles?: string;
+    paymentMethod: DmcSingerPartyBooking['paymentMethod'];
+    paymentBillImageUrl?: string;
+    paymentBillFileName?: string;
+    paymentBillRefNo?: string;
+    notes?: string;
+  }) => {
+    success: boolean;
+    message: string;
+    booking?: DmcSingerPartyBooking;
+    autoAffiliateMember?: Member;
+  };
+  recordCustomerAffiliateCommission: (
+    memberId: string,
+    itemTitle: string,
+    orderAmountLak: number,
+    commissionLak: number,
+    buyerName?: string
+  ) => { success: boolean; message: string; commissionLak: number };
+  getCustomerAffiliateCommissionBalance: (memberId: string) => number;
+  getCustomerAffiliateTransfers: (memberId: string) => CustomerAffiliateTransferRecord[];
+  transferAffiliateCommissionToCustomerWallet: (
+    memberId: string,
+    amountLak?: number,
+    note?: string
+  ) => {
+    success: boolean;
+    message: string;
+    transferredLak: number;
+    remainingCommissionLak: number;
+    newWalletAvailableLak: number;
+    transferRecord?: CustomerAffiliateTransferRecord;
+  };
+  withdrawCustomerAffiliateWallet: (
+    memberId: string,
+    amountLak: number,
+    bankDetails: {
+      bankName: string;
+      accountNumber: string;
+      accountName: string;
+      customQrImageUrl?: string;
+    }
+  ) => { success: boolean; message: string; withdrawalId?: string };
+  triggerUserMemberNetworkActivationCommission: (
+    activatedMemberId: string,
+    activatedMemberName?: string,
+    sourceReason?: string
+  ) => {
+    success: boolean;
+    message: string;
+    l1Lak: number;
+    l2Lak: number;
+    l3Lak: number;
+    totalDistributedLak: number;
+  };
+  submitCustomerActivePackagePayment: (
+    memberId: string,
+    options?: {
+      paymentMethod?: 'LAO_QR' | 'BCEL_ONE' | 'BANK_TRANSFER' | 'WALLET_CREDIT';
+      paymentRef?: string;
+      billImageUrl?: string;
+      amountLak?: number;
+    }
+  ) => {
+    success: boolean;
+    message: string;
+    order?: Order;
+  };
+  adminApproveCustomerToActiveMember: (
+    memberId: string,
+    adminActor?: string
+  ) => {
+    success: boolean;
+    message: string;
+    unlockedHeldLak: number;
+    l1Lak: number;
+    l2Lak: number;
+    l3Lak: number;
+  };
+  updateSingerPartyBooking: (
+    bookingId: string,
+    updates: Partial<DmcSingerPartyBooking>
+  ) => void;
+  deleteSingerPartyBooking: (bookingId: string) => boolean;
+  // Report to Administrator Panel
+  adminPanelBookingReports: DmcAdminPanelBookingReport[];
+  submitReportToAdminPanel: (
+    input: Partial<DmcAdminPanelBookingReport> & { reportTitle: string }
+  ) => DmcAdminPanelBookingReport;
+  updateAdminPanelBookingReport: (
+    id: string,
+    updates: Partial<DmcAdminPanelBookingReport>
+  ) => void;
+  deleteAdminPanelBookingReport: (id: string) => boolean;
   adminAddSong: (song: SongProductionProject) => void;
   adminUpdateSong: (songId: string, updates: Partial<SongProductionProject>) => void;
   adminDeleteSong: (songId: string) => boolean;
@@ -346,12 +596,15 @@ const INITIAL_MEMBERS: Member[] = [
   {
     id: 'usr-00404',
     memberId: 'DMC-LA-00404',
-    name: 'Khamla Saysana (Sample FREE Member)',
+    name: 'Khamla Saysana (Khamla Xayraxa Vocal)',
     phone: '+856 20 2233 4455',
     email: 'khamla@gmail.com',
+    password: '123456',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
     language: 'lo',
-    membershipState: 'FREE_MEMBER',
+    membershipState: 'ACTIVE_LIFETIME_MEMBER',
+    activatedAt: '2026-09-01T09:15:00Z',
+    activationMethod: 'DIRECT_CASH',
     sponsorId: 'DMC-LA-00303',
     createdAt: '2026-09-01T09:15:00Z',
     consents: {
@@ -362,7 +615,7 @@ const INITIAL_MEMBERS: Member[] = [
       autoRedeemVersion: 'v2.6',
       autoRedeemAcceptedAt: '2026-09-01T09:15:00Z',
     },
-    kycStatus: 'PENDING',
+    kycStatus: 'VERIFIED',
     bankAccount: {
       bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
       bankCode: 'BCEL',
@@ -857,12 +1110,13 @@ const INITIAL_PRODUCTS: ProductSKU[] = [
   },
 ];
 
-// Initial Song Projects
+// Initial Song Projects & Copyright Song Packages for Sale
 const INITIAL_SONGS: SongProductionProject[] = [
   {
     id: 'sng-001',
     memberId: 'DMC-LA-00101',
     title: 'ສຽງແຄນແດນວຽງຈັນ (Echoes of the Mekong)',
+    artistName: 'Xay Raxa • DMC Studio Master',
     genre: 'Lao Contemporary Folk / Pop',
     tempo: '88 BPM',
     status: 'RELEASED',
@@ -870,33 +1124,73 @@ const INITIAL_SONGS: SongProductionProject[] = [
     studioLocation: 'DMC Central Studio, Vientiane',
     progressPercent: 100,
     previewAudioUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
-    downloadWavUrl: '#',
+    downloadWavUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+    audioFileName: 'DMC_Master_Echoes_Of_The_Mekong_24bit_WAV.wav',
+    coverImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+    priceLak: 1600000,
+    marketPriceLak: 2200000,
+    memberDiscountLak: 600000,
+    commissionPoolLak: 700000,
+    copyrightCode: 'LA-DMC-CR-2026-00101',
+    isrcCode: 'LA-XAY-26-00101',
+    copyrightLicenseType: 'Full Master Recording + Commercial Copyright Certificate',
+    description: '24-Bit Studio Master WAV + MP3 + Instrumental Backing Track + Official Signed DMC Copyright Certificate (Lao IP Law No. 38/NA).',
+    lyricsExcerpt: 'ສຽງແຄນແວ່ວມາ ริมຝັ່ງແມ່ນ້ຳຂອງ ດັງກ້ອງກັງວານໄປທົ່ວແດນລາວ...',
+    purchasedByMemberIds: ['DMC-LA-00101', 'DMC-LA-00404'],
     updatedAt: '2026-09-20T10:00:00Z',
   },
   {
     id: 'sng-002',
     memberId: 'DMC-LA-00202',
     title: 'ຫົວໃຈດົນຕີ (Music Heartbeat)',
+    artistName: 'Xay Raxa • DMC Studio Master',
     genre: 'Pop Rock',
     tempo: '112 BPM',
-    status: 'MIXING_MASTERING',
+    status: 'RELEASED',
     producer: 'Xay Raxa',
     studioLocation: 'DMC Central Studio, Vientiane',
-    progressPercent: 85,
+    progressPercent: 100,
     previewAudioUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+    downloadWavUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+    audioFileName: 'DMC_Master_Music_Heartbeat_24bit_WAV.wav',
+    coverImageUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=800&q=80',
+    priceLak: 1600000,
+    marketPriceLak: 2200000,
+    memberDiscountLak: 600000,
+    commissionPoolLak: 700000,
+    copyrightCode: 'LA-DMC-CR-2026-00202',
+    isrcCode: 'LA-XAY-26-00202',
+    copyrightLicenseType: 'Full Master Recording + Commercial Copyright Certificate',
+    description: 'Full Studio Pop-Rock Master Arrangement + Vocal Stems + Official Signed DMC Copyright Ownership Certificate.',
+    lyricsExcerpt: 'ຈັງຫວະຫົວໃຈເຕັ້ນໄປຕາມສຽງເພງ ບັນເລງຄວາມຝັນສູ່ເວທີລະດັບໂລກ...',
+    purchasedByMemberIds: ['DMC-LA-00202'],
     updatedAt: '2026-10-02T15:30:00Z',
   },
   {
     id: 'sng-003',
     memberId: 'DMC-LA-00303',
     title: 'ຮັກສາວຫຼວງພະບາງ (Luang Prabang Serenade)',
+    artistName: 'Xay Raxa • DMC Studio Master',
     genre: 'Acoustic Ballad',
     tempo: '76 BPM',
-    status: 'VOCAL_RECORDING',
+    status: 'RELEASED',
     producer: 'Xay Raxa',
     studioLocation: 'DMC Central Studio, Vientiane',
-    progressPercent: 50,
+    progressPercent: 100,
     previewAudioUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+    downloadWavUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+    audioFileName: 'DMC_Master_Luang_Prabang_Serenade_24bit_WAV.wav',
+    coverImageUrl: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+    priceLak: 1600000,
+    marketPriceLak: 2200000,
+    memberDiscountLak: 600000,
+    commissionPoolLak: 700000,
+    copyrightCode: 'LA-DMC-CR-2026-00303',
+    isrcCode: 'LA-XAY-26-00303',
+    copyrightLicenseType: 'Full Master Recording + Commercial Copyright Certificate',
+    description: 'Acoustic Guitar & Symphonic Strings Master + Sheet Music Score + Official DMC Copyright Certificate.',
+    lyricsExcerpt: 'ສາຍລົມໜາວພັດຜ່ານເມືອງມໍລະດົກໂລກ ຮອຍຍິ້ມງາມຈັບໃຈບໍ່ເຄີຍລືມ...',
+    purchasedByMemberIds: ['DMC-LA-00303'],
     updatedAt: '2026-10-10T11:00:00Z',
   },
 ];
@@ -1268,6 +1562,399 @@ export const INITIAL_PRIVACY_POLICY_SECTIONS: DmcPrivacyPolicySection[] = [
   },
 ];
 
+export const INITIAL_SINGER_PROFILES: DmcSingerProfile[] = [
+  {
+    id: 'sng-prof-001',
+    singerCode: 'DMC-SNG-001',
+    memberId: 'DMC-LA-00404',
+    gender: 'MAN',
+    fullName: 'Khamla Saysana',
+    stageName: 'Khamla Xayraxa Vocal',
+    phone: '+856 20 2233 4455',
+    email: 'khamla.singer@dmcxayraxa.music',
+    province: 'Vientiane Capital (Dongdok Studio Hub)',
+    vocalStyle: 'Lao Modern Pop',
+    experienceYears: 4,
+    demoAudioOrVideoUrl: 'https://dmcxayraxa.music/demos/khamla-champa-acoustic.wav',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80',
+    bio: 'Official DMC Xayraxa Lead Male Pop & Acoustic Ballad Singer • Studio Recording Artist & Brand Product Affiliate Ambassador.',
+    applicationStatus: 'FEATURED_ARTIST',
+    walletAvailableLak: 0,
+    walletPendingLak: 0,
+    totalEarnedLak: 0,
+    totalWithdrawnLak: 0,
+    affiliateCode: 'SINGER-KHAMLA-001',
+    startSingerPriceLak: 0,
+    packagePartyPriceLak: 8300000,
+    cheaperPriceLak: 2500000,
+    mediumPriceLak: 5000000,
+    expensivePriceLak: 10000000,
+    recommendedProductSkus: [
+      'MUSIC_SINGLE_1600',
+      'GTR-DMC-ACOUSTIC-01',
+      'ACC-DMC-MIC-03',
+    ],
+    bankAccount: {
+      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: '160-12-00884421-001',
+      accountName: 'KHAMLA SAYSANA',
+      branch: 'Head Office Vientiane',
+    },
+    withdrawals: [],
+    affiliateSales: [],
+    appliedAt: '2026-09-12T09:00:00Z',
+  },
+  {
+    id: 'sng-prof-002',
+    singerCode: 'DMC-SNG-002',
+    memberId: 'DMC-LA-00303',
+    gender: 'MAN',
+    fullName: 'Somphone Xayraxa',
+    stageName: 'Somphone Golden Voice',
+    phone: '+856 20 7766 5544',
+    email: 'somphone@dmcxayraxa.music',
+    province: 'Vientiane Capital',
+    vocalStyle: 'Morlam & Traditional Lao',
+    experienceYears: 7,
+    demoAudioOrVideoUrl: 'https://dmcxayraxa.music/demos/somphone-mekong-breeze.wav',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=320&q=80',
+    bio: 'Senior Male Morlam & Acoustic Vocalist at DMC Central Studios. Recommends studio microphones and acoustic guitars.',
+    applicationStatus: 'APPROVED_ACTIVE',
+    walletAvailableLak: 0,
+    walletPendingLak: 0,
+    totalEarnedLak: 0,
+    totalWithdrawnLak: 0,
+    affiliateCode: 'SINGER-SOMPHONE-002',
+    startSingerPriceLak: 0,
+    packagePartyPriceLak: 8000000,
+    cheaperPriceLak: 3000000,
+    mediumPriceLak: 5500000,
+    expensivePriceLak: 10000000,
+    recommendedProductSkus: ['MUSIC_SINGLE_1600', 'GTR-DMC-ACOUSTIC-01'],
+    bankAccount: {
+      bankName: 'Joint Development Bank (JDB)',
+      accountNumber: '010-12-00088910-001',
+      accountName: 'SOMPHONE XAYRAXA',
+      branch: 'Lane Xang Branch, Vientiane',
+    },
+    withdrawals: [],
+    affiliateSales: [],
+    appliedAt: '2026-09-05T11:30:00Z',
+  },
+  {
+    id: 'sng-prof-003',
+    singerCode: 'DMC-SNG-003',
+    memberId: 'DMC-LA-00101',
+    gender: 'WOMAN',
+    fullName: 'Sengdao Vongsa',
+    stageName: 'Alisa Sengdao Star',
+    phone: '+856 20 5511 2233',
+    email: 'sengdao@dmcxayraxa.music',
+    province: 'Luang Prabang Studio Hub',
+    vocalStyle: 'Acoustic Ballad',
+    experienceYears: 5,
+    demoAudioOrVideoUrl: 'https://dmcxayraxa.music/demos/sengdao-luangprabang.wav',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=320&q=80',
+    bio: 'Lead Female Ballad & Studio Session Singer • DMC Academy Vocal Coach & Affiliate Partner.',
+    applicationStatus: 'FEATURED_ARTIST',
+    walletAvailableLak: 0,
+    walletPendingLak: 0,
+    totalEarnedLak: 0,
+    totalWithdrawnLak: 0,
+    affiliateCode: 'SINGER-SENGDAO-003',
+    startSingerPriceLak: 0,
+    packagePartyPriceLak: 8500000,
+    cheaperPriceLak: 2800000,
+    mediumPriceLak: 5200000,
+    expensivePriceLak: 10500000,
+    recommendedProductSkus: [
+      'MUSIC_SINGLE_1600',
+      'GTR-DMC-ELECTRIC-02',
+      'ACC-DMC-MIC-03',
+    ],
+    bankAccount: {
+      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: '160-12-00049281-001',
+      accountName: 'SENGDAO VONGSA',
+      branch: 'Head Office Vientiane',
+    },
+    withdrawals: [],
+    affiliateSales: [],
+    appliedAt: '2026-08-20T08:00:00Z',
+  },
+  {
+    id: 'sng-prof-004',
+    singerCode: 'DMC-SNG-004',
+    memberId: 'DMC-LA-00202',
+    gender: 'WOMAN',
+    fullName: 'Maliwan Phommachanh',
+    stageName: 'Maliwan Champa Diva',
+    phone: '+856 20 5544 8899',
+    email: 'maliwan@dmcxayraxa.music',
+    province: 'Savannakhet & Vientiane Capital',
+    vocalStyle: 'Indie / R&B Soul',
+    experienceYears: 6,
+    demoAudioOrVideoUrl: 'https://dmcxayraxa.music/demos/maliwan-mekong-soul.wav',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=320&q=80',
+    bio: 'Featured Female R&B Soul, Pop & Party Concert Vocalist • Official DMC Party Set Headliner.',
+    applicationStatus: 'FEATURED_ARTIST',
+    walletAvailableLak: 0,
+    walletPendingLak: 0,
+    totalEarnedLak: 0,
+    totalWithdrawnLak: 0,
+    affiliateCode: 'SINGER-MALIWAN-004',
+    startSingerPriceLak: 0,
+    packagePartyPriceLak: 8000000,
+    cheaperPriceLak: 2500000,
+    mediumPriceLak: 5000000,
+    expensivePriceLak: 9800000,
+    recommendedProductSkus: ['MUSIC_SINGLE_1600', 'ACC-DMC-MIC-03'],
+    bankAccount: {
+      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: '160-12-00554488-001',
+      accountName: 'MALIWAN PHOMMACHANH',
+      branch: 'Vientiane Capital',
+    },
+    withdrawals: [],
+    affiliateSales: [],
+    appliedAt: '2026-09-01T10:00:00Z',
+  },
+  {
+    id: 'sng-prof-005',
+    singerCode: 'DMC-SNG-005',
+    memberId: 'DMC-LA-00506',
+    gender: 'MAN',
+    fullName: 'Soukphaphone Chanthavong',
+    stageName: 'Nong Souk DMC Vocal',
+    phone: '+856 20 5588 9911',
+    email: 'soukphaphone@dmcxayraxa.music',
+    province: 'Vientiane Capital (Dongdok Studio Hub)',
+    vocalStyle: 'Lao Modern Pop & Rock Party',
+    experienceYears: 4,
+    demoAudioOrVideoUrl: 'https://dmcxayraxa.music/demos/nongsouk-party-rock.wav',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=320&q=80',
+    bio: 'Official DMC Xayraxa Party Set Vocalist & Acoustic-Rock Headliner • Studio Recording & Affiliate Artist.',
+    applicationStatus: 'FEATURED_ARTIST',
+    walletAvailableLak: 0,
+    walletPendingLak: 0,
+    totalEarnedLak: 0,
+    totalWithdrawnLak: 0,
+    affiliateCode: 'SINGER-NONGSOUK-005',
+    startSingerPriceLak: 0,
+    packagePartyPriceLak: 8300000,
+    cheaperPriceLak: 2500000,
+    mediumPriceLak: 5000000,
+    expensivePriceLak: 9500000,
+    recommendedProductSkus: [
+      'MUSIC_SINGLE_1600',
+      'GTR-DMC-ACOUSTIC-01',
+      'GTR-DMC-ELECTRIC-02',
+    ],
+    bankAccount: {
+      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: '160-12-00997755-001',
+      accountName: 'SOUKPHAPHONE CHANTHAVONG',
+      branch: 'Head Office Vientiane',
+    },
+    withdrawals: [],
+    affiliateSales: [],
+    appliedAt: '2026-09-18T11:00:00Z',
+  },
+];
+
+const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
+  {
+    id: 'bk-sng-001',
+    bookingCode: 'BK-SNG-2026-001',
+    singerId: 'sng-prof-001',
+    singerCode: 'DMC-SNG-001',
+    singerStageName: 'Khamla Xayraxa Vocal',
+    singerFullName: 'Khamla Phommavong',
+    singerAvatarUrl:
+      'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80',
+    customerMemberId: 'DMC-LA-00404',
+    customerName: 'Souksavanh Grand Hotel Event',
+    customerPhone: '+856 20 5588 3322',
+    partyEventName: 'Music Cain VIP Anniversary Gala Party',
+    eventLocation: 'Landmark Mekong Riverside Ballroom, Vientiane',
+    bookingDate: '2026-11-15',
+    bookingTimeSlot: '18:30 - 22:30 (Evening Party Set)',
+    autoAffiliateActivated: true,
+    autoAffiliateCode: 'AFF-DMC-LA-00404',
+    autoAffiliateLink:
+      'https://dmcxayraxa.music/register?ref=DMC-LA-00404&aff=AFF-DMC-LA-00404&singer=DMC-SNG-001',
+    startSingerPriceLak: 5000000,
+    packagePartyPriceLak: 8300000,
+    singerPriceTier: 'MEDIUM',
+    singerPriceTierLabel: 'Medium Price',
+    singerPriceLak: 5000000,
+    brandSetPackageType: 'NEW_BRAND_SET',
+    brandSetPackageLabel: 'New Brand Set package price',
+    brandSetPackagePriceLak: 6500000,
+    copyrightMusicType: 'ROCK_PERFORMANCE',
+    copyrightMusicLabel: 'Rock performance',
+    copyrightMusicPriceLak: 1800000,
+    ownMusicSongTitles: 'Vientiane Rock Anthem & Golden Mekong Night (Original Copyright)',
+    totalPackagePriceLak: 13300000,
+    singerWallet5PercentSavingLak: 250000,
+    dmcPartyWallet5PercentSavingLak: 415000,
+    dmcPartyWalletNetCreditLak: 7885000,
+    loanWalletCut10PercentLak: 665000,
+    singerNetPayout90PercentLak: 4750000,
+    paymentMethod: 'BCEL_ONE_QR',
+    status: 'CONFIRMED_PAID',
+    notes: 'Start Singer Price (5,000,000 LAK) direct to Singer Wallet (-5% = 250,000 LAK to Saving for Loan) + Selected Package Party (8,300,000 LAK) to DMC Party Wallet Balance (-5% = 415,000 LAK to Saving for Loan).',
+    createdAt: '2026-10-21T10:15:00Z',
+  },
+  {
+    id: 'bk-sng-002',
+    bookingCode: 'BK-SNG-2026-002',
+    singerId: 'sng-prof-002',
+    singerCode: 'DMC-SNG-002',
+    singerStageName: 'Somphone Golden Voice',
+    singerFullName: 'Somphone Xayraxa',
+    singerAvatarUrl:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=320&q=80',
+    customerMemberId: 'DMC-LA-00303',
+    customerName: 'Chanthabouly Wedding & Festival Host',
+    customerPhone: '+856 20 9977 1122',
+    partyEventName: 'Traditional Baci & Music Cain Concert Night',
+    eventLocation: 'Don Chan Palace Convention Hall, Vientiane',
+    bookingDate: '2026-11-22',
+    bookingTimeSlot: '17:00 - 21:30 (Festival Party Set)',
+    autoAffiliateActivated: true,
+    autoAffiliateCode: 'AFF-DMC-LA-00303',
+    autoAffiliateLink:
+      'https://dmcxayraxa.music/register?ref=DMC-LA-00303&aff=AFF-DMC-LA-00303&singer=DMC-SNG-002',
+    startSingerPriceLak: 10000000,
+    packagePartyPriceLak: 4700000,
+    singerPriceTier: 'EXPENSIVE',
+    singerPriceTierLabel: 'Expensive price',
+    singerPriceLak: 10000000,
+    brandSetPackageType: 'OLD_BRAND_SET',
+    brandSetPackageLabel: 'Old Brand Set Package Price',
+    brandSetPackagePriceLak: 3500000,
+    copyrightMusicType: 'TRADITIONAL_MUSIC',
+    copyrightMusicLabel: 'Traditional music',
+    copyrightMusicPriceLak: 1200000,
+    ownMusicSongTitles: 'Lamvong Xayraxa Heritage & Champa Acoustic (Singer Copyright)',
+    totalPackagePriceLak: 14700000,
+    singerWallet5PercentSavingLak: 500000,
+    dmcPartyWallet5PercentSavingLak: 235000,
+    dmcPartyWalletNetCreditLak: 4465000,
+    loanWalletCut10PercentLak: 735000,
+    singerNetPayout90PercentLak: 9500000,
+    paymentMethod: 'LAO_QR',
+    status: 'CONFIRMED_PAID',
+    notes: 'Start Singer Price (10,000,000 LAK) direct to Singer Wallet (-5% = 500,000 LAK to Saving for Loan) + Selected Package Party (4,700,000 LAK) to DMC Party Wallet Balance (-5% = 235,000 LAK to Saving for Loan).',
+    createdAt: '2026-10-23T14:30:00Z',
+  },
+];
+
+const INITIAL_LOAN_WALLET_TRANSACTIONS: DmcLoanWalletTransaction[] = [
+  {
+    id: 'lw-tx-003',
+    txRef: 'LW-CUT-20261023-002',
+    type: 'SINGER_BOOKING_10_PERCENT_CUT',
+    amountLak: 735000,
+    balanceAfterLak: 22350000,
+    actor: 'BK-SNG-2026-002',
+    bookingId: 'bk-sng-002',
+    bookingCode: 'BK-SNG-2026-002',
+    singerId: 'sng-prof-002',
+    singerStageName: 'Somphone Golden Voice',
+    grossBookingAmountLak: 14700000,
+    singerPriceLak: 10000000,
+    packagePartyPriceLak: 4700000,
+    singerWallet5PercentSavingLak: 500000,
+    dmcPartyWallet5PercentSavingLak: 235000,
+    dmcPartyWalletNetCreditLak: 4465000,
+    singerNetPayoutLak: 9500000,
+    note: '10% Saving for Loan (5% Singer Wallet: 500,000 LAK + 5% DMC Party Wallet: 235,000 LAK) from Booking BK-SNG-2026-002 (Somphone Golden Voice)',
+    createdAt: '2026-10-23T14:30:00Z',
+  },
+  {
+    id: 'lw-tx-002',
+    txRef: 'LW-CUT-20261021-001',
+    type: 'SINGER_BOOKING_10_PERCENT_CUT',
+    amountLak: 665000,
+    balanceAfterLak: 17885000,
+    actor: 'BK-SNG-2026-001',
+    bookingId: 'bk-sng-001',
+    bookingCode: 'BK-SNG-2026-001',
+    singerId: 'sng-prof-001',
+    singerStageName: 'Khamla Xayraxa Vocal',
+    grossBookingAmountLak: 13300000,
+    singerPriceLak: 5000000,
+    packagePartyPriceLak: 8300000,
+    singerWallet5PercentSavingLak: 250000,
+    dmcPartyWallet5PercentSavingLak: 415000,
+    dmcPartyWalletNetCreditLak: 7885000,
+    singerNetPayoutLak: 4750000,
+    note: '10% Saving for Loan (5% Singer Wallet: 250,000 LAK + 5% DMC Party Wallet: 415,000 LAK) from Booking BK-SNG-2026-001 (Khamla Xayraxa Vocal)',
+    createdAt: '2026-10-21T10:15:00Z',
+  },
+  {
+    id: 'lw-tx-001',
+    txRef: 'LW-DEP-20261015-001',
+    type: 'DEPOSIT',
+    amountLak: 10000000,
+    balanceAfterLak: 10000000,
+    actor: 'SUPER_ADMIN',
+    bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+    accountNumber: '160-12-00998877-001',
+    accountName: 'DMC PARTY WALLET CENTER',
+    note: 'Initial Administrator Treasury Deposit to DMC Party Wallet Balance',
+    createdAt: '2026-10-15T09:00:00Z',
+  },
+];
+
+const INITIAL_ADMIN_PANEL_BOOKING_REPORTS: DmcAdminPanelBookingReport[] = [
+  {
+    id: 'rpt-adm-001',
+    reportCode: 'RPT-ADM-2026-001',
+    reportTitle: 'Music Cain Party Set Booking & 10% Saving for Loan Report (BK-SNG-2026-001)',
+    reportType: 'SINGER_BOOKING_REPORT',
+    submittedBy: 'Khamla Xayraxa Vocal (DMC-SNG-001)',
+    bookingId: 'bk-sng-001',
+    bookingCode: 'BK-SNG-2026-001',
+    singerStageName: 'Khamla Xayraxa Vocal',
+    totalPackagePriceLak: 13300000,
+    loanWalletCut10PercentLak: 665000,
+    singerNetPayout90PercentLak: 4750000,
+    loanWalletBalanceSnapshotLak: 17885000,
+    packageSummary:
+      'Start Singer Price: 5,000,000 LAK (Direct to Singer Wallet -5% = 4,750,000 LAK) + Selected Package Party: 8,300,000 LAK (To DMC Party Wallet -5% = 7,885,000 LAK) • Saving for Loan (5%+5%): +665,000 LAK',
+    status: 'APPROVED',
+    notes: 'Official Singer Party Booking & 10% Saving for Loan (5% Singer Wallet + 5% DMC Party Wallet) reported to Administrator Panel.',
+    createdAt: '2026-10-21T10:20:00Z',
+  },
+  {
+    id: 'rpt-adm-002',
+    reportCode: 'RPT-ADM-2026-002',
+    reportTitle: 'Festival Party Set Booking & 10% Saving for Loan Report (BK-SNG-2026-002)',
+    reportType: 'SINGER_BOOKING_REPORT',
+    submittedBy: 'Somphone Golden Voice (DMC-SNG-002)',
+    bookingId: 'bk-sng-002',
+    bookingCode: 'BK-SNG-2026-002',
+    singerStageName: 'Somphone Golden Voice',
+    totalPackagePriceLak: 14700000,
+    loanWalletCut10PercentLak: 735000,
+    singerNetPayout90PercentLak: 9500000,
+    loanWalletBalanceSnapshotLak: 22350000,
+    packageSummary:
+      'Start Singer Price: 10,000,000 LAK (Direct to Singer Wallet -5% = 9,500,000 LAK) + Selected Package Party: 4,700,000 LAK (To DMC Party Wallet -5% = 4,465,000 LAK) • Saving for Loan (5%+5%): +735,000 LAK',
+    status: 'SENT_TO_ADMIN_PANEL',
+    notes: 'Reported directly from Singer Booking Party Set hub to Administrator Panel.',
+    createdAt: '2026-10-23T14:35:00Z',
+  },
+];
+
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>(() => {
     try {
@@ -1517,6 +2204,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     academy?: string;
     musicHub?: string;
     staff?: string;
+    singer?: string;
     promotions?: string;
     support?: string;
   }>(() => {
@@ -1531,7 +2219,611 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return {};
   });
-  const [songs, setSongs] = useState<SongProductionProject[]>(INITIAL_SONGS);
+  const [singerProfiles, setSingerProfiles] = useState<DmcSingerProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_singers_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const normalized = parsed.map((s: DmcSingerProfile) => {
+            const isFemale =
+              s.gender === 'WOMAN' ||
+              s.id === 'sng-prof-003' ||
+              s.id === 'sng-prof-004' ||
+              /alisa|sengdao|maliwan|female|woman|diva/i.test(
+                `${s.stageName} ${s.fullName} ${s.bio || ''}`
+              );
+            return {
+              ...s,
+              gender: s.gender || (isFemale ? 'WOMAN' : 'MAN'),
+              startSingerPriceLak:
+                s.startSingerPriceLak || s.cheaperPriceLak || 2500000,
+              packagePartyPriceLak: s.packagePartyPriceLak || 8300000,
+            };
+          });
+          for (const defaultSinger of INITIAL_SINGER_PROFILES) {
+            if (
+              !normalized.some(
+                (s: DmcSingerProfile) =>
+                  s.id === defaultSinger.id || s.singerCode === defaultSinger.singerCode
+              )
+            ) {
+              normalized.push(defaultSinger);
+            }
+          }
+          return normalized;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_SINGER_PROFILES;
+  });
+  const [singerBookingPricing, setSingerBookingPricing] =
+    useState<DmcSingerBookingPricingConfig>(() => {
+      try {
+        const saved = localStorage.getItem('dmc_rev26_singer_booking_pricing_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            return { ...DEFAULT_SINGER_BOOKING_PRICING, ...parsed };
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return DEFAULT_SINGER_BOOKING_PRICING;
+    });
+  const [singerBookings, setSingerBookings] = useState<DmcSingerPartyBooking[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_singer_bookings_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((b: DmcSingerPartyBooking) => {
+            const pPrice =
+              b.packagePartyPriceLak !== undefined && b.packagePartyPriceLak > 0
+                ? b.packagePartyPriceLak
+                : (b.brandSetPackagePriceLak || 0) + (b.copyrightMusicPriceLak || 0) || 8300000;
+            const sPrice = 0;
+            const totalLak = pPrice;
+            const singerSave5 = Math.round(pPrice * 0.05);
+            const partySave5 = Math.round(pPrice * 0.05);
+            const totalSave10 = singerSave5 + partySave5;
+            const singerNet95 = Math.round(pPrice * 0.45);
+            const partyNet95 = Math.max(0, pPrice - partySave5);
+            return {
+              ...b,
+              startSingerPriceLak: sPrice,
+              singerPriceLak: sPrice,
+              packagePartyPriceLak: pPrice,
+              totalPackagePriceLak: totalLak,
+              singerWallet5PercentSavingLak: singerSave5,
+              dmcPartyWallet5PercentSavingLak: partySave5,
+              dmcPartyWalletNetCreditLak: partyNet95,
+              loanWalletCut10PercentLak: totalSave10,
+              singerNetPayout90PercentLak: singerNet95,
+            };
+          });
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_SINGER_BOOKINGS;
+  });
+  const [loanWalletBalanceLak, setLoanWalletBalanceLak] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_loan_wallet_balance_v1');
+      if (saved !== null) {
+        const num = Number(saved);
+        if (!Number.isNaN(num) && num >= 0) return num;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return 22350000;
+  });
+  const [loanWalletTransactions, setLoanWalletTransactions] = useState<
+    DmcLoanWalletTransaction[]
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_loan_wallet_txs_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_LOAN_WALLET_TRANSACTIONS;
+  });
+
+  // Reconcile existing bookings, 10% Saving for Loan (5% Singer Wallet + 5% DMC Party Wallet), and wallet balances
+  useEffect(() => {
+    let bookingsChanged = false;
+    const normalizedBookings = singerBookings.map(b => {
+      const pPrice =
+        b.packagePartyPriceLak !== undefined && b.packagePartyPriceLak > 0
+          ? b.packagePartyPriceLak
+          : (b.brandSetPackagePriceLak || 0) + (b.copyrightMusicPriceLak || 0) || 8300000;
+      const sPrice = 0;
+      const totalLak = pPrice;
+      const singerSave5 = Math.round(pPrice * 0.05);
+      const partySave5 = Math.round(pPrice * 0.05);
+      const totalSave10 = singerSave5 + partySave5;
+      const singerNet95 = Math.round(pPrice * 0.45);
+      const partyNet95 = Math.max(0, pPrice - partySave5);
+
+      const updatedLink = b.autoAffiliateLink
+        ? b.autoAffiliateLink
+            .replace(/https?:\/\/dmc-?xayraxa\.la/gi, 'https://dmcxayraxa.music')
+        : `https://dmcxayraxa.music/register?ref=${b.customerMemberId || 'DMC-LA-00404'}&aff=${b.autoAffiliateCode || 'AFF-DMC-LA-00404'}&singer=${b.singerCode}`;
+
+      if (
+        b.startSingerPriceLak !== 0 ||
+        b.singerPriceLak !== 0 ||
+        b.totalPackagePriceLak !== totalLak ||
+        b.singerWallet5PercentSavingLak !== singerSave5 ||
+        b.dmcPartyWallet5PercentSavingLak !== partySave5 ||
+        b.dmcPartyWalletNetCreditLak !== partyNet95 ||
+        b.loanWalletCut10PercentLak !== totalSave10 ||
+        b.singerNetPayout90PercentLak !== singerNet95 ||
+        b.autoAffiliateLink !== updatedLink
+      ) {
+        bookingsChanged = true;
+        return {
+          ...b,
+          autoAffiliateLink: updatedLink,
+          startSingerPriceLak: sPrice,
+          singerPriceLak: sPrice,
+          packagePartyPriceLak: pPrice,
+          totalPackagePriceLak: totalLak,
+          singerWallet5PercentSavingLak: singerSave5,
+          dmcPartyWallet5PercentSavingLak: partySave5,
+          dmcPartyWalletNetCreditLak: partyNet95,
+          loanWalletCut10PercentLak: totalSave10,
+          singerNetPayout90PercentLak: singerNet95,
+        };
+      }
+      return b;
+    });
+
+    if (bookingsChanged) {
+      setSingerBookings(normalizedBookings);
+      try {
+        localStorage.setItem(
+          'dmc_rev26_singer_bookings_v1',
+          JSON.stringify(normalizedBookings)
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    // Ensure every registered Singer AND every Booking Customer automatically has an ACTIVE_LIFETIME_MEMBER (Member Free Active) account with Member ID & Password
+    let membersChangedForSingers = false;
+    const singerMemberIds = new Set(
+      singerProfiles.map(s => s.memberId?.trim().toUpperCase()).filter(Boolean)
+    );
+    const customerBookingMemberIds = new Set(
+      normalizedBookings
+        .map(b => b.customerMemberId?.trim().toUpperCase())
+        .filter(Boolean)
+    );
+    const updatedMembersList = members.map(m => {
+      const mUpper = m.memberId.trim().toUpperCase();
+      // Keep DMC-LA-00404 (Customer Khamla Saysana) as FREE_MEMBER until Administrator approves her Active Package payment
+      if (mUpper === 'DMC-LA-00404' && m.activePackagePaymentStatus !== 'APPROVED') {
+        if (!m.isAutomaticAffiliate || !m.autoAffiliateCode || m.membershipState !== 'FREE_MEMBER') {
+          membersChangedForSingers = true;
+          return {
+            ...m,
+            membershipState: 'FREE_MEMBER' as const,
+            password: m.password || '123456',
+            isAutomaticAffiliate: true,
+            autoAffiliateCode: m.autoAffiliateCode || `AFF-${m.memberId}`,
+          };
+        }
+        return m;
+      }
+      if (
+        (singerMemberIds.has(mUpper) || customerBookingMemberIds.has(mUpper)) &&
+        (m.membershipState !== 'ACTIVE_LIFETIME_MEMBER' || !m.password)
+      ) {
+        membersChangedForSingers = true;
+        return {
+          ...m,
+          membershipState: 'ACTIVE_LIFETIME_MEMBER' as const,
+          password: m.password || '123456',
+          kycStatus: 'VERIFIED' as const,
+          isAutomaticAffiliate: customerBookingMemberIds.has(mUpper)
+            ? true
+            : m.isAutomaticAffiliate,
+          autoAffiliateCode:
+            m.autoAffiliateCode ||
+            (customerBookingMemberIds.has(mUpper) ? `AFF-${m.memberId}` : undefined),
+          activatedAt: m.activatedAt || new Date().toISOString(),
+          activationMethod: m.activationMethod || ('DIRECT_CASH' as const),
+        };
+      }
+      return m;
+    });
+
+    const missingSingerMembers: Member[] = [];
+    singerProfiles.forEach((sng, idx) => {
+      const targetMemberId =
+        sng.memberId?.trim() ||
+        `DMC-LA-${String(410 + idx).padStart(5, '0')}`;
+      const exists =
+        updatedMembersList.some(
+          m => m.memberId.toUpperCase() === targetMemberId.toUpperCase()
+        ) ||
+        missingSingerMembers.some(
+          m => m.memberId.toUpperCase() === targetMemberId.toUpperCase()
+        );
+      if (!exists) {
+        membersChangedForSingers = true;
+        missingSingerMembers.push({
+          id: `mem-sng-reconcile-${sng.id}`,
+          memberId: targetMemberId,
+          name: `${sng.fullName} (${sng.stageName})`,
+          phone: sng.phone,
+          email: sng.email || `${targetMemberId.toLowerCase()}@dmcxayraxa.music`,
+          password: '123456',
+          avatarUrl: sng.avatarUrl,
+          sponsorId: 'DMC-LA-00101',
+          membershipState: 'ACTIVE_LIFETIME_MEMBER',
+          activatedAt: sng.appliedAt || new Date().toISOString(),
+          activationMethod: 'DIRECT_CASH',
+          kycStatus: 'VERIFIED',
+          bankVerified: true,
+          bankAccount: {
+            bankName: sng.bankAccount.bankName,
+            accountNumber: sng.bankAccount.accountNumber,
+            accountName: sng.bankAccount.accountName,
+            branch: sng.bankAccount.branch || sng.province,
+            customQrImageUrl: sng.bankAccount.customQrImageUrl,
+            isDefault: true,
+          },
+          autoRedeemConsent: true,
+          termsVersionAccepted: 'v2.6',
+          joinedAt: sng.appliedAt || new Date().toISOString(),
+          memberQrToken: `MEM-QR-${targetMemberId}-PRIVATE`,
+          referralQrToken: `REF-QR-${targetMemberId}-PUBLIC`,
+        });
+      }
+    });
+
+    normalizedBookings.forEach((bk, idx) => {
+      const targetCustMemberId =
+        bk.customerMemberId?.trim() ||
+        `DMC-LA-${String(810 + idx).padStart(5, '0')}`;
+      const exists =
+        updatedMembersList.some(
+          m => m.memberId.toUpperCase() === targetCustMemberId.toUpperCase()
+        ) ||
+        missingSingerMembers.some(
+          m => m.memberId.toUpperCase() === targetCustMemberId.toUpperCase()
+        );
+      if (!exists) {
+        membersChangedForSingers = true;
+        missingSingerMembers.push({
+          id: `mem-cust-reconcile-${bk.id}`,
+          memberId: targetCustMemberId,
+          name: bk.customerName,
+          phone: bk.customerPhone,
+          email: `${targetCustMemberId.toLowerCase()}@dmcxayraxa.music`,
+          password: '123456',
+          avatarUrl:
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+          sponsorId: 'DMC-LA-00101',
+          membershipState: 'ACTIVE_LIFETIME_MEMBER',
+          activatedAt: bk.createdAt || new Date().toISOString(),
+          activationMethod: 'DIRECT_CASH',
+          kycStatus: 'VERIFIED',
+          isAutomaticAffiliate: true,
+          autoAffiliateCode: bk.autoAffiliateCode || `AFF-${targetCustMemberId}`,
+          autoAffiliateLink:
+            bk.autoAffiliateLink ||
+            `https://dmcxayraxa.music/register?ref=${targetCustMemberId}&aff=AFF-${targetCustMemberId}&singer=${bk.singerCode}`,
+          autoAffiliateBookedSingerId: bk.singerId,
+          autoAffiliateActivatedAt: bk.createdAt || new Date().toISOString(),
+          autoRedeemConsent: true,
+          termsVersionAccepted: 'v2.6',
+          joinedAt: bk.createdAt || new Date().toISOString(),
+          memberQrToken: `MEM-QR-${targetCustMemberId}-PRIVATE`,
+          referralQrToken: `REF-QR-${targetCustMemberId}-PUBLIC`,
+        });
+      }
+    });
+
+    if (membersChangedForSingers) {
+      const mergedMembers = [...missingSingerMembers, ...updatedMembersList];
+      setMembers(mergedMembers);
+      try {
+        localStorage.setItem(
+          'dmc_rev26_members_v1',
+          JSON.stringify(mergedMembers)
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    // Ensure every non-cancelled booking has an accurate SINGER_BOOKING_10_PERCENT_CUT transaction in loanWalletTransactions
+    const activeBookings = normalizedBookings.filter(b => b.status !== 'CANCELLED');
+    let txsChanged = false;
+    const updatedTxs = loanWalletTransactions.map(tx => {
+      if (tx.type !== 'SINGER_BOOKING_10_PERCENT_CUT') return tx;
+      const matchedBooking = activeBookings.find(
+        b => b.id === tx.bookingId || b.bookingCode === tx.bookingCode
+      );
+      if (!matchedBooking) return tx;
+      const sPrice = matchedBooking.startSingerPriceLak || matchedBooking.singerPriceLak || 2500000;
+      const pPrice =
+        matchedBooking.packagePartyPriceLak !== undefined
+          ? matchedBooking.packagePartyPriceLak
+          : (matchedBooking.brandSetPackagePriceLak || 0) +
+            (matchedBooking.copyrightMusicPriceLak || 0);
+      const singerSave5 = Math.round(sPrice * 0.05);
+      const partySave5 = Math.round(pPrice * 0.05);
+      const totalSave10 = singerSave5 + partySave5;
+      const singerNet95 = Math.max(0, sPrice - singerSave5);
+      const partyNet95 = Math.max(0, pPrice - partySave5);
+
+      if (
+        tx.amountLak !== totalSave10 ||
+        tx.singerWallet5PercentSavingLak !== singerSave5 ||
+        tx.dmcPartyWallet5PercentSavingLak !== partySave5
+      ) {
+        txsChanged = true;
+        return {
+          ...tx,
+          amountLak: totalSave10,
+          grossBookingAmountLak: sPrice + pPrice,
+          singerPriceLak: sPrice,
+          packagePartyPriceLak: pPrice,
+          singerWallet5PercentSavingLak: singerSave5,
+          dmcPartyWallet5PercentSavingLak: partySave5,
+          dmcPartyWalletNetCreditLak: partyNet95,
+          singerNetPayoutLak: singerNet95,
+          note: `10% Saving for Loan (5% Singer Wallet: ${singerSave5.toLocaleString()} LAK + 5% DMC Party Wallet: ${partySave5.toLocaleString()} LAK) from Booking ${matchedBooking.bookingCode} (${matchedBooking.singerStageName})`,
+        };
+      }
+      return tx;
+    });
+
+    const missingCutTxs: DmcLoanWalletTransaction[] = [];
+    for (const b of activeBookings) {
+      const exists = updatedTxs.some(
+        tx =>
+          tx.type === 'SINGER_BOOKING_10_PERCENT_CUT' &&
+          (tx.bookingId === b.id || tx.bookingCode === b.bookingCode)
+      );
+      if (!exists) {
+        const sPrice = b.startSingerPriceLak || b.singerPriceLak || 2500000;
+        const pPrice =
+          b.packagePartyPriceLak !== undefined
+            ? b.packagePartyPriceLak
+            : (b.brandSetPackagePriceLak || 0) + (b.copyrightMusicPriceLak || 0);
+        const singerSave5 = Math.round(sPrice * 0.05);
+        const partySave5 = Math.round(pPrice * 0.05);
+        const totalSave10 = singerSave5 + partySave5;
+        const singerNet95 = Math.max(0, sPrice - singerSave5);
+        const partyNet95 = Math.max(0, pPrice - partySave5);
+        missingCutTxs.push({
+          id: `lw-cut-sync-${b.id}`,
+          txRef: `LW-CUT-${b.bookingCode.replace(/[^0-9]/g, '').slice(-6) || '001'}`,
+          type: 'SINGER_BOOKING_10_PERCENT_CUT',
+          amountLak: totalSave10,
+          balanceAfterLak: loanWalletBalanceLak,
+          actor: b.bookingCode,
+          bookingId: b.id,
+          bookingCode: b.bookingCode,
+          singerId: b.singerId,
+          singerStageName: b.singerStageName,
+          grossBookingAmountLak: sPrice + pPrice,
+          singerPriceLak: sPrice,
+          packagePartyPriceLak: pPrice,
+          singerWallet5PercentSavingLak: singerSave5,
+          dmcPartyWallet5PercentSavingLak: partySave5,
+          dmcPartyWalletNetCreditLak: partyNet95,
+          singerNetPayoutLak: singerNet95,
+          note: `10% Saving for Loan (5% Singer Wallet: ${singerSave5.toLocaleString()} LAK + 5% DMC Party Wallet: ${partySave5.toLocaleString()} LAK) from Booking ${b.bookingCode} (${b.singerStageName})`,
+          createdAt: b.createdAt || new Date().toISOString(),
+        });
+      }
+    }
+
+    if (txsChanged || missingCutTxs.length > 0) {
+      const mergedTxs = [...missingCutTxs, ...updatedTxs];
+      setLoanWalletTransactions(mergedTxs);
+      try {
+        localStorage.setItem('dmc_rev26_loan_wallet_txs_v1', JSON.stringify(mergedTxs));
+      } catch {
+        // ignore
+      }
+    }
+
+    // One-time migration to fix Singer Wallets that previously received 90% of Package Party Price instead of only Start Singer Price (-5%)
+    try {
+      const migKey = 'dmc_rev26_saving_for_loan_5pct_5pct_migrated_v2';
+      if (!localStorage.getItem(migKey)) {
+        localStorage.setItem(migKey, '1');
+        setSingerProfiles(prev => {
+          const next = prev.map(s => {
+            const myBookings = activeBookings.filter(
+              b => b.singerId === s.id || b.singerCode === s.singerCode
+            );
+            if (myBookings.length === 0) return s;
+            const bookingNetEarned = myBookings.reduce((sum, b) => {
+              const sp = b.startSingerPriceLak || b.singerPriceLak || 2500000;
+              return sum + Math.max(0, sp - Math.round(sp * 0.05));
+            }, 0);
+            const affEarned = (s.affiliateSales || []).reduce(
+              (sum, a) => sum + (a.affiliateCommissionLak || 0),
+              0
+            );
+            const withdrawn = (s.withdrawals || [])
+              .filter(w => w.status !== 'REJECTED')
+              .reduce((sum, w) => sum + (w.amountLak || 0), 0);
+            const expectedTotalEarned = bookingNetEarned + affEarned;
+            const expectedAvailable = Math.max(0, expectedTotalEarned - withdrawn);
+            // If wallet was inflated by old 90% total package formula, set to accurate Start Singer Price (-5%) + affiliate sales
+            if (s.walletAvailableLak > expectedAvailable + 5000000) {
+              return {
+                ...s,
+                walletAvailableLak: expectedAvailable,
+                totalEarnedLak: Math.max(expectedAvailable, expectedTotalEarned),
+              };
+            }
+            return s;
+          });
+          try {
+            localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+
+        // Also ensure DMC Party Wallet Balance includes 95% of Selected Package Party from active bookings
+        const totalPartyNetFromBookings = activeBookings.reduce((sum, b) => {
+          const pPrice =
+            b.packagePartyPriceLak !== undefined
+              ? b.packagePartyPriceLak
+              : (b.brandSetPackagePriceLak || 0) + (b.copyrightMusicPriceLak || 0);
+          return sum + Math.max(0, pPrice - Math.round(pPrice * 0.05));
+        }, 0);
+        if (totalPartyNetFromBookings > 0 && loanWalletBalanceLak < totalPartyNetFromBookings) {
+          const updatedPartyBalance = 10000000 + totalPartyNetFromBookings;
+          setLoanWalletBalanceLak(updatedPartyBalance);
+          try {
+            localStorage.setItem(
+              'dmc_rev26_loan_wallet_balance_v1',
+              String(updatedPartyBalance)
+            );
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // One-time migration: Reset Singer & Singer Member Wallets to 0 LAK as requested
+    try {
+      const zeroResetKey = 'dmc_rev26_singer_member_wallet_zero_reset_v4';
+      if (!localStorage.getItem(zeroResetKey)) {
+        localStorage.setItem(zeroResetKey, '1');
+        const allSingerMemberIds = new Set<string>(
+          INITIAL_SINGER_PROFILES.map(s => s.memberId?.trim().toUpperCase() || '').filter(Boolean)
+        );
+        singerProfiles.forEach(s => {
+          if (s.memberId) {
+            allSingerMemberIds.add(s.memberId.trim().toUpperCase());
+          }
+        });
+
+        setSingerProfiles(prev => {
+          const next = prev.map(s => {
+            if (s.memberId) {
+              allSingerMemberIds.add(s.memberId.trim().toUpperCase());
+            }
+            return {
+              ...s,
+              walletAvailableLak: 0,
+              walletPendingLak: 0,
+              totalEarnedLak: 0,
+              totalWithdrawnLak: 0,
+              withdrawals: [],
+              affiliateSales: [],
+            };
+          });
+          try {
+            localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+            localStorage.setItem('dmc_rev26_singer_profiles_v4', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+
+        setCustomerAffiliateCommissionPool(prev => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) {
+            if (allSingerMemberIds.has(k.toUpperCase())) {
+              next[k] = 0;
+            }
+          }
+          for (const mid of allSingerMemberIds) {
+            next[mid] = 0;
+          }
+          try {
+            localStorage.setItem(
+              'dmc_rev26_customer_affiliate_comm_pool_v1',
+              JSON.stringify(next)
+            );
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+
+        setLedgerEntries(prev =>
+          prev.filter(
+            e =>
+              !allSingerMemberIds.has(e.memberId.toUpperCase()) ||
+              e.targetBalance === 'HELD_FOR_QUALIFICATION'
+          )
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [singerBookings.length]);
+  const [bookingPackageOptions, setBookingPackageOptions] = useState<
+    DmcBookingPackageOption[]
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_booking_pkg_options_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return DEFAULT_BOOKING_PACKAGE_OPTIONS;
+  });
+  const [adminPanelBookingReports, setAdminPanelBookingReports] = useState<
+    DmcAdminPanelBookingReport[]
+  >(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_admin_booking_reports_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_ADMIN_PANEL_BOOKING_REPORTS;
+  });
+  const [songs, setSongs] = useState<SongProductionProject[]>(() => {
+    try {
+      const saved = localStorage.getItem('dmc_rev26_copyright_songs_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return INITIAL_SONGS;
+  });
   const [laoBanks, setLaoBanks] = useState<LaoBankDefinition[]>(() => {
     try {
       const saved = localStorage.getItem('dmc_rev26_lao_banks_v2');
@@ -1893,7 +3185,13 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getMemberSongs = (memberId: string): SongProductionProject[] => {
-    return songs.filter(s => s.memberId === memberId);
+    const cleanId = (memberId || '').toUpperCase();
+    return songs.filter(
+      s =>
+        s.memberId.toUpperCase() === cleanId ||
+        (s.purchasedByMemberIds &&
+          s.purchasedByMemberIds.some(id => id.toUpperCase() === cleanId))
+    );
   };
 
   // Canonical 3-Level Sponsor Chain
@@ -1943,7 +3241,12 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }): Promise<Member> => {
     let sponsorId: string | null = null;
     if (data.sponsorCode) {
-      const match = members.find(m => m.memberId.toUpperCase() === data.sponsorCode?.trim().toUpperCase());
+      const codeUpper = data.sponsorCode.trim().toUpperCase();
+      const match = members.find(
+        m =>
+          m.memberId.toUpperCase() === codeUpper ||
+          (m.autoAffiliateCode && m.autoAffiliateCode.toUpperCase() === codeUpper)
+      );
       if (match) {
         sponsorId = match.memberId;
       }
@@ -1977,6 +3280,47 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentMemberId(newMemberId);
     setIsAdminMode(false);
     setIsLoggedOut(false);
+
+    // If registered via a Customer / Member Referral Sponsor Code, credit referral commission to Sponsor's AVAILABLE Wallet
+    if (sponsorId && sponsorId !== 'DMC-LA-00404') {
+      const nowIso = new Date().toISOString();
+      const referralBonusLak = 200000;
+      const curSponsorBal = getMemberBalances(sponsorId);
+      const awardId = `awd-ref-usr-${Date.now()}`;
+      setAwards(prev => [
+        {
+          id: awardId,
+          orderId: `REF-USER-${newMemberId}`,
+          orderLineId: `line-ref-${newMemberId}`,
+          sku: `Recommend New User / Member (${data.name})`,
+          tier: 'L1',
+          beneficiaryMemberId: sponsorId!,
+          buyerMemberId: newMemberId,
+          grossAwardLak: referralBonusLak,
+          status: 'AVAILABLE',
+          ruleVersion: 'v2.6',
+          createdAt: nowIso,
+          clearedAt: nowIso,
+        },
+        ...prev,
+      ]);
+      setLedgerEntries(prev => [
+        {
+          id: `led-ref-usr-${Date.now()}`,
+          txRef: `TX-REF-${Date.now().toString().slice(-6)}`,
+          timestamp: nowIso,
+          memberId: sponsorId!,
+          type: 'COMMISSION_CLEARED_AVAILABLE',
+          sourceRef: awardId,
+          debit: 0,
+          credit: referralBonusLak,
+          targetBalance: 'AVAILABLE',
+          balanceAfter: curSponsorBal.available + referralBonusLak,
+          description: `Referral Commission: Recommended New User / Member ${data.name} (${newMemberId}) credited to Customer Wallet`,
+        },
+        ...prev,
+      ]);
+    }
 
     // Audit log
     setAuditLogs(prev => [
@@ -2041,7 +3385,12 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               recordedAt: new Date().toISOString(),
             });
           } else {
-            const isSponsorActive = t.sponsor.membershipState === 'ACTIVE_LIFETIME_MEMBER';
+            const isSponsorActive =
+              t.sponsor.membershipState === 'ACTIVE_LIFETIME_MEMBER' ||
+              Boolean(t.sponsor.isAutomaticAffiliate) ||
+              singerProfiles.some(
+                s => s.memberId?.toUpperCase() === t.sponsor?.memberId.toUpperCase()
+              );
             const awardStatus: AwardStatus = isSponsorActive ? 'AVAILABLE' : 'HELD_FOR_QUALIFICATION';
             const awardId = `awd-${Date.now()}-${t.tier}`;
 
@@ -2072,7 +3421,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               credit: t.amount,
               targetBalance: isSponsorActive ? 'AVAILABLE' : 'HELD_FOR_QUALIFICATION',
               balanceAfter: 0, // recalculated dynamically
-              description: `${t.tier} Commission (${item.sku} Order ${order.id}) credited to ${awardStatus}`,
+              description: `${t.tier} User Member Network Commission (${item.sku} Order ${order.id} • Active Member ${buyer.memberId}) credited to ${awardStatus}`,
             });
           }
         }
@@ -2104,7 +3453,16 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               recordedAt: new Date().toISOString(),
             });
           } else {
-            // Physical goods start in PENDING until delivery
+            const isSponsorWithdrawable =
+              t.sponsor.membershipState === 'ACTIVE_LIFETIME_MEMBER' ||
+              Boolean(t.sponsor.isAutomaticAffiliate) ||
+              singerProfiles.some(
+                s => s.memberId?.toUpperCase() === t.sponsor?.memberId.toUpperCase()
+              ) ||
+              t.sponsor.memberId !== 'DMC-LA-00404';
+            const awardStatus: AwardStatus = isSponsorWithdrawable
+              ? 'AVAILABLE'
+              : 'PENDING';
             const awardId = `awd-${Date.now()}-${t.tier}`;
             newAwards.push({
               id: awardId,
@@ -2115,10 +3473,26 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               beneficiaryMemberId: t.sponsor.memberId,
               buyerMemberId: buyer.memberId,
               grossAwardLak: t.amount,
-              status: 'PENDING',
+              status: awardStatus,
               ruleVersion: 'v2.6',
               createdAt: new Date().toISOString(),
+              clearedAt: isSponsorWithdrawable ? new Date().toISOString() : undefined,
             });
+            if (isSponsorWithdrawable) {
+              newLedgerEntries.push({
+                id: `led-prod-${Date.now()}-${t.tier}`,
+                txRef: `TX-PROD-${Date.now()}-${t.tier}`,
+                timestamp: new Date().toISOString(),
+                memberId: t.sponsor.memberId,
+                type: 'COMMISSION_CLEARED_AVAILABLE',
+                sourceRef: awardId,
+                debit: 0,
+                credit: t.amount,
+                targetBalance: 'AVAILABLE',
+                balanceAfter: 0,
+                description: `${t.tier} Product Referral Commission (${item.title} • Order ${order.id}) credited to Customer / Singer / Member Wallet`,
+              });
+            }
           }
         }
       }
@@ -2126,6 +3500,61 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (newAwards.length > 0) {
       setAwards(prev => [...prev, ...newAwards]);
+
+      // Sync L1/L2/L3 Network Commissions to Singer Profiles & Customer Affiliate Commission Pool
+      // so 1/ User Member, 2/ User Singer, and 3/ Customer Booking all receive identical L1/L2/L3 network commissions
+      setCustomerAffiliateCommissionPool(prev => {
+        const next = { ...prev };
+        for (const awd of newAwards) {
+          const cur = next[awd.beneficiaryMemberId] !== undefined ? next[awd.beneficiaryMemberId] : 600000;
+          next[awd.beneficiaryMemberId] = cur + awd.grossAwardLak;
+        }
+        try {
+          localStorage.setItem('dmc_rev26_customer_affiliate_comm_pool_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
+      setSingerProfiles(prev => {
+        let updated = false;
+        const next = prev.map(singer => {
+          const matchingAwards = newAwards.filter(
+            awd =>
+              singer.memberId &&
+              singer.memberId.toUpperCase() === awd.beneficiaryMemberId.toUpperCase()
+          );
+          if (matchingAwards.length === 0) return singer;
+          updated = true;
+          const totalAddedLak = matchingAwards.reduce((s, a) => s + a.grossAwardLak, 0);
+          const addedSales: DmcSingerAffiliateSaleRecord[] = matchingAwards.map(awd => ({
+            id: `aff-net-${awd.id}`,
+            singerId: singer.id,
+            sku: awd.sku,
+            productTitle: `${awd.tier} User Member Network Commission (${awd.sku} • Active Member: ${buyer.name})`,
+            buyerName: `${buyer.name} (${buyer.memberId})`,
+            orderAmountLak: order.totalLak,
+            affiliateCommissionLak: awd.grossAwardLak,
+            affiliateLink: `https://dmcxayraxa.music/network?sponsor=${encodeURIComponent(singer.memberId || '')}&tier=${awd.tier}`,
+            createdAt: awd.createdAt,
+          }));
+          return {
+            ...singer,
+            walletAvailableLak: singer.walletAvailableLak + totalAddedLak,
+            totalEarnedLak: singer.totalEarnedLak + totalAddedLak,
+            affiliateSales: [...addedSales, ...singer.affiliateSales],
+          };
+        });
+        if (updated) {
+          try {
+            localStorage.setItem('dmc_rev26_singer_profiles_v4', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return next;
+      });
     }
     if (newUnallocated.length > 0) {
       setUnallocatedAwards(prev => [...prev, ...newUnallocated]);
@@ -2531,6 +3960,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Maker Admin Review
   const makerApproveWithdrawal = (withdrawalId: string, makerAdminId: string) => {
+    const nowIso = new Date().toISOString();
     setWithdrawals(prev =>
       prev.map(w =>
         w.id === withdrawalId
@@ -2538,11 +3968,40 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...w,
               status: 'APPROVED',
               makerAdminId,
-              makerApprovedAt: new Date().toISOString(),
+              makerApprovedAt: nowIso,
             }
           : w
       )
     );
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(s => {
+        if (!s.withdrawals?.some(sw => sw.id === withdrawalId)) return s;
+        changed = true;
+        return {
+          ...s,
+          withdrawals: s.withdrawals.map(sw =>
+            sw.id === withdrawalId
+              ? {
+                  ...sw,
+                  status: 'APPROVED' as const,
+                  approvedAt: nowIso,
+                  approvedByAdminId: makerAdminId,
+                  note: `Maker Approved by ${makerAdminId} • Awaiting Final Payout`,
+                }
+              : sw
+          ),
+        };
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return changed ? next : prev;
+    });
     return true;
   };
 
@@ -2550,12 +4009,13 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const checkerExecutePayout = (withdrawalId: string, checkerAdminId: string) => {
     const wth = withdrawals.find(w => w.id === withdrawalId);
     if (!wth) return false;
+    const nowIso = new Date().toISOString();
 
     // Release HELD_FOR_WITHDRAWAL with WITHDRAWAL_PAID
     const newEntry: LedgerEntry = {
       id: `led-wth-paid-${Date.now()}`,
       txRef: `TX-PAID-${Date.now()}`,
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
       memberId: wth.memberId,
       type: 'WITHDRAWAL_PAID',
       sourceRef: withdrawalId,
@@ -2563,7 +4023,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       credit: 0,
       targetBalance: 'HELD_FOR_WITHDRAWAL',
       balanceAfter: 0,
-      description: `Bank settlement completed (${wth.bankName} ${wth.accountNumber}) by Checker ${checkerAdminId}`,
+      description: `Bank settlement completed (${wth.bankName} ${wth.accountNumber}) — Approved by Administrator ${checkerAdminId}`,
     };
 
     setLedgerEntries(prev => [...prev, newEntry]);
@@ -2574,62 +4034,287 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? {
               ...w,
               status: 'PAID',
+              makerAdminId: w.makerAdminId || checkerAdminId,
+              makerApprovedAt: w.makerApprovedAt || nowIso,
               checkerAdminId,
-              checkerPaidAt: new Date().toISOString(),
+              checkerPaidAt: nowIso,
             }
           : w
       )
     );
+
+    // Sync Singer Profile withdrawal if this withdrawal belongs to a singer
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(s => {
+        const matchedSw = s.withdrawals?.find(sw => sw.id === withdrawalId);
+        if (!matchedSw || matchedSw.status === 'PAID') return s;
+        changed = true;
+        return {
+          ...s,
+          walletPendingLak: Math.max(0, (s.walletPendingLak || 0) - matchedSw.amountLak),
+          totalWithdrawnLak: (s.totalWithdrawnLak || 0) + matchedSw.amountLak,
+          withdrawals: s.withdrawals.map(sw =>
+            sw.id === withdrawalId
+              ? {
+                  ...sw,
+                  status: 'PAID' as const,
+                  approvedAt: nowIso,
+                  approvedByAdminId: checkerAdminId,
+                  note: `Administrator Approved & Paid (${checkerAdminId})`,
+                }
+              : sw
+          ),
+        };
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return changed ? next : prev;
+    });
+
     return true;
+  };
+
+  // Unified 1-Click Administrator Approval & Settlement for Wallet / Affiliate / Singer Withdrawals
+  const adminApproveWithdrawalRequest = (
+    withdrawalId: string,
+    adminActor: string = 'SUPER-ADMIN-01'
+  ): { success: boolean; message: string } => {
+    const nowIso = new Date().toISOString();
+    const existingGlobal = withdrawals.find(w => w.id === withdrawalId);
+
+    // Also check if it exists inside singerProfiles
+    let foundSinger: DmcSingerProfile | undefined;
+    let foundSingerWth: DmcSingerWithdrawalRecord | undefined;
+    for (const s of singerProfiles) {
+      const sw = s.withdrawals?.find(item => item.id === withdrawalId);
+      if (sw) {
+        foundSinger = s;
+        foundSingerWth = sw;
+        break;
+      }
+    }
+
+    if (!existingGlobal && !foundSingerWth) {
+      return {
+        success: false,
+        message: `Withdrawal request ${withdrawalId} not found.`,
+      };
+    }
+
+    if (existingGlobal?.status === 'PAID' && (!foundSingerWth || foundSingerWth.status === 'PAID')) {
+      return {
+        success: false,
+        message: `Withdrawal request ${withdrawalId} is already Approved & PAID.`,
+      };
+    }
+
+    const amountLak = existingGlobal?.amountLak ?? foundSingerWth?.amountLak ?? 0;
+    const netPayoutLak = existingGlobal?.netPayoutLak ?? foundSingerWth?.netPayoutLak ?? 0;
+    const bankName = existingGlobal?.bankName ?? foundSingerWth?.bankName ?? 'Lao Bank';
+    const accountNumber = existingGlobal?.accountNumber ?? foundSingerWth?.accountNumber ?? '';
+    const memberId = existingGlobal?.memberId ?? foundSingerWth?.memberId ?? foundSinger?.singerCode ?? 'MEMBER';
+
+    if (existingGlobal) {
+      const paidEntry: LedgerEntry = {
+        id: `led-wth-paid-${Date.now()}`,
+        txRef: `TX-PAID-${Date.now().toString().slice(-6)}`,
+        timestamp: nowIso,
+        memberId,
+        type: 'WITHDRAWAL_PAID',
+        sourceRef: withdrawalId,
+        debit: amountLak,
+        credit: 0,
+        targetBalance: 'HELD_FOR_WITHDRAWAL',
+        balanceAfter: 0,
+        description: `Administrator Approved Affiliate/Wallet Withdrawal (${withdrawalId}) to ${bankName} (${accountNumber})`,
+      };
+      setLedgerEntries(prev => [paidEntry, ...prev]);
+
+      setWithdrawals(prev =>
+        prev.map(w =>
+          w.id === withdrawalId
+            ? {
+                ...w,
+                status: 'PAID',
+                makerAdminId: w.makerAdminId || adminActor,
+                makerApprovedAt: w.makerApprovedAt || nowIso,
+                checkerAdminId: adminActor,
+                checkerPaidAt: nowIso,
+              }
+            : w
+        )
+      );
+    } else if (foundSingerWth) {
+      const newGlobalPaid: WithdrawalRequest = {
+        id: foundSingerWth.id,
+        memberId,
+        amountLak: foundSingerWth.amountLak,
+        bankFeeLak: foundSingerWth.bankFeeLak,
+        netPayoutLak: foundSingerWth.netPayoutLak,
+        bankName: foundSingerWth.bankName,
+        accountNumber: foundSingerWth.accountNumber,
+        accountName: foundSingerWth.accountName,
+        status: 'PAID',
+        requestedAt: foundSingerWth.requestedAt,
+        makerAdminId: adminActor,
+        makerApprovedAt: nowIso,
+        checkerAdminId: adminActor,
+        checkerPaidAt: nowIso,
+      };
+      setWithdrawals(prev => [newGlobalPaid, ...prev]);
+    }
+
+    if (foundSingerWth) {
+      setSingerProfiles(prev => {
+        const next = prev.map(s => {
+          const sw = s.withdrawals?.find(item => item.id === withdrawalId);
+          if (!sw || sw.status === 'PAID') return s;
+          return {
+            ...s,
+            walletPendingLak: Math.max(0, (s.walletPendingLak || 0) - sw.amountLak),
+            totalWithdrawnLak: (s.totalWithdrawnLak || 0) + sw.amountLak,
+            withdrawals: s.withdrawals.map(item =>
+              item.id === withdrawalId
+                ? {
+                    ...item,
+                    status: 'PAID' as const,
+                    approvedAt: nowIso,
+                    approvedByAdminId: adminActor,
+                    note: `Administrator Approved & Paid (${adminActor})`,
+                  }
+                : item
+            ),
+          };
+        });
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-wth-adm-app-${Date.now()}`,
+        timestamp: nowIso,
+        actor: adminActor,
+        action: 'ADMIN_APPROVED_WITHDRAWAL_PAYOUT',
+        entityType: 'WITHDRAWAL',
+        entityId: withdrawalId,
+        details: {
+          memberId,
+          amountLak,
+          netPayoutLak,
+          bankName,
+          accountNumber,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      message: `Administrator Approved! Withdrawal ${withdrawalId} for ${amountLak.toLocaleString()} LAK (Net: ${netPayoutLak.toLocaleString()} LAK) has been approved and paid to ${bankName} (${accountNumber}).`,
+    };
   };
 
   // Reject Withdrawal
   const rejectWithdrawal = (withdrawalId: string, reason: string) => {
     const wth = withdrawals.find(w => w.id === withdrawalId);
-    if (!wth) return false;
+    let foundSingerWth: DmcSingerWithdrawalRecord | undefined;
+    for (const s of singerProfiles) {
+      const sw = s.withdrawals?.find(item => item.id === withdrawalId);
+      if (sw) {
+        foundSingerWth = sw;
+        break;
+      }
+    }
 
-    // Release HELD_FOR_WITHDRAWAL back to AVAILABLE atomically!
-    const releaseHold: LedgerEntry = {
-      id: `led-wth-rej-hold-${Date.now()}`,
-      txRef: `TX-REJ-1-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      memberId: wth.memberId,
-      type: 'WITHDRAWAL_REJECTED_RELEASE',
-      sourceRef: withdrawalId,
-      debit: wth.amountLak,
-      credit: 0,
-      targetBalance: 'HELD_FOR_WITHDRAWAL',
-      balanceAfter: 0,
-      description: `Rejected withdrawal hold released: ${reason}`,
-    };
+    if (!wth && !foundSingerWth) return false;
 
-    const restoreAvailable: LedgerEntry = {
-      id: `led-wth-rej-avail-${Date.now()}`,
-      txRef: `TX-REJ-2-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      memberId: wth.memberId,
-      type: 'WITHDRAWAL_REJECTED_RELEASE',
-      sourceRef: withdrawalId,
-      debit: 0,
-      credit: wth.amountLak,
-      targetBalance: 'AVAILABLE',
-      balanceAfter: 0,
-      description: `Funds restored to AVAILABLE balance following rejection`,
-    };
+    if (wth) {
+      // Release HELD_FOR_WITHDRAWAL back to AVAILABLE atomically!
+      const releaseHold: LedgerEntry = {
+        id: `led-wth-rej-hold-${Date.now()}`,
+        txRef: `TX-REJ-1-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        memberId: wth.memberId,
+        type: 'WITHDRAWAL_REJECTED_RELEASE',
+        sourceRef: withdrawalId,
+        debit: wth.amountLak,
+        credit: 0,
+        targetBalance: 'HELD_FOR_WITHDRAWAL',
+        balanceAfter: 0,
+        description: `Rejected withdrawal hold released: ${reason}`,
+      };
 
-    setLedgerEntries(prev => [...prev, releaseHold, restoreAvailable]);
+      const restoreAvailable: LedgerEntry = {
+        id: `led-wth-rej-avail-${Date.now()}`,
+        txRef: `TX-REJ-2-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        memberId: wth.memberId,
+        type: 'WITHDRAWAL_REJECTED_RELEASE',
+        sourceRef: withdrawalId,
+        debit: 0,
+        credit: wth.amountLak,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 0,
+        description: `Funds restored to AVAILABLE balance following rejection`,
+      };
 
-    setWithdrawals(prev =>
-      prev.map(w =>
-        w.id === withdrawalId
-          ? {
-              ...w,
-              status: 'REJECTED',
-              rejectionReason: reason,
-            }
-          : w
-      )
-    );
+      setLedgerEntries(prev => [...prev, releaseHold, restoreAvailable]);
+
+      setWithdrawals(prev =>
+        prev.map(w =>
+          w.id === withdrawalId
+            ? {
+                ...w,
+                status: 'REJECTED',
+                rejectionReason: reason,
+              }
+            : w
+        )
+      );
+    }
+
+    if (foundSingerWth) {
+      setSingerProfiles(prev => {
+        const next = prev.map(s => {
+          const sw = s.withdrawals?.find(item => item.id === withdrawalId);
+          if (!sw || sw.status === 'REJECTED') return s;
+          return {
+            ...s,
+            walletAvailableLak: s.walletAvailableLak + sw.amountLak,
+            walletPendingLak: Math.max(0, (s.walletPendingLak || 0) - sw.amountLak),
+            withdrawals: s.withdrawals.map(item =>
+              item.id === withdrawalId
+                ? {
+                    ...item,
+                    status: 'REJECTED' as const,
+                    rejectionReason: reason,
+                    note: `Rejected by Administrator: ${reason} (Funds refunded to Available Wallet)`,
+                  }
+                : item
+            ),
+          };
+        });
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+
     return true;
   };
 
@@ -2738,13 +4423,23 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateMember = (memberId: string, updates: Partial<Member>) => {
-    const newId = updates.memberId?.trim();
+    const canAdminChangeSponsor = isAdminMode || isAdminAuthenticated;
+    const newId = canAdminChangeSponsor ? updates.memberId?.trim() : undefined;
     setMembers(prev => {
       const next = prev.map(m => {
         if (m.memberId === memberId) {
-          return { ...m, ...updates, memberId: newId || m.memberId };
+          const safeSponsorId =
+            canAdminChangeSponsor && updates.sponsorId !== undefined
+              ? updates.sponsorId
+              : m.sponsorId;
+          return {
+            ...m,
+            ...updates,
+            memberId: newId || m.memberId,
+            sponsorId: safeSponsorId,
+          };
         }
-        if (newId && newId !== memberId && m.sponsorId === memberId) {
+        if (canAdminChangeSponsor && newId && newId !== memberId && m.sponsorId === memberId) {
           return { ...m, sponsorId: newId };
         }
         return m;
@@ -2756,6 +4451,64 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return next;
     });
+
+    // Sync any linked Singer Profile (2/ User Singer)
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(s => {
+        if (s.memberId?.toUpperCase() === memberId.toUpperCase()) {
+          changed = true;
+          return {
+            ...s,
+            memberId: newId || s.memberId,
+            fullName: updates.name ? updates.name.replace(/\s*\(.*?\)\s*/g, '') : s.fullName,
+            phone: updates.phone || s.phone,
+            email: updates.email !== undefined ? updates.email : s.email,
+            password: updates.password || s.password,
+            avatarUrl: updates.avatarUrl || s.avatarUrl,
+            province: updates.deliveryAddress?.province || s.province,
+          };
+        }
+        return s;
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    // Sync any linked Customer Bookings (3/ User Customer)
+    if (updates.name || updates.phone || updates.email) {
+      setSingerBookings(prev => {
+        let changed = false;
+        const next = prev.map(b => {
+          if (b.customerMemberId?.toUpperCase() === memberId.toUpperCase()) {
+            changed = true;
+            return {
+              ...b,
+              customerMemberId: newId || b.customerMemberId,
+              customerName: updates.name ? updates.name.replace(/\s*\(.*?\)\s*/g, '') : b.customerName,
+              customerPhone: updates.phone || b.customerPhone,
+              customerEmail: updates.email !== undefined ? updates.email : b.customerEmail,
+            };
+          }
+          return b;
+        });
+        if (changed) {
+          try {
+            localStorage.setItem('dmc_rev26_singer_bookings_v2', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+
     if (newId && newId !== memberId && currentMemberId === memberId) {
       setCurrentMemberId(newId);
     }
@@ -3948,7 +5701,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminUpdateHomeIcon = (
-    key: 'academy' | 'musicHub' | 'staff' | 'promotions' | 'support',
+    key: 'academy' | 'musicHub' | 'staff' | 'singer' | 'promotions' | 'support',
     iconUrl: string
   ) => {
     setCustomHomeIcons(prev => {
@@ -3962,20 +5715,3349 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // 4. Songs CRUD
+  // 3F. Singer Job Application (Open to General People & Existing Members), Singer Profile Dashboard, Bank QR Code CRUD & Withdrawals
+  const applyForSingerJob = (data: {
+    memberId?: string;
+    registrationType?: 'GENERAL_PUBLIC' | 'EXISTING_MEMBER';
+    gender?: 'MAN' | 'WOMAN';
+    password?: string;
+    sponsorMemberId?: string;
+    fullName: string;
+    stageName: string;
+    phone: string;
+    email?: string;
+    province: string;
+    vocalStyle: string;
+    experienceYears: number;
+    demoAudioOrVideoUrl?: string;
+    avatarUrl?: string;
+    bio?: string;
+    startSingerPriceLak?: number;
+    packagePartyPriceLak?: number;
+    recommendedProductSkus?: string[];
+    bankAccount: {
+      bankName: string;
+      accountNumber: string;
+      accountName: string;
+      branch?: string;
+      customQrImageUrl?: string;
+    };
+    bankQrAccounts?: DmcSingerBankQrItem[];
+  }): DmcSingerProfile => {
+    const nextNum = singerProfiles.length + 1;
+    const singerCode = `DMC-SNG-${String(nextNum).padStart(3, '0')}`;
+    const cleanStage =
+      data.stageName.trim() || data.fullName.trim() || `Singer ${singerCode}`;
+    const cleanCodeSlug = cleanStage
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 8);
+    const affiliateCode = `SINGER-${cleanCodeSlug || 'DMC'}-${String(nextNum).padStart(3, '0')}`;
+
+    const isGeneralPublic =
+      data.registrationType === 'GENERAL_PUBLIC' || !data.memberId;
+
+    let linkedMemberId = data.memberId || currentMember.memberId;
+    const resolvedPassword = data.password?.trim() || '123456';
+    const resolvedAvatar =
+      data.avatarUrl?.trim() ||
+      (isGeneralPublic
+        ? 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80'
+        : currentMember.avatarUrl) ||
+      'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80';
+
+    const primaryBank = {
+      bankName:
+        data.bankAccount.bankName ||
+        'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber:
+        data.bankAccount.accountNumber.trim() || '160-12-00000000-001',
+      accountName: (
+        data.bankAccount.accountName.trim() || data.fullName.trim()
+      ).toUpperCase(),
+      branch: data.bankAccount.branch || data.province || 'Vientiane Capital',
+      customQrImageUrl: data.bankAccount.customQrImageUrl,
+    };
+
+    const initialQrAccounts: DmcSingerBankQrItem[] =
+      data.bankQrAccounts && data.bankQrAccounts.length > 0
+        ? data.bankQrAccounts
+        : [
+            {
+              id: `sng-qr-${Date.now()}`,
+              bankName: primaryBank.bankName,
+              accountNumber: primaryBank.accountNumber,
+              accountName: primaryBank.accountName,
+              branch: primaryBank.branch,
+              customQrImageUrl: primaryBank.customQrImageUrl,
+              isDefault: true,
+              updatedAt: new Date().toISOString(),
+            },
+          ];
+
+    // Automatically make the Singer an Official Active Member (ACTIVE_LIFETIME_MEMBER) with Member ID & Password
+    if (isGeneralPublic) {
+      let nextMemberSeq = 405 + members.length;
+      let generatedMemberId = `DMC-LA-${String(nextMemberSeq).padStart(5, '0')}`;
+      while (
+        members.some(
+          m => m.memberId.toUpperCase() === generatedMemberId.toUpperCase()
+        )
+      ) {
+        nextMemberSeq += 1;
+        generatedMemberId = `DMC-LA-${String(nextMemberSeq).padStart(5, '0')}`;
+      }
+      linkedMemberId = generatedMemberId;
+
+      const sponsorObj =
+        members.find(
+          m =>
+            m.memberId.toUpperCase() ===
+            (data.sponsorMemberId || 'DMC-LA-00101').trim().toUpperCase()
+        ) || members[0];
+
+      const newGeneralMember: Member = {
+        id: `mem-sng-${Date.now()}`,
+        memberId: generatedMemberId,
+        name: `${data.fullName.trim()} (${cleanStage})`,
+        phone: data.phone.trim(),
+        email:
+          data.email?.trim() ||
+          `${generatedMemberId.toLowerCase()}@dmcxayraxa.music`,
+        password: resolvedPassword,
+        avatarUrl: resolvedAvatar,
+        sponsorId: sponsorObj ? sponsorObj.memberId : null,
+        membershipState: 'ACTIVE_LIFETIME_MEMBER',
+        activatedAt: new Date().toISOString(),
+        activationMethod: 'DIRECT_CASH',
+        kycStatus: 'VERIFIED',
+        bankVerified: true,
+        bankAccount: {
+          bankName: primaryBank.bankName,
+          accountNumber: primaryBank.accountNumber,
+          accountName: primaryBank.accountName,
+          branch: primaryBank.branch,
+          customQrImageUrl: primaryBank.customQrImageUrl,
+          isDefault: true,
+        },
+        bankAccounts: initialQrAccounts.map(q => ({
+          bankName: q.bankName,
+          accountNumber: q.accountNumber,
+          accountName: q.accountName,
+          branch: q.branch,
+          customQrImageUrl: q.customQrImageUrl,
+          isDefault: q.isDefault,
+        })),
+        autoRedeemConsent: true,
+        termsVersionAccepted: 'v2.6',
+        joinedAt: new Date().toISOString(),
+        memberQrToken: `MEM-QR-${generatedMemberId}-PRIVATE`,
+        referralQrToken: `REF-QR-${generatedMemberId}-PUBLIC`,
+      };
+
+      setMembers(prev => {
+        const next = [newGeneralMember, ...prev];
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    } else {
+      // Existing Member registering as Singer -> Automatically upgrade to ACTIVE_LIFETIME_MEMBER & set password
+      setMembers(prev => {
+        const next = prev.map(m =>
+          m.memberId.toUpperCase() === linkedMemberId.toUpperCase()
+            ? {
+                ...m,
+                membershipState: 'ACTIVE_LIFETIME_MEMBER' as const,
+                isAutomaticAffiliate: true,
+                autoAffiliateCode: m.autoAffiliateCode || affiliateCode,
+                activatedAt: m.activatedAt || new Date().toISOString(),
+                activationMethod: m.activationMethod || ('DIRECT_CASH' as const),
+                password: resolvedPassword,
+                kycStatus: 'VERIFIED' as const,
+                bankVerified: true,
+              }
+            : m
+        );
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+
+    // Distribute 3-Level User Member Network Commission (L1: 400,000 LAK, L2: 200,000 LAK, L3: 100,000 LAK)
+    // when Singer activates to Free Member Active Level (same as User Member Network)
+    const singerActivationOrderId = `ACT-SNG-${Date.now().toString().slice(-6)}`;
+    const singerActivationTime = new Date().toISOString();
+    const existingSingerMember = members.find(
+      m => m.memberId.toUpperCase() === linkedMemberId.toUpperCase()
+    );
+    const singerSponsorL1Id = existingSingerMember?.sponsorId || 'DMC-LA-00001';
+    const singerSponsorL1 = members.find(m => m.memberId === singerSponsorL1Id) || null;
+    const singerSponsorL2 = singerSponsorL1?.sponsorId
+      ? members.find(m => m.memberId === singerSponsorL1.sponsorId) || null
+      : null;
+    const singerSponsorL3 = singerSponsorL2?.sponsorId
+      ? members.find(m => m.memberId === singerSponsorL2.sponsorId) || null
+      : null;
+
+    const singerNetworkTiers: { tier: CommissionTier; amount: number; sponsor: Member | null }[] = [
+      { tier: 'L1', amount: 400000, sponsor: singerSponsorL1 },
+      { tier: 'L2', amount: 200000, sponsor: singerSponsorL2 },
+      { tier: 'L3', amount: 100000, sponsor: singerSponsorL3 },
+    ];
+    const singerActivationAwards: CommissionAward[] = [];
+    const singerActivationLedger: LedgerEntry[] = [];
+
+    for (const t of singerNetworkTiers) {
+      if (t.sponsor && t.sponsor.memberId !== linkedMemberId) {
+        const awdId = `awd-sng-net-${Date.now()}-${t.tier}`;
+        singerActivationAwards.push({
+          id: awdId,
+          orderId: singerActivationOrderId,
+          orderLineId: `line-${singerActivationOrderId}-${t.tier}`,
+          sku: 'MUSIC_SINGLE_1600',
+          tier: t.tier,
+          beneficiaryMemberId: t.sponsor.memberId,
+          buyerMemberId: linkedMemberId,
+          grossAwardLak: t.amount,
+          status: 'AVAILABLE',
+          ruleVersion: 'v2.6',
+          createdAt: singerActivationTime,
+          clearedAt: singerActivationTime,
+        });
+        singerActivationLedger.push({
+          id: `led-sng-net-${Date.now()}-${t.tier}`,
+          txRef: `TX-SNG-${t.tier}-${Date.now().toString().slice(-6)}`,
+          timestamp: singerActivationTime,
+          memberId: t.sponsor.memberId,
+          type: 'COMMISSION_CLEARED_AVAILABLE',
+          sourceRef: awdId,
+          debit: 0,
+          credit: t.amount,
+          targetBalance: 'AVAILABLE',
+          balanceAfter: 0,
+          description: `${t.tier} User Member Network Commission (+${t.amount.toLocaleString()} LAK) from Singer Active Member ${data.stageName} (${linkedMemberId})`,
+        });
+      }
+    }
+
+    setAwards(prev => [...singerActivationAwards, ...prev]);
+    setLedgerEntries(prev => [...singerActivationLedger, ...prev]);
+    setCustomerAffiliateCommissionPool(prev => {
+      const next = { ...prev, [linkedMemberId]: 0 };
+      try {
+        localStorage.setItem('dmc_rev26_customer_affiliate_comm_pool_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setCurrentMemberId(linkedMemberId);
+    setIsLoggedOut(false);
+
+    const singerId = `sng-prof-${Date.now()}`;
+    const nowIso = new Date().toISOString();
+    const initialScheduleDateObj = new Date();
+    initialScheduleDateObj.setDate(initialScheduleDateObj.getDate() + 3);
+    const initialScheduleDateStr = initialScheduleDateObj
+      .toISOString()
+      .split('T')[0];
+
+    const sPrice = 0;
+    const bPrice = singerBookingPricing.newBrandSetPackagePriceLak || 3500000;
+    const cPrice = singerBookingPricing.rockPerformancePriceLak || 1500000;
+    const pPrice =
+      data.packagePartyPriceLak && data.packagePartyPriceLak > 0
+        ? Math.round(Number(data.packagePartyPriceLak))
+        : bPrice + cPrice;
+    const totalInitBookingLak = pPrice;
+    const singerSave5InitLak = Math.round(pPrice * 0.05);
+    const partySave5InitLak = Math.round(pPrice * 0.05);
+    const cut10InitLak = singerSave5InitLak + partySave5InitLak;
+    const net90InitLak = Math.round(pPrice * 0.45);
+    const partyNet95InitLak = Math.max(0, pPrice - partySave5InitLak);
+
+    const initialPartyBooking: DmcSingerPartyBooking = {
+      id: `bk-sng-init-${Date.now()}`,
+      bookingCode: `BK-SNG-2026-${String(singerBookings.length + 1).padStart(
+        3,
+        '0'
+      )}`,
+      singerId,
+      singerCode,
+      singerStageName: cleanStage,
+      singerFullName: data.fullName.trim(),
+      singerAvatarUrl: resolvedAvatar,
+      customerMemberId: 'DMC-LA-00303',
+      customerName: 'Thippavanh Keomany (VIP Party Host)',
+      customerPhone: '+856 20 7788 3344',
+      autoAffiliateActivated: true,
+      autoAffiliateCode: 'AFF-DMC-LA-00303',
+      autoAffiliateLink: `https://dmcxayraxa.music/register?ref=DMC-LA-00303&aff=AFF-DMC-LA-00303&singer=${encodeURIComponent(
+        singerCode
+      )}`,
+      partyEventName: `${cleanStage} Debut Music Cain Party Set Night`,
+      eventLocation: data.province.trim() || 'Vientiane Capital Grand Hall',
+      bookingDate: initialScheduleDateStr,
+      bookingTimeSlot: '18:00 - 22:00 (Evening Party Set)',
+      startSingerPriceLak: sPrice,
+      packagePartyPriceLak: pPrice,
+      singerPriceTier: 'MEDIUM',
+      singerPriceTierLabel: 'Selected Package Party Set',
+      singerPriceLak: sPrice,
+      brandSetPackageType: 'NEW_BRAND_SET',
+      brandSetPackageLabel: 'New Brand Set package price',
+      brandSetPackagePriceLak: pPrice,
+      copyrightMusicType: 'ROCK_PERFORMANCE',
+      copyrightMusicLabel: 'Rock performance (Singer Own Copyright Music)',
+      copyrightMusicPriceLak: 0,
+      ownMusicSongTitles: `${cleanStage} Original Signature Live Set (3 Songs)`,
+      totalPackagePriceLak: totalInitBookingLak,
+      singerWallet5PercentSavingLak: singerSave5InitLak,
+      dmcPartyWallet5PercentSavingLak: partySave5InitLak,
+      dmcPartyWalletNetCreditLak: partyNet95InitLak,
+      loanWalletCut10PercentLak: cut10InitLak,
+      singerNetPayout90PercentLak: net90InitLak,
+      paymentMethod: 'BCEL_ONE_QR',
+      status: 'CONFIRMED_PAID',
+      notes: 'Scheduled Customer Party Booking on Singer Profile Dashboard',
+      createdAt: nowIso,
+    };
+
+    const initialWalletBalanceLak = 0;
+
+    const newSinger: DmcSingerProfile = {
+      id: singerId,
+      singerCode,
+      memberId: linkedMemberId,
+      registrationType: isGeneralPublic ? 'GENERAL_PUBLIC' : 'EXISTING_MEMBER',
+      gender: data.gender || 'MAN',
+      fullName: data.fullName.trim(),
+      stageName: cleanStage,
+      phone: data.phone.trim(),
+      email: data.email?.trim() || '',
+      province: data.province.trim() || 'Vientiane Capital',
+      vocalStyle: data.vocalStyle || 'Lao Modern Pop',
+      experienceYears: Math.max(0, Number(data.experienceYears) || 1),
+      demoAudioOrVideoUrl: data.demoAudioOrVideoUrl?.trim() || '',
+      avatarUrl: resolvedAvatar,
+      bio:
+        data.bio?.trim() ||
+        `Official DMC Xayraxa Registered Singer (${data.vocalStyle}) & Product Affiliate Partner.`,
+      applicationStatus: 'APPROVED_ACTIVE',
+      walletAvailableLak: initialWalletBalanceLak,
+      walletPendingLak: 0,
+      totalEarnedLak: initialWalletBalanceLak,
+      totalWithdrawnLak: 0,
+      affiliateCode,
+      startSingerPriceLak: 0,
+      packagePartyPriceLak: data.packagePartyPriceLak || 8300000,
+      recommendedProductSkus:
+        data.recommendedProductSkus && data.recommendedProductSkus.length > 0
+          ? data.recommendedProductSkus
+          : products.slice(0, 3).map(p => p.sku),
+      bankAccount: primaryBank,
+      bankQrAccounts: initialQrAccounts,
+      withdrawals: [],
+      affiliateSales: [],
+      appliedAt: nowIso,
+    };
+
+    setSingerProfiles(prev => {
+      const next = [newSinger, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setSingerBookings(prev => {
+      const next = [initialPartyBooking, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_singer_bookings_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-sng-app-${Date.now()}`,
+        timestamp: nowIso,
+        actor: newSinger.memberId || newSinger.singerCode,
+        action: 'SINGER_JOB_APPLICATION_REGISTERED',
+        entityType: 'SINGER_PROFILE',
+        entityId: newSinger.singerCode,
+        details: {
+          registrationType: newSinger.registrationType,
+          fullName: newSinger.fullName,
+          stageName: newSinger.stageName,
+          vocalStyle: newSinger.vocalStyle,
+          affiliateCode: newSinger.affiliateCode,
+          initialBookingCode: initialPartyBooking.bookingCode,
+          initialScheduleDate: initialPartyBooking.bookingDate,
+        },
+      },
+      ...prev,
+    ]);
+
+    return newSinger;
+  };
+
+  const updateSingerProfile = (
+    singerId: string,
+    updates: Partial<DmcSingerProfile>
+  ) => {
+    const existingSinger = singerProfiles.find(s => s.id === singerId);
+    setSingerProfiles(prev => {
+      const next = prev.map(s => (s.id === singerId ? { ...s, ...updates } : s));
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Also sync linked Member account so header, wallet, and login stay in sync
+    const targetMemberId = updates.memberId || existingSinger?.memberId;
+    if (
+      targetMemberId &&
+      (updates.fullName ||
+        updates.stageName ||
+        updates.phone ||
+        updates.email !== undefined ||
+        updates.password ||
+        updates.avatarUrl ||
+        updates.province)
+    ) {
+      setMembers(prev => {
+        let changed = false;
+        const next = prev.map(m => {
+          if (m.memberId.toUpperCase() === targetMemberId.toUpperCase()) {
+            changed = true;
+            return {
+              ...m,
+              name: updates.fullName || updates.stageName || m.name,
+              phone: updates.phone || m.phone,
+              email: updates.email !== undefined ? updates.email : m.email,
+              password: updates.password || m.password,
+              avatarUrl: updates.avatarUrl || m.avatarUrl,
+              deliveryAddress: m.deliveryAddress
+                ? {
+                    ...m.deliveryAddress,
+                    recipientName: updates.fullName || m.deliveryAddress.recipientName,
+                    phone: updates.phone || m.deliveryAddress.phone,
+                    province: updates.province || m.deliveryAddress.province,
+                  }
+                : undefined,
+            };
+          }
+          return m;
+        });
+        if (changed) {
+          try {
+            localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+
+    // Sync any singer bookings referencing this singer
+    if (updates.stageName || updates.fullName || updates.gender) {
+      setSingerBookings(prev => {
+        let changed = false;
+        const next = prev.map(b => {
+          if (b.singerId === singerId) {
+            changed = true;
+            return {
+              ...b,
+              singerStageName: updates.stageName || b.singerStageName,
+              singerFullName: updates.fullName || b.singerFullName,
+              singerGender: updates.gender || b.singerGender,
+            };
+          }
+          return b;
+        });
+        if (changed) {
+          try {
+            localStorage.setItem('dmc_rev26_singer_bookings_v2', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  };
+
+  const deleteSingerProfile = (singerId: string): boolean => {
+    setSingerProfiles(prev => {
+      const next = prev.filter(s => s.id !== singerId);
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return true;
+  };
+
+  // Singer Bank QR Code CRUD: Add, Edit, Delete, Update & Set Default
+  const addSingerBankQrAccount = (
+    singerId: string,
+    qrAccount: Omit<DmcSingerBankQrItem, 'id' | 'updatedAt'>
+  ): DmcSingerBankQrItem | null => {
+    const newItem: DmcSingerBankQrItem = {
+      id: `sng-qr-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      bankName:
+        qrAccount.bankName ||
+        'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: qrAccount.accountNumber.trim(),
+      accountName: qrAccount.accountName.trim().toUpperCase(),
+      branch: qrAccount.branch?.trim() || 'Vientiane Capital',
+      customQrImageUrl: qrAccount.customQrImageUrl,
+      isDefault: qrAccount.isDefault ?? true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singerId) return s;
+        const existingList: DmcSingerBankQrItem[] =
+          s.bankQrAccounts && s.bankQrAccounts.length > 0
+            ? s.bankQrAccounts
+            : [
+                {
+                  id: `sng-qr-init-${s.id}`,
+                  bankName: s.bankAccount.bankName,
+                  accountNumber: s.bankAccount.accountNumber,
+                  accountName: s.bankAccount.accountName,
+                  branch: s.bankAccount.branch,
+                  customQrImageUrl: s.bankAccount.customQrImageUrl,
+                  isDefault: false,
+                  updatedAt: s.appliedAt,
+                },
+              ];
+        const updatedList = newItem.isDefault
+          ? [
+              newItem,
+              ...existingList.map(item => ({ ...item, isDefault: false })),
+            ]
+          : [...existingList, newItem];
+        const defaultAcc =
+          updatedList.find(item => item.isDefault) || updatedList[0];
+
+        return {
+          ...s,
+          bankQrAccounts: updatedList,
+          bankAccount: {
+            bankName: defaultAcc.bankName,
+            accountNumber: defaultAcc.accountNumber,
+            accountName: defaultAcc.accountName,
+            branch: defaultAcc.branch,
+            customQrImageUrl: defaultAcc.customQrImageUrl,
+          },
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    return newItem;
+  };
+
+  const updateSingerBankQrAccount = (
+    singerId: string,
+    qrAccountId: string,
+    updates: Partial<DmcSingerBankQrItem>
+  ) => {
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singerId) return s;
+        const existingList: DmcSingerBankQrItem[] =
+          s.bankQrAccounts && s.bankQrAccounts.length > 0
+            ? s.bankQrAccounts
+            : [
+                {
+                  id: qrAccountId || `sng-qr-init-${s.id}`,
+                  bankName: s.bankAccount.bankName,
+                  accountNumber: s.bankAccount.accountNumber,
+                  accountName: s.bankAccount.accountName,
+                  branch: s.bankAccount.branch,
+                  customQrImageUrl: s.bankAccount.customQrImageUrl,
+                  isDefault: true,
+                  updatedAt: s.appliedAt,
+                },
+              ];
+
+        const updatedList = existingList.map(item => {
+          if (item.id === qrAccountId) {
+            return {
+              ...item,
+              ...updates,
+              accountName: (updates.accountName ?? item.accountName).toUpperCase(),
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          if (updates.isDefault) {
+            return { ...item, isDefault: false };
+          }
+          return item;
+        });
+
+        const defaultAcc =
+          updatedList.find(item => item.isDefault) || updatedList[0];
+
+        return {
+          ...s,
+          bankQrAccounts: updatedList,
+          bankAccount: {
+            bankName: defaultAcc.bankName,
+            accountNumber: defaultAcc.accountNumber,
+            accountName: defaultAcc.accountName,
+            branch: defaultAcc.branch,
+            customQrImageUrl: defaultAcc.customQrImageUrl,
+          },
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const deleteSingerBankQrAccount = (
+    singerId: string,
+    qrAccountId: string
+  ): boolean => {
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singerId) return s;
+        const existingList: DmcSingerBankQrItem[] =
+          s.bankQrAccounts && s.bankQrAccounts.length > 0
+            ? s.bankQrAccounts
+            : [];
+        const remaining = existingList.filter(item => item.id !== qrAccountId);
+        if (remaining.length === 0) {
+          // If the user deleted the last QR account or cleared its QR image, clear customQrImageUrl
+          return {
+            ...s,
+            bankQrAccounts: [],
+            bankAccount: {
+              ...s.bankAccount,
+              customQrImageUrl: undefined,
+            },
+          };
+        }
+        if (!remaining.some(item => item.isDefault)) {
+          remaining[0] = { ...remaining[0], isDefault: true };
+        }
+        const defaultAcc =
+          remaining.find(item => item.isDefault) || remaining[0];
+        return {
+          ...s,
+          bankQrAccounts: remaining,
+          bankAccount: {
+            bankName: defaultAcc.bankName,
+            accountNumber: defaultAcc.accountNumber,
+            accountName: defaultAcc.accountName,
+            branch: defaultAcc.branch,
+            customQrImageUrl: defaultAcc.customQrImageUrl,
+          },
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return true;
+  };
+
+  const setDefaultSingerBankQrAccount = (
+    singerId: string,
+    qrAccountId: string
+  ) => {
+    updateSingerBankQrAccount(singerId, qrAccountId, { isDefault: true });
+  };
+
+  const toggleSingerRecommendedProduct = (singerId: string, sku: string) => {
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singerId) return s;
+        const exists = s.recommendedProductSkus.includes(sku);
+        const updatedSkus = exists
+          ? s.recommendedProductSkus.filter(item => item !== sku)
+          : [...s.recommendedProductSkus, sku];
+        return { ...s, recommendedProductSkus: updatedSkus };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const recordSingerAffiliateSale = (
+    singerId: string,
+    sku: string,
+    buyerName = 'Verified Fan Buyer'
+  ): { success: boolean; message: string; commissionLak: number } => {
+    const singer = singerProfiles.find(s => s.id === singerId);
+    const product = products.find(p => p.sku === sku) || products[0];
+    if (!singer || !product) {
+      return {
+        success: false,
+        message: 'Singer or Product not found.',
+        commissionLak: 0,
+      };
+    }
+
+    // Compute L1 Singer Affiliate Commission (400,000 LAK for MUSIC_SINGLE_1600, or L1 share of pool e.g. 225,000 LAK)
+    const commissionLak =
+      product.sku === 'MUSIC_SINGLE_1600'
+        ? product.splitRule.l1Share || 400000
+        : Math.round(
+            (product.commissionPoolLak * (product.splitRule.l1Share || 50)) / 100
+          );
+
+    const affiliateLink = `https://dmcxayraxa.music/shop?sku=${encodeURIComponent(
+      product.sku
+    )}&singer=${encodeURIComponent(singer.affiliateCode)}`;
+
+    const saleRecord: DmcSingerAffiliateSaleRecord = {
+      id: `aff-sale-${Date.now()}`,
+      singerId: singer.id,
+      sku: product.sku,
+      productTitle: product.titleEn,
+      buyerName,
+      orderAmountLak: product.priceLak,
+      affiliateCommissionLak: commissionLak,
+      affiliateLink,
+      createdAt: new Date().toISOString(),
+    };
+
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singerId) return s;
+        const hasSku = s.recommendedProductSkus.includes(product.sku);
+        return {
+          ...s,
+          walletAvailableLak: s.walletAvailableLak + commissionLak,
+          totalEarnedLak: s.totalEarnedLak + commissionLak,
+          recommendedProductSkus: hasSku
+            ? s.recommendedProductSkus
+            : [...s.recommendedProductSkus, product.sku],
+          affiliateSales: [saleRecord, ...s.affiliateSales],
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Also credit linked Member's AVAILABLE ledger if linked
+    if (singer.memberId) {
+      const newLedger: LedgerEntry = {
+        id: `led-sng-aff-${Date.now()}`,
+        txRef: `TX-SNG-AFF-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        memberId: singer.memberId,
+        type: 'COMMISSION_CLEARED_AVAILABLE',
+        sourceRef: saleRecord.id,
+        debit: 0,
+        credit: commissionLak,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 0,
+        description: `Singer Affiliate Product Referral (${product.sku}) by ${singer.stageName} (${singer.singerCode})`,
+      };
+      setLedgerEntries(prev => [...prev, newLedger]);
+    }
+
+    return {
+      success: true,
+      commissionLak,
+      message: `Affiliate referral sale recorded for "${product.titleEn}"! +${commissionLak.toLocaleString()} LAK credited to ${singer.stageName}'s Singer Wallet.`,
+    };
+  };
+
+  const withdrawFromSingerWallet = (
+    singerId: string,
+    amountLak: number,
+    bankDetails: {
+      bankName: string;
+      accountNumber: string;
+      accountName: string;
+      customQrImageUrl?: string;
+    }
+  ): {
+    success: boolean;
+    message: string;
+    withdrawal?: DmcSingerWithdrawalRecord;
+  } => {
+    const singer = singerProfiles.find(s => s.id === singerId);
+    if (!singer) {
+      return { success: false, message: 'Singer profile not found.' };
+    }
+    const cleanAmount = Math.round(Number(amountLak) || 0);
+    if (cleanAmount < 50000) {
+      return {
+        success: false,
+        message: 'Minimum Singer Wallet withdrawal amount is 50,000 LAK.',
+      };
+    }
+    if (cleanAmount > singer.walletAvailableLak) {
+      return {
+        success: false,
+        message: `Insufficient Singer Wallet balance. Available: ${singer.walletAvailableLak.toLocaleString()} LAK.`,
+      };
+    }
+
+    const bankFeeLak = 5000;
+    const netPayoutLak = Math.max(0, cleanAmount - bankFeeLak);
+    const wthRecord: DmcSingerWithdrawalRecord = {
+      id: `WTH-SNG-${Date.now().toString().slice(-6)}`,
+      singerId: singer.id,
+      memberId: singer.memberId,
+      amountLak: cleanAmount,
+      bankFeeLak,
+      netPayoutLak,
+      bankName: bankDetails.bankName,
+      accountNumber: bankDetails.accountNumber,
+      accountName: bankDetails.accountName.toUpperCase(),
+      customQrImageUrl: bankDetails.customQrImageUrl,
+      status: 'PENDING_REVIEW',
+      requestedAt: new Date().toISOString(),
+      note: 'Waiting for Administrator Approval (Wallet • Withdraw • Affiliate Commission)',
+    };
+
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singerId) return s;
+        return {
+          ...s,
+          walletAvailableLak: Math.max(0, s.walletAvailableLak - cleanAmount),
+          walletPendingLak: (s.walletPendingLak || 0) + cleanAmount,
+          bankAccount: {
+            ...s.bankAccount,
+            bankName: bankDetails.bankName,
+            accountNumber: bankDetails.accountNumber,
+            accountName: bankDetails.accountName.toUpperCase(),
+            ...(bankDetails.customQrImageUrl
+              ? { customQrImageUrl: bankDetails.customQrImageUrl }
+              : {}),
+          },
+          withdrawals: [wthRecord, ...s.withdrawals],
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Also record in global withdrawals list as ADMIN_REVIEW so Administrator can approve it
+    const globalReq: WithdrawalRequest = {
+      id: wthRecord.id,
+      memberId: singer.memberId || singer.singerCode,
+      amountLak: cleanAmount,
+      bankFeeLak,
+      netPayoutLak,
+      bankName: bankDetails.bankName,
+      accountNumber: bankDetails.accountNumber,
+      accountName: bankDetails.accountName.toUpperCase(),
+      status: 'ADMIN_REVIEW',
+      requestedAt: wthRecord.requestedAt,
+    };
+    setWithdrawals(prev => [globalReq, ...prev]);
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-sng-wth-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: singer.singerCode,
+        action: 'SINGER_WALLET_WITHDRAWAL_REQUESTED_PENDING_ADMIN',
+        entityType: 'SINGER_WALLET',
+        entityId: wthRecord.id,
+        details: {
+          singerName: singer.stageName,
+          amountLak: cleanAmount,
+          netPayoutLak,
+          bankName: bankDetails.bankName,
+          accountNumber: bankDetails.accountNumber,
+          status: 'WAITING_ADMINISTRATOR_APPROVAL',
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      withdrawal: wthRecord,
+      message: `Withdrawal request ${wthRecord.id} for ${cleanAmount.toLocaleString()} LAK (Net: ${netPayoutLak.toLocaleString()} LAK) submitted! Status: Waiting for Administrator Approval before transfer to ${bankDetails.bankName} (${bankDetails.accountNumber}).`,
+    };
+  };
+
+  const resetSingerMemberWalletToZero = (
+    singerId?: string
+  ): { success: boolean; message: string } => {
+    const targetIds = new Set<string>();
+    const targetMemberIds = new Set<string>();
+
+    singerProfiles.forEach(s => {
+      if (!singerId || s.id === singerId || s.singerCode === singerId) {
+        targetIds.add(s.id);
+        if (s.memberId) {
+          targetMemberIds.add(s.memberId.trim().toUpperCase());
+        }
+      }
+    });
+
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (!targetIds.has(s.id)) return s;
+        return {
+          ...s,
+          walletAvailableLak: 0,
+          walletPendingLak: 0,
+          totalEarnedLak: 0,
+          totalWithdrawnLak: 0,
+          withdrawals: [],
+          affiliateSales: [],
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        localStorage.setItem('dmc_rev26_singer_profiles_v4', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    if (targetMemberIds.size > 0) {
+      setCustomerAffiliateCommissionPool(prev => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          if (targetMemberIds.has(k.toUpperCase())) {
+            next[k] = 0;
+          }
+        }
+        for (const mid of targetMemberIds) {
+          next[mid] = 0;
+        }
+        try {
+          localStorage.setItem(
+            'dmc_rev26_customer_affiliate_comm_pool_v1',
+            JSON.stringify(next)
+          );
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
+      setLedgerEntries(prev =>
+        prev.filter(
+          e =>
+            !targetMemberIds.has(e.memberId.toUpperCase()) ||
+            e.targetBalance === 'HELD_FOR_QUALIFICATION'
+        )
+      );
+    }
+
+    const matchedSinger = singerId
+      ? singerProfiles.find(s => s.id === singerId || s.singerCode === singerId)
+      : null;
+
+    return {
+      success: true,
+      message: matchedSinger
+        ? `Reset Singer & Member Wallet for ${matchedSinger.stageName} (${matchedSinger.memberId || matchedSinger.singerCode}) to 0 LAK!`
+        : 'Reset all Singer & Singer Member Wallets to 0 LAK!',
+    };
+  };
+
+  // ================= LOAN WALLET CENTER (ADMIN DEPOSIT, WITHDRAW & 10% SINGER BOOKING CUT) =================
+  const adminDepositLoanWallet = (
+    amountLak: number,
+    note: string,
+    bankDetails?: {
+      bankName?: string;
+      accountNumber?: string;
+      accountName?: string;
+      customQrImageUrl?: string;
+    }
+  ): { success: boolean; message: string; tx?: DmcLoanWalletTransaction } => {
+    const cleanAmount = Math.round(Number(amountLak) || 0);
+    if (cleanAmount <= 0) {
+      return {
+        success: false,
+        message: 'Deposit amount must be greater than 0 LAK.',
+      };
+    }
+
+    const newBalance = loanWalletBalanceLak + cleanAmount;
+    const tx: DmcLoanWalletTransaction = {
+      id: `lw-dep-${Date.now()}`,
+      txRef: `LW-DEP-${Date.now().toString().slice(-6)}`,
+      type: 'DEPOSIT',
+      amountLak: cleanAmount,
+      balanceAfterLak: newBalance,
+      actor: isAdminMode || isAdminAuthenticated ? 'SUPER_ADMIN' : currentMember.memberId,
+      bankName:
+        bankDetails?.bankName || 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: bankDetails?.accountNumber || '160-12-00998877-001',
+      accountName:
+        (bankDetails?.accountName || 'DMC XAYRAXA LOAN WALLET CENTER').toUpperCase(),
+      customQrImageUrl: bankDetails?.customQrImageUrl,
+      note: note.trim() || 'Administrator Deposit to Loan Wallet Center',
+      createdAt: new Date().toISOString(),
+    };
+
+    setLoanWalletBalanceLak(newBalance);
+    try {
+      localStorage.setItem('dmc_rev26_loan_wallet_balance_v1', String(newBalance));
+    } catch {
+      // ignore
+    }
+
+    setLoanWalletTransactions(prev => {
+      const next = [tx, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_loan_wallet_txs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-lw-dep-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: tx.actor,
+        action: 'LOAN_WALLET_DEPOSIT',
+        entityType: 'LOAN_WALLET_CENTER',
+        entityId: tx.txRef,
+        details: {
+          amountLak: cleanAmount,
+          balanceAfterLak: newBalance,
+          bankName: tx.bankName,
+          accountNumber: tx.accountNumber,
+          note: tx.note,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      tx,
+      message: `Deposited +${cleanAmount.toLocaleString()} LAK into DMC Party Wallet Balance! New DMC Party Wallet Balance: ${newBalance.toLocaleString()} LAK.`,
+    };
+  };
+
+  const adminWithdrawLoanWallet = (
+    amountLak: number,
+    note: string,
+    bankDetails?: {
+      bankName?: string;
+      accountNumber?: string;
+      accountName?: string;
+      customQrImageUrl?: string;
+    }
+  ): { success: boolean; message: string; tx?: DmcLoanWalletTransaction } => {
+    const cleanAmount = Math.round(Number(amountLak) || 0);
+    if (cleanAmount <= 0) {
+      return {
+        success: false,
+        message: 'Withdraw amount must be greater than 0 LAK.',
+      };
+    }
+    const total10PercentCutLak = loanWalletTransactions
+      .filter(t => t.type === 'SINGER_BOOKING_10_PERCENT_CUT')
+      .reduce((sum, t) => sum + t.amountLak, 0);
+    const withdrawnFrom10PercentLak = loanWalletTransactions
+      .filter(
+        t =>
+          t.type === 'WITHDRAW' &&
+          /10%|saving for loan/i.test(t.note || '')
+      )
+      .reduce((sum, t) => sum + t.amountLak, 0);
+    const available10PercentSavingLak = Math.max(
+      0,
+      total10PercentCutLak - withdrawnFrom10PercentLak
+    );
+
+    const isFrom10PercentSaving = /10%|saving for loan/i.test(note || '');
+    const maxWithdrawableLak = isFrom10PercentSaving
+      ? Math.max(available10PercentSavingLak, loanWalletBalanceLak)
+      : Math.max(loanWalletBalanceLak, available10PercentSavingLak);
+
+    if (cleanAmount > maxWithdrawableLak) {
+      return {
+        success: false,
+        message: `Insufficient DMC Party Wallet Balance / 10% Saving for Loan balance. Available: ${maxWithdrawableLak.toLocaleString()} LAK.`,
+      };
+    }
+
+    const newBalance = isFrom10PercentSaving
+      ? loanWalletBalanceLak
+      : Math.max(0, loanWalletBalanceLak - cleanAmount);
+    const tx: DmcLoanWalletTransaction = {
+      id: `lw-wth-${Date.now()}`,
+      txRef: `LW-WTH-${Date.now().toString().slice(-6)}`,
+      type: 'WITHDRAW',
+      amountLak: cleanAmount,
+      balanceAfterLak: newBalance,
+      actor: isAdminMode || isAdminAuthenticated ? 'SUPER_ADMIN' : currentMember.memberId,
+      bankName:
+        bankDetails?.bankName || 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: bankDetails?.accountNumber || '160-12-00998877-001',
+      accountName:
+        (bankDetails?.accountName || 'DMC PARTY WALLET DISBURSEMENT').toUpperCase(),
+      customQrImageUrl: bankDetails?.customQrImageUrl,
+      note: note.trim() || 'Administrator Withdraw from DMC Party Wallet Balance',
+      createdAt: new Date().toISOString(),
+    };
+
+    if (!isFrom10PercentSaving) {
+      setLoanWalletBalanceLak(newBalance);
+      try {
+        localStorage.setItem('dmc_rev26_loan_wallet_balance_v1', String(newBalance));
+      } catch {
+        // ignore
+      }
+    }
+
+    setLoanWalletTransactions(prev => {
+      const next = [tx, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_loan_wallet_txs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-lw-wth-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: tx.actor,
+        action: 'LOAN_WALLET_WITHDRAW',
+        entityType: 'LOAN_WALLET_CENTER',
+        entityId: tx.txRef,
+        details: {
+          amountLak: cleanAmount,
+          balanceAfterLak: newBalance,
+          bankName: tx.bankName,
+          accountNumber: tx.accountNumber,
+          note: tx.note,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      tx,
+      message: isFrom10PercentSaving
+        ? `Withdrew -${cleanAmount.toLocaleString()} LAK from 10% Saving for Loan to ${tx.bankName} (${tx.accountNumber})! Remaining Saving for Loan: ${Math.max(0, available10PercentSavingLak - cleanAmount).toLocaleString()} LAK.`
+        : `Withdrew -${cleanAmount.toLocaleString()} LAK from DMC Party Wallet Balance to ${tx.bankName} (${tx.accountNumber})! Remaining Balance: ${newBalance.toLocaleString()} LAK.`,
+    };
+  };
+
+  const adminUpdateLoanWalletTransaction = (
+    txId: string,
+    updates: Partial<DmcLoanWalletTransaction>
+  ) => {
+    setLoanWalletTransactions(prev => {
+      const target = prev.find(item => item.id === txId);
+      const next = prev.map(item => {
+        if (item.id !== txId) return item;
+        return { ...item, ...updates };
+      });
+      if (
+        target &&
+        updates.amountLak !== undefined &&
+        updates.amountLak !== target.amountLak
+      ) {
+        const oldSigned =
+          target.type === 'WITHDRAW' ? -target.amountLak : target.amountLak;
+        const newType = updates.type || target.type;
+        const newSigned =
+          newType === 'WITHDRAW' ? -updates.amountLak : updates.amountLak;
+        const delta = newSigned - oldSigned;
+        const newBalance = Math.max(0, loanWalletBalanceLak + delta);
+        setLoanWalletBalanceLak(newBalance);
+        try {
+          localStorage.setItem(
+            'dmc_rev26_loan_wallet_balance_v1',
+            String(newBalance)
+          );
+        } catch {
+          // ignore
+        }
+      }
+      try {
+        localStorage.setItem('dmc_rev26_loan_wallet_txs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const adminDeleteLoanWalletTransaction = (txId: string): boolean => {
+    setLoanWalletTransactions(prev => {
+      const next = prev.filter(item => item.id !== txId);
+      try {
+        localStorage.setItem('dmc_rev26_loan_wallet_txs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return true;
+  };
+
+  const updateSingerBookingPricing = (
+    updates: Partial<DmcSingerBookingPricingConfig>
+  ) => {
+    setSingerBookingPricing(prev => {
+      const next = { ...prev, ...updates };
+      try {
+        localStorage.setItem(
+          'dmc_rev26_singer_booking_pricing_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    // Also sync matching package option cards so UI stays 100% consistent
+    setBookingPackageOptions(prev => {
+      const next = prev.map(opt => {
+        if (opt.code === 'CHEAPER' && updates.cheaperPriceLak !== undefined) {
+          return { ...opt, priceLak: updates.cheaperPriceLak, updatedAt: new Date().toISOString() };
+        }
+        if (opt.code === 'MEDIUM' && updates.mediumPriceLak !== undefined) {
+          return { ...opt, priceLak: updates.mediumPriceLak, updatedAt: new Date().toISOString() };
+        }
+        if (opt.code === 'EXPENSIVE' && updates.expensivePriceLak !== undefined) {
+          return { ...opt, priceLak: updates.expensivePriceLak, updatedAt: new Date().toISOString() };
+        }
+        if (
+          opt.code === 'NEW_BRAND_SET' &&
+          updates.newBrandSetPackagePriceLak !== undefined
+        ) {
+          return {
+            ...opt,
+            priceLak: updates.newBrandSetPackagePriceLak,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        if (
+          opt.code === 'OLD_BRAND_SET' &&
+          updates.oldBrandSetPackagePriceLak !== undefined
+        ) {
+          return {
+            ...opt,
+            priceLak: updates.oldBrandSetPackagePriceLak,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        if (
+          opt.code === 'ROCK_PERFORMANCE' &&
+          updates.rockPerformancePriceLak !== undefined
+        ) {
+          return {
+            ...opt,
+            priceLak: updates.rockPerformancePriceLak,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        if (
+          opt.code === 'MUSIC_PERFORMANCE' &&
+          updates.musicPerformancePriceLak !== undefined
+        ) {
+          return {
+            ...opt,
+            priceLak: updates.musicPerformancePriceLak,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        if (
+          opt.code === 'TRADITIONAL_MUSIC' &&
+          updates.traditionalMusicPriceLak !== undefined
+        ) {
+          return {
+            ...opt,
+            priceLak: updates.traditionalMusicPriceLak,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return opt;
+      });
+      try {
+        localStorage.setItem(
+          'dmc_rev26_booking_pkg_options_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const adminAddBookingPackageOption = (
+    opt: Omit<DmcBookingPackageOption, 'id' | 'updatedAt'>
+  ): DmcBookingPackageOption => {
+    const newOpt: DmcBookingPackageOption = {
+      ...opt,
+      id: `pkg-opt-${Date.now()}`,
+      priceLak: Math.max(0, Math.round(Number(opt.priceLak) || 0)),
+      updatedAt: new Date().toISOString(),
+    };
+    setBookingPackageOptions(prev => {
+      const next = [...prev, newOpt];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_booking_pkg_options_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return newOpt;
+  };
+
+  const adminUpdateBookingPackageOption = (
+    id: string,
+    updates: Partial<DmcBookingPackageOption>
+  ) => {
+    setBookingPackageOptions(prev => {
+      let updatedTarget: DmcBookingPackageOption | null = null;
+      const next = prev.map(opt => {
+        if (opt.id !== id) return opt;
+        updatedTarget = {
+          ...opt,
+          ...updates,
+          priceLak:
+            updates.priceLak !== undefined
+              ? Math.max(0, Math.round(Number(updates.priceLak) || 0))
+              : opt.priceLak,
+          updatedAt: new Date().toISOString(),
+        };
+        return updatedTarget;
+      });
+      try {
+        localStorage.setItem(
+          'dmc_rev26_booking_pkg_options_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      if (updatedTarget && updates.priceLak !== undefined) {
+        const p = (updatedTarget as DmcBookingPackageOption).priceLak;
+        const code = (updatedTarget as DmcBookingPackageOption).code;
+        setSingerBookingPricing(curr => {
+          const nextPricing = { ...curr };
+          if (code === 'CHEAPER') nextPricing.cheaperPriceLak = p;
+          else if (code === 'MEDIUM') nextPricing.mediumPriceLak = p;
+          else if (code === 'EXPENSIVE') nextPricing.expensivePriceLak = p;
+          else if (code === 'NEW_BRAND_SET')
+            nextPricing.newBrandSetPackagePriceLak = p;
+          else if (code === 'OLD_BRAND_SET')
+            nextPricing.oldBrandSetPackagePriceLak = p;
+          else if (code === 'ROCK_PERFORMANCE')
+            nextPricing.rockPerformancePriceLak = p;
+          else if (code === 'MUSIC_PERFORMANCE')
+            nextPricing.musicPerformancePriceLak = p;
+          else if (code === 'TRADITIONAL_MUSIC')
+            nextPricing.traditionalMusicPriceLak = p;
+          try {
+            localStorage.setItem(
+              'dmc_rev26_singer_booking_pricing_v1',
+              JSON.stringify(nextPricing)
+            );
+          } catch {
+            // ignore
+          }
+          return nextPricing;
+        });
+      }
+      return next;
+    });
+  };
+
+  const adminDeleteBookingPackageOption = (id: string): boolean => {
+    setBookingPackageOptions(prev => {
+      const next = prev.filter(opt => opt.id !== id);
+      try {
+        localStorage.setItem(
+          'dmc_rev26_booking_pkg_options_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return true;
+  };
+
+  const adminResetBookingPackageOptions = () => {
+    setBookingPackageOptions(DEFAULT_BOOKING_PACKAGE_OPTIONS);
+    setSingerBookingPricing(DEFAULT_SINGER_BOOKING_PRICING);
+    try {
+      localStorage.setItem(
+        'dmc_rev26_booking_pkg_options_v1',
+        JSON.stringify(DEFAULT_BOOKING_PACKAGE_OPTIONS)
+      );
+      localStorage.setItem(
+        'dmc_rev26_singer_booking_pricing_v1',
+        JSON.stringify(DEFAULT_SINGER_BOOKING_PRICING)
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const createSingerPartyBooking = (input: {
+    singerId: string;
+    customerMemberId?: string;
+    customerName: string;
+    customerPhone: string;
+    customerPassword?: string;
+    partyEventName: string;
+    eventLocation: string;
+    bookingDate: string;
+    bookingTimeSlot: string;
+    singerPriceTier: SingerPriceTier;
+    customSingerPriceLak?: number;
+    brandSetPackageType: BrandSetPackageType;
+    customBrandSetPriceLak?: number;
+    copyrightMusicType: SingerCopyrightMusicType;
+    customCopyrightMusicPriceLak?: number;
+    ownMusicSongTitles?: string;
+    paymentMethod: DmcSingerPartyBooking['paymentMethod'];
+    paymentBillImageUrl?: string;
+    paymentBillFileName?: string;
+    paymentBillRefNo?: string;
+    notes?: string;
+  }): {
+    success: boolean;
+    message: string;
+    booking?: DmcSingerPartyBooking;
+    autoAffiliateMember?: Member;
+  } => {
+    const singer =
+      singerProfiles.find(s => s.id === input.singerId) || singerProfiles[0];
+    if (!singer) {
+      return { success: false, message: 'Selected Singer not found.' };
+    }
+
+    // Start Singer Price is removed from Booking Party Set (0 LAK)
+    const singerPriceLak = 0;
+    const singerPriceTierLabel = 'Selected Package Party Set';
+
+    // 2. Brand Set Package Price resolution
+    const matchedBrandOpt = bookingPackageOptions.find(
+      opt =>
+        opt.category === 'BRAND_SET_PACKAGE' &&
+        (opt.code === input.brandSetPackageType ||
+          opt.id === input.brandSetPackageType)
+    );
+    const defaultBrandSetPrice = matchedBrandOpt
+      ? matchedBrandOpt.priceLak
+      : input.brandSetPackageType === 'NEW_BRAND_SET'
+      ? singer.newBrandSetPriceLak ||
+        singerBookingPricing.newBrandSetPackagePriceLak
+      : singer.oldBrandSetPriceLak ||
+        singerBookingPricing.oldBrandSetPackagePriceLak;
+
+    const brandSetPackagePriceLak = Math.max(
+      0,
+      Math.round(
+        input.customBrandSetPriceLak !== undefined &&
+          input.customBrandSetPriceLak >= 0
+          ? input.customBrandSetPriceLak
+          : defaultBrandSetPrice
+      )
+    );
+
+    const brandSetPackageLabel: string = matchedBrandOpt
+      ? matchedBrandOpt.title
+      : input.brandSetPackageType === 'NEW_BRAND_SET'
+      ? 'New Brand Set package price'
+      : 'Old Brand Set Package Price';
+
+    // 3. Singer Copyright Own Music resolution
+    const matchedCopyOpt = bookingPackageOptions.find(
+      opt =>
+        opt.category === 'COPYRIGHT_OWN_MUSIC' &&
+        (opt.code === input.copyrightMusicType ||
+          opt.id === input.copyrightMusicType)
+    );
+    const defaultCopyrightPrice = matchedCopyOpt
+      ? matchedCopyOpt.priceLak
+      : input.copyrightMusicType === 'ROCK_PERFORMANCE'
+      ? singerBookingPricing.rockPerformancePriceLak
+      : input.copyrightMusicType === 'MUSIC_PERFORMANCE'
+      ? singerBookingPricing.musicPerformancePriceLak
+      : singerBookingPricing.traditionalMusicPriceLak;
+
+    const copyrightMusicPriceLak = Math.max(
+      0,
+      Math.round(
+        input.customCopyrightMusicPriceLak !== undefined &&
+          input.customCopyrightMusicPriceLak >= 0
+          ? input.customCopyrightMusicPriceLak
+          : defaultCopyrightPrice
+      )
+    );
+
+    const copyrightMusicLabel: string = matchedCopyOpt
+      ? matchedCopyOpt.title
+      : input.copyrightMusicType === 'ROCK_PERFORMANCE'
+      ? 'Rock performance'
+      : input.copyrightMusicType === 'MUSIC_PERFORMANCE'
+      ? 'Music performance'
+      : 'Traditional music';
+
+    // 4. Split Flow (Start Singer Price Removed — Based cleanly on Selected Package Party Price):
+    const startSingerPriceLak = 0;
+    const packagePartyPriceLak = Math.max(
+      1000000,
+      brandSetPackagePriceLak + copyrightMusicPriceLak
+    );
+    const totalPackagePriceLak = packagePartyPriceLak;
+
+    const singerWallet5PercentSavingLak = Math.round(packagePartyPriceLak * 0.05);
+    const singerNetPayout90PercentLak = Math.round(packagePartyPriceLak * 0.45);
+
+    const dmcPartyWallet5PercentSavingLak = Math.round(packagePartyPriceLak * 0.05);
+    const dmcPartyWalletNetCreditLak = Math.max(
+      0,
+      packagePartyPriceLak - dmcPartyWallet5PercentSavingLak
+    );
+
+    const loanWalletCut10PercentLak =
+      singerWallet5PercentSavingLak + dmcPartyWallet5PercentSavingLak;
+
+    // 5. AUTOMATIC "MEMBER FREE ACTIVE" & AFFILIATE ENROLLMENT FOR CUSTOMER BOOKING SINGER
+    const nowIso = new Date().toISOString();
+    const cleanCustomerName = input.customerName.trim() || 'General Member Affiliate';
+    const cleanCustomerPhone = input.customerPhone.trim() || '+856 20 5588 9900';
+    const cleanCustomerPassword = input.customerPassword?.trim() || '123456';
+
+    let existingCustomerMember = members.find(
+      m =>
+        (input.customerMemberId &&
+          m.memberId.toUpperCase() === input.customerMemberId.trim().toUpperCase()) ||
+        m.phone.replace(/\s+/g, '') === cleanCustomerPhone.replace(/\s+/g, '')
+    );
+
+    const resolvedMemberId = existingCustomerMember
+      ? existingCustomerMember.memberId
+      : `DMC-LA-${String(800 + members.length + 1).padStart(5, '0')}`;
+    const autoAffiliateCode = `AFF-${resolvedMemberId}`;
+    const autoAffiliateLink = `https://dmcxayraxa.music/register?ref=${resolvedMemberId}&aff=${autoAffiliateCode}&singer=${singer.singerCode}`;
+
+    let enrolledOrUpgradedMember: Member;
+    if (existingCustomerMember) {
+      enrolledOrUpgradedMember = {
+        ...existingCustomerMember,
+        name: cleanCustomerName || existingCustomerMember.name,
+        phone: cleanCustomerPhone || existingCustomerMember.phone,
+        password: cleanCustomerPassword || existingCustomerMember.password || '123456',
+        membershipState: 'ACTIVE_LIFETIME_MEMBER',
+        activatedAt: existingCustomerMember.activatedAt || nowIso,
+        activationMethod: existingCustomerMember.activationMethod || 'DIRECT_CASH',
+        kycStatus: 'VERIFIED',
+        isAutomaticAffiliate: true,
+        autoAffiliateCode,
+        autoAffiliateLink,
+        autoAffiliateBookedSingerId: singer.id,
+        autoAffiliateActivatedAt: nowIso,
+      };
+      setMembers(prev => {
+        const next = prev.map(m =>
+          m.memberId === existingCustomerMember!.memberId
+            ? enrolledOrUpgradedMember
+            : m
+        );
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    } else {
+      enrolledOrUpgradedMember = {
+        id: `usr-aff-${Date.now()}`,
+        memberId: resolvedMemberId,
+        name: cleanCustomerName,
+        phone: cleanCustomerPhone,
+        email: `${resolvedMemberId.toLowerCase()}@dmcxayraxa.music`,
+        password: cleanCustomerPassword,
+        avatarUrl:
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+        language: 'lo',
+        membershipState: 'ACTIVE_LIFETIME_MEMBER',
+        sponsorId: singer.memberId || 'DMC-LA-00101',
+        createdAt: nowIso,
+        activatedAt: nowIso,
+        activationMethod: 'DIRECT_CASH',
+        consents: {
+          termsAccepted: true,
+          termsVersion: 'v2.6',
+          termsAcceptedAt: nowIso,
+          autoRedeemConsent: true,
+          autoRedeemVersion: 'v2.6',
+          autoRedeemAcceptedAt: nowIso,
+        },
+        kycStatus: 'VERIFIED',
+        isAutomaticAffiliate: true,
+        autoAffiliateCode,
+        autoAffiliateLink,
+        autoAffiliateBookedSingerId: singer.id,
+        autoAffiliateActivatedAt: nowIso,
+      };
+      setMembers(prev => {
+        const next = [enrolledOrUpgradedMember, ...prev];
+        try {
+          localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+
+    // Automatically sign in the booking customer as Member Free Active
+    setCurrentMemberId(resolvedMemberId);
+    setIsLoggedOut(false);
+
+    const nextIdx = singerBookings.length + 1;
+    const bookingCode = `BK-SNG-2026-${String(nextIdx).padStart(3, '0')}`;
+    const newBooking: DmcSingerPartyBooking = {
+      id: `bk-sng-${Date.now()}`,
+      bookingCode,
+      singerId: singer.id,
+      singerCode: singer.singerCode,
+      singerStageName: singer.stageName,
+      singerFullName: singer.fullName,
+      singerGender: singer.gender || 'MAN',
+      singerAvatarUrl: singer.avatarUrl,
+      customerMemberId: resolvedMemberId,
+      customerName: cleanCustomerName,
+      customerPhone: cleanCustomerPhone,
+      partyEventName:
+        input.partyEventName.trim() ||
+        'Music Cain Party Set Package Celebration',
+      eventLocation:
+        input.eventLocation.trim() || 'Vientiane Capital Event Hall',
+      bookingDate:
+        input.bookingDate || new Date().toISOString().split('T')[0],
+      bookingTimeSlot:
+        input.bookingTimeSlot || '18:00 - 22:00 (Evening Party Set)',
+      autoAffiliateActivated: true,
+      autoAffiliateCode,
+      autoAffiliateLink,
+      startSingerPriceLak,
+      packagePartyPriceLak,
+      singerPriceTier: input.singerPriceTier,
+      singerPriceTierLabel,
+      singerPriceLak,
+      brandSetPackageType: input.brandSetPackageType,
+      brandSetPackageLabel,
+      brandSetPackagePriceLak,
+      copyrightMusicType: input.copyrightMusicType,
+      copyrightMusicLabel,
+      copyrightMusicPriceLak,
+      ownMusicSongTitles:
+        input.ownMusicSongTitles?.trim() ||
+        `${singer.stageName} Original Copyright Set (${copyrightMusicLabel})`,
+      totalPackagePriceLak,
+      singerWallet5PercentSavingLak,
+      dmcPartyWallet5PercentSavingLak,
+      dmcPartyWalletNetCreditLak,
+      loanWalletCut10PercentLak,
+      singerNetPayout90PercentLak,
+      paymentMethod: input.paymentMethod,
+      paymentBillImageUrl: input.paymentBillImageUrl,
+      paymentBillFileName: input.paymentBillFileName,
+      paymentBillRefNo: input.paymentBillRefNo,
+      status: 'CONFIRMED_PAID',
+      notes: input.notes?.trim()
+        ? `${input.notes.trim()} • [Customer Member Free Active: ${resolvedMemberId} / PW: ${cleanCustomerPassword}] • [Singer Schedule Warning Sent: ${input.bookingDate} ${input.bookingTimeSlot}]`
+        : `[Customer Member Free Active: ${resolvedMemberId} / PW: ${cleanCustomerPassword}] • [Singer Schedule Warning Sent: ${input.bookingDate} ${input.bookingTimeSlot}]`,
+      createdAt: nowIso,
+    };
+
+    // Credit Automatic Affiliate Commission into Customer's AVAILABLE Member Wallet + Affiliate Balance
+    // AND Distribute Same 3-Level User Member Network Commission (L1: 400,000 LAK, L2: 200,000 LAK, L3: 100,000 LAK)
+    // up the Customer's User Member Network Sponsor Chain (L1 = Booked Singer Member, L2 = Singer's Sponsor, L3 = Tier-3 Sponsor)
+    const autoAffiliateBonusLak = Math.max(
+      400000,
+      Math.round(totalPackagePriceLak * 0.05)
+    );
+    const currentCustomerBalances = getMemberBalances(resolvedMemberId);
+    const awardId = `awd-aff-bk-${Date.now()}`;
+    const customerAffiliateAward: CommissionAward = {
+      id: awardId,
+      orderId: bookingCode,
+      orderLineId: `line-${bookingCode}`,
+      sku: 'MUSIC_SINGLE_1600',
+      tier: 'L1',
+      beneficiaryMemberId: resolvedMemberId,
+      buyerMemberId: resolvedMemberId,
+      grossAwardLak: autoAffiliateBonusLak,
+      status: 'AVAILABLE',
+      ruleVersion: 'v2.6',
+      createdAt: nowIso,
+      clearedAt: nowIso,
+    };
+    const customerAffiliateLedger: LedgerEntry = {
+      id: `led-aff-bk-${Date.now()}`,
+      txRef: `TX-AFF-${Date.now().toString().slice(-6)}`,
+      timestamp: nowIso,
+      memberId: resolvedMemberId,
+      type: 'COMMISSION_CLEARED_AVAILABLE',
+      sourceRef: awardId,
+      debit: 0,
+      credit: autoAffiliateBonusLak,
+      targetBalance: 'AVAILABLE',
+      balanceAfter: currentCustomerBalances.available + autoAffiliateBonusLak,
+      description: `L1 User Member Network & Automatic Affiliate Commission (${autoAffiliateCode}) from Singer Party Set Booking ${bookingCode} (${singer.stageName}) — Customer Member Free Active (${resolvedMemberId})`,
+    };
+
+    // Resolve L1, L2, L3 Upline Sponsors for Customer Booking Member Activation (L1: 400,000 • L2: 200,000 • L3: 100,000 LAK)
+    const l1SponsorId = singer.memberId || 'DMC-LA-00001';
+    const l1SponsorMember = members.find(m => m.memberId === l1SponsorId) || null;
+    const l2SponsorMember = l1SponsorMember?.sponsorId
+      ? members.find(m => m.memberId === l1SponsorMember.sponsorId) || null
+      : null;
+    const l3SponsorMember = l2SponsorMember?.sponsorId
+      ? members.find(m => m.memberId === l2SponsorMember.sponsorId) || null
+      : null;
+
+    const bookingNetworkTiers: { tier: CommissionTier; amount: number; sponsor: Member | null }[] = [
+      { tier: 'L1', amount: 400000, sponsor: l1SponsorMember },
+      { tier: 'L2', amount: 200000, sponsor: l2SponsorMember },
+      { tier: 'L3', amount: 100000, sponsor: l3SponsorMember },
+    ];
+    const bookingNetworkAwards: CommissionAward[] = [customerAffiliateAward];
+    const bookingNetworkLedgers: LedgerEntry[] = [customerAffiliateLedger];
+
+    for (const t of bookingNetworkTiers) {
+      if (t.sponsor && t.sponsor.memberId !== resolvedMemberId) {
+        const netAwdId = `awd-bk-net-${Date.now()}-${t.tier}`;
+        bookingNetworkAwards.push({
+          id: netAwdId,
+          orderId: bookingCode,
+          orderLineId: `line-${bookingCode}-${t.tier}`,
+          sku: 'MUSIC_SINGLE_1600',
+          tier: t.tier,
+          beneficiaryMemberId: t.sponsor.memberId,
+          buyerMemberId: resolvedMemberId,
+          grossAwardLak: t.amount,
+          status: 'AVAILABLE',
+          ruleVersion: 'v2.6',
+          createdAt: nowIso,
+          clearedAt: nowIso,
+        });
+        bookingNetworkLedgers.push({
+          id: `led-bk-net-${Date.now()}-${t.tier}`,
+          txRef: `TX-BK-${t.tier}-${Date.now().toString().slice(-6)}`,
+          timestamp: nowIso,
+          memberId: t.sponsor.memberId,
+          type: 'COMMISSION_CLEARED_AVAILABLE',
+          sourceRef: netAwdId,
+          debit: 0,
+          credit: t.amount,
+          targetBalance: 'AVAILABLE',
+          balanceAfter: 0,
+          description: `${t.tier} User Member Network Commission (+${t.amount.toLocaleString()} LAK) from Customer Booking Member Active ${cleanCustomerName} (${resolvedMemberId})`,
+        });
+      }
+    }
+
+    setAwards(prev => [...bookingNetworkAwards, ...prev]);
+    setLedgerEntries(prev => [...bookingNetworkLedgers, ...prev]);
+    setCustomerAffiliateCommissionPool(prev => {
+      const next = { ...prev };
+      for (const awd of bookingNetworkAwards) {
+        const cur = next[awd.beneficiaryMemberId] !== undefined ? next[awd.beneficiaryMemberId] : 600000;
+        next[awd.beneficiaryMemberId] = cur + awd.grossAwardLak;
+      }
+      try {
+        localStorage.setItem(
+          'dmc_rev26_customer_affiliate_comm_pool_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Also sync L1/L2/L3 User Member Network Commission to any Singer Profile in the upline chain
+    setSingerProfiles(prev => {
+      const next = prev.map(sp => {
+        const matchingAwds = bookingNetworkAwards.filter(
+          awd =>
+            awd.beneficiaryMemberId !== resolvedMemberId &&
+            sp.memberId &&
+            sp.memberId.toUpperCase() === awd.beneficiaryMemberId.toUpperCase()
+        );
+        if (matchingAwds.length === 0) return sp;
+        const addedLak = matchingAwds.reduce((sum, a) => sum + a.grossAwardLak, 0);
+        const newSales: DmcSingerAffiliateSaleRecord[] = matchingAwds.map(awd => ({
+          id: `aff-bk-net-${awd.id}`,
+          singerId: sp.id,
+          sku: 'MUSIC_SINGLE_1600',
+          productTitle: `${awd.tier} User Member Network Commission (Customer Booking Active Member: ${cleanCustomerName})`,
+          buyerName: `${cleanCustomerName} (${resolvedMemberId})`,
+          orderAmountLak: totalPackagePriceLak,
+          affiliateCommissionLak: awd.grossAwardLak,
+          affiliateLink: `https://dmcxayraxa.music/network?sponsor=${encodeURIComponent(sp.memberId || '')}&tier=${awd.tier}`,
+          createdAt: nowIso,
+        }));
+        return {
+          ...sp,
+          walletAvailableLak: sp.walletAvailableLak + addedLak,
+          totalEarnedLak: sp.totalEarnedLak + addedLak,
+          affiliateSales: [...newSales, ...sp.affiliateSales],
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singer_profiles_v4', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Save Booking
+    setSingerBookings(prev => {
+      const next = [newBooking, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_singer_bookings_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Auto-log Administrator Booking Report so Admin can check how they booked
+    const autoAdminReport: DmcAdminPanelBookingReport = {
+      id: `rpt-adm-auto-${Date.now()}`,
+      reportCode: `RPT-ADM-2026-${String(adminPanelBookingReports.length + 1).padStart(3, '0')}`,
+      reportTitle: `Admin Booking Check: ${cleanCustomerName} (${resolvedMemberId}) Booked ${singer.stageName} on ${newBooking.bookingDate} (${newBooking.bookingTimeSlot})`,
+      reportType: 'SINGER_BOOKING_REPORT',
+      submittedBy: `${cleanCustomerName} (Member Free Active: ${resolvedMemberId})`,
+      bookingId: newBooking.id,
+      bookingCode: newBooking.bookingCode,
+      singerStageName: singer.stageName,
+      totalPackagePriceLak,
+      loanWalletCut10PercentLak,
+      singerNetPayout90PercentLak,
+      loanWalletBalanceSnapshotLak: loanWalletBalanceLak + dmcPartyWalletNetCreditLak,
+      packageSummary: `Customer: ${cleanCustomerName} (${cleanCustomerPhone}) • Member Free Active ID: ${resolvedMemberId} (PW: ${cleanCustomerPassword}) • Singer Warned: ${singer.stageName} (${singer.singerCode}) • Schedule Date & Time: ${newBooking.bookingDate} (${newBooking.bookingTimeSlot}) • Venue: ${newBooking.eventLocation} • Payment: ${newBooking.paymentMethod} • Selected Package Party: ${packagePartyPriceLak.toLocaleString()} LAK • 10% Saving for Loan: +${loanWalletCut10PercentLak.toLocaleString()} LAK`,
+      status: 'SENT_TO_ADMIN_PANEL',
+      notes: `Automatic Administrator Inspection Log — Singer ${singer.stageName} warned by Schedule Calendar (${newBooking.bookingDate} • ${newBooking.bookingTimeSlot}). Customer ${cleanCustomerName} automatically enrolled as Member Free Active (${resolvedMemberId} / Password: ${cleanCustomerPassword}).`,
+      createdAt: nowIso,
+    };
+    setAdminPanelBookingReports(prev => {
+      const next = [autoAdminReport, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_admin_booking_reports_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 1) Put Selected Package Party (net 95% after 5% Saving for Loan) to DMC Party Wallet Balance
+    // 2) Put 5% from Singer Wallet + 5% from DMC Party Wallet to 10% Saving for Loan
+    const nextLoanWalletBalance =
+      loanWalletBalanceLak + dmcPartyWalletNetCreditLak;
+    const loanCutTx: DmcLoanWalletTransaction = {
+      id: `lw-cut-${Date.now()}`,
+      txRef: `LW-CUT-${Date.now().toString().slice(-6)}`,
+      type: 'SINGER_BOOKING_10_PERCENT_CUT',
+      amountLak: loanWalletCut10PercentLak,
+      balanceAfterLak: nextLoanWalletBalance,
+      actor: bookingCode,
+      bookingId: newBooking.id,
+      bookingCode: newBooking.bookingCode,
+      singerId: singer.id,
+      singerStageName: singer.stageName,
+      grossBookingAmountLak: totalPackagePriceLak,
+      singerPriceLak: startSingerPriceLak,
+      packagePartyPriceLak,
+      singerWallet5PercentSavingLak,
+      dmcPartyWallet5PercentSavingLak,
+      dmcPartyWalletNetCreditLak,
+      singerNetPayoutLak: singerNetPayout90PercentLak,
+      note: `10% Saving for Loan (5% Singer Share: ${singerWallet5PercentSavingLak.toLocaleString()} LAK + 5% DMC Party Wallet: ${dmcPartyWallet5PercentSavingLak.toLocaleString()} LAK) • Booking ${bookingCode} (${singer.stageName} on ${newBooking.bookingDate} ${newBooking.bookingTimeSlot}) • Customer Member Free Active: ${resolvedMemberId}`,
+      createdAt: nowIso,
+    };
+
+    setLoanWalletBalanceLak(nextLoanWalletBalance);
+    try {
+      localStorage.setItem(
+        'dmc_rev26_loan_wallet_balance_v1',
+        String(nextLoanWalletBalance)
+      );
+    } catch {
+      // ignore
+    }
+
+    setLoanWalletTransactions(prev => {
+      const next = [loanCutTx, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_loan_wallet_txs_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 3) Credit Singer Wallet from Selected Package Party Set
+    setSingerProfiles(prev => {
+      const next = prev.map(s => {
+        if (s.id !== singer.id) return s;
+        return {
+          ...s,
+          walletAvailableLak:
+            s.walletAvailableLak + singerNetPayout90PercentLak,
+          totalEarnedLak: s.totalEarnedLak + singerNetPayout90PercentLak,
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Audit Log
+    setAuditLogs(prev => [
+      {
+        id: `aud-bk-sng-${Date.now()}`,
+        timestamp: nowIso,
+        actor: `${newBooking.customerName} (${resolvedMemberId})`,
+        action:
+          'CUSTOMER_BOOKED_SINGER_MEMBER_FREE_ACTIVE_AND_SINGER_SCHEDULE_WARNING',
+        entityType: 'SINGER_PARTY_BOOKING',
+        entityId: newBooking.bookingCode,
+        details: {
+          customerMemberId: resolvedMemberId,
+          customerPassword: cleanCustomerPassword,
+          membershipStatus: 'MEMBER_FREE_ACTIVE',
+          autoAffiliateCode,
+          autoAffiliateLink,
+          singerStageName: singer.stageName,
+          singerCode: singer.singerCode,
+          bookingDate: newBooking.bookingDate,
+          bookingTimeSlot: newBooking.bookingTimeSlot,
+          eventLocation: newBooking.eventLocation,
+          paymentMethod: newBooking.paymentMethod,
+          packagePartyPriceLak,
+          totalPackagePriceLak,
+          singerWallet5PercentSavingLak,
+          dmcPartyWallet5PercentSavingLak,
+          dmcPartyWalletNetCreditLak,
+          loanWalletCut10PercentLak,
+          singerNetPayout90PercentLak,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      booking: newBooking,
+      autoAffiliateMember: enrolledOrUpgradedMember,
+      message: `Booking ${newBooking.bookingCode} confirmed! Customer "${cleanCustomerName}" is now a Member Free Active (Member ID: ${resolvedMemberId} • Password: ${cleanCustomerPassword}). Singer ${singer.stageName} (${singer.singerCode}) has been warned for Schedule Calendar Date ${newBooking.bookingDate} (${newBooking.bookingTimeSlot}). Selected Package Party (${packagePartyPriceLak.toLocaleString()} LAK) → 10% Saving for Loan: +${loanWalletCut10PercentLak.toLocaleString()} LAK!`,
+    };
+  };
+
+  const updateSingerPartyBooking = (
+    bookingId: string,
+    updates: Partial<DmcSingerPartyBooking>
+  ) => {
+    setSingerBookings(prev => {
+      const next = prev.map(b => {
+        if (b.id !== bookingId) return b;
+        const merged = { ...b, ...updates };
+        const sPrice =
+          updates.singerPriceLak !== undefined
+            ? Math.max(0, Math.round(Number(updates.singerPriceLak) || 0))
+            : updates.startSingerPriceLak !== undefined
+            ? Math.max(0, Math.round(Number(updates.startSingerPriceLak) || 0))
+            : merged.startSingerPriceLak || merged.singerPriceLak;
+        const bPrice =
+          updates.brandSetPackagePriceLak !== undefined
+            ? Math.max(0, Math.round(Number(updates.brandSetPackagePriceLak) || 0))
+            : merged.brandSetPackagePriceLak;
+        const cPrice =
+          updates.copyrightMusicPriceLak !== undefined
+            ? Math.max(0, Math.round(Number(updates.copyrightMusicPriceLak) || 0))
+            : merged.copyrightMusicPriceLak;
+        const pPrice =
+          updates.packagePartyPriceLak !== undefined
+            ? Math.max(0, Math.round(Number(updates.packagePartyPriceLak) || 0))
+            : bPrice + cPrice;
+        const priceChanged =
+          updates.singerPriceLak !== undefined ||
+          updates.startSingerPriceLak !== undefined ||
+          updates.packagePartyPriceLak !== undefined ||
+          updates.brandSetPackagePriceLak !== undefined ||
+          updates.copyrightMusicPriceLak !== undefined ||
+          updates.totalPackagePriceLak !== undefined;
+
+        if (priceChanged) {
+          const totalPackagePriceLak = sPrice + pPrice;
+          const singerWallet5PercentSavingLak = Math.round(sPrice * 0.05);
+          const dmcPartyWallet5PercentSavingLak = Math.round(pPrice * 0.05);
+          const loanWalletCut10PercentLak =
+            singerWallet5PercentSavingLak + dmcPartyWallet5PercentSavingLak;
+          const singerNetPayout90PercentLak = Math.max(
+            0,
+            sPrice - singerWallet5PercentSavingLak
+          );
+          const dmcPartyWalletNetCreditLak = Math.max(
+            0,
+            pPrice - dmcPartyWallet5PercentSavingLak
+          );
+          return {
+            ...merged,
+            startSingerPriceLak: sPrice,
+            singerPriceLak: sPrice,
+            packagePartyPriceLak: pPrice,
+            brandSetPackagePriceLak: bPrice,
+            copyrightMusicPriceLak: cPrice,
+            totalPackagePriceLak,
+            singerWallet5PercentSavingLak,
+            dmcPartyWallet5PercentSavingLak,
+            dmcPartyWalletNetCreditLak,
+            loanWalletCut10PercentLak,
+            singerNetPayout90PercentLak,
+          };
+        }
+        return merged;
+      });
+      try {
+        localStorage.setItem(
+          'dmc_rev26_singer_bookings_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const deleteSingerPartyBooking = (bookingId: string): boolean => {
+    setSingerBookings(prev => {
+      const next = prev.filter(b => b.id !== bookingId);
+      try {
+        localStorage.setItem(
+          'dmc_rev26_singer_bookings_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return true;
+  };
+
+  // Customer Affiliate Commission Pool (Transferable to Customer Wallet -> Withdraw)
+  const [customerAffiliateCommissionPool, setCustomerAffiliateCommissionPool] =
+    useState<Record<string, number>>(() => {
+    const defaults: Record<string, number> = {
+      'DMC-LA-00303': 0,
+      'DMC-LA-00404': 0,
+      'DMC-LA-00101': 0,
+      'DMC-LA-00102': 750000,
+      'DMC-LA-00201': 650000,
+      'DMC-LA-00202': 0,
+      'DMC-LA-00506': 0,
+    };
+    try {
+      const raw = localStorage.getItem(
+        'dmc_rev26_customer_affiliate_comm_pool_v1'
+      );
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return { ...defaults, ...parsed };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return defaults;
+  });
+
+  const [customerAffiliateTransfers, setCustomerAffiliateTransfers] = useState<
+    CustomerAffiliateTransferRecord[]
+  >(() => {
+    const seed: CustomerAffiliateTransferRecord[] = [
+      {
+        id: 'trf-aff-seed-01',
+        txRef: 'TX-TRF-AFF-001',
+        memberId: 'DMC-LA-00303',
+        amountLak: 500000,
+        commissionBalanceBeforeLak: 1750000,
+        commissionBalanceAfterLak: 1250000,
+        walletAvailableBeforeLak: 1250000,
+        walletAvailableAfterLak: 1750000,
+        note: 'Transferred from Affiliate Commission to Customer Wallet — Ready for Withdraw',
+        transferredAt: '2026-10-14T09:30:00Z',
+      },
+    ];
+    try {
+      const raw = localStorage.getItem(
+        'dmc_rev26_customer_affiliate_transfers_v1'
+      );
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return seed;
+  });
+
+  const getCustomerAffiliateCommissionBalance = (memberId: string): number => {
+    if (customerAffiliateCommissionPool[memberId] !== undefined) {
+      return Math.max(0, customerAffiliateCommissionPool[memberId]);
+    }
+    const isSingerMember = singerProfiles.some(
+      s => s.memberId && s.memberId.toUpperCase() === memberId.toUpperCase()
+    );
+    if (isSingerMember) {
+      return 0;
+    }
+    return 600000;
+  };
+
+  const getCustomerAffiliateTransfers = (
+    memberId: string
+  ): CustomerAffiliateTransferRecord[] => {
+    return customerAffiliateTransfers
+      .filter(t => t.memberId === memberId)
+      .sort(
+        (a, b) =>
+          new Date(b.transferredAt).getTime() -
+          new Date(a.transferredAt).getTime()
+      );
+  };
+
+  const recordCustomerAffiliateCommission = (
+    memberId: string,
+    itemTitle: string,
+    orderAmountLak: number,
+    commissionLak: number,
+    buyerName?: string
+  ): { success: boolean; message: string; commissionLak: number } => {
+    const cleanComm = Math.max(0, Math.round(Number(commissionLak) || 400000));
+    const nowIso = new Date().toISOString();
+    const curBal = getMemberBalances(memberId);
+    const curCommPool = getCustomerAffiliateCommissionBalance(memberId);
+    const nextCommPool = curCommPool + cleanComm;
+    const awardId = `awd-cust-aff-${Date.now()}`;
+    const orderRef = `REC-${Date.now().toString().slice(-6)}`;
+
+    const newAward: CommissionAward = {
+      id: awardId,
+      orderId: orderRef,
+      orderLineId: `line-${orderRef}`,
+      sku: itemTitle,
+      tier: 'L1',
+      beneficiaryMemberId: memberId,
+      buyerMemberId: buyerName || 'Recommended Customer',
+      grossAwardLak: cleanComm,
+      status: 'PENDING',
+      ruleVersion: 'v2.6',
+      createdAt: nowIso,
+    };
+
+    const newEntry: LedgerEntry = {
+      id: `led-cust-aff-${Date.now()}`,
+      txRef: `TX-REC-${Date.now().toString().slice(-6)}`,
+      timestamp: nowIso,
+      memberId,
+      type: 'COMMISSION_PENDING_CREATED',
+      sourceRef: orderRef,
+      debit: 0,
+      credit: cleanComm,
+      targetBalance: 'PENDING',
+      balanceAfter: curBal.pending + cleanComm,
+      description: `Affiliate Recommendation Commission Earned: ${itemTitle} • Buyer: ${
+        buyerName || 'Recommended Friend'
+      } (Order: ${orderAmountLak.toLocaleString()} LAK) — Ready to Transfer to Customer Wallet`,
+    };
+
+    setAwards(prev => [newAward, ...prev]);
+    setLedgerEntries(prev => [newEntry, ...prev]);
+    setCustomerAffiliateCommissionPool(prev => {
+      const next = { ...prev, [memberId]: nextCommPool };
+      try {
+        localStorage.setItem(
+          'dmc_rev26_customer_affiliate_comm_pool_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    return {
+      success: true,
+      commissionLak: cleanComm,
+      message: `Recommended "${itemTitle}"! +${cleanComm.toLocaleString()} LAK added to your Affiliate Commission Balance (New Affiliate Commission: ${nextCommPool.toLocaleString()} LAK). Click "Transfer to Customer Wallet" to move to your Customer Wallet and Withdraw!`,
+    };
+  };
+
+  const transferAffiliateCommissionToCustomerWallet = (
+    memberId: string,
+    amountLak?: number,
+    note?: string
+  ): {
+    success: boolean;
+    message: string;
+    transferredLak: number;
+    remainingCommissionLak: number;
+    newWalletAvailableLak: number;
+    transferRecord?: CustomerAffiliateTransferRecord;
+  } => {
+    const commissionAvail = getCustomerAffiliateCommissionBalance(memberId);
+    const curBal = getMemberBalances(memberId);
+    const requestedAmt =
+      amountLak !== undefined
+        ? Math.round(Number(amountLak) || 0)
+        : commissionAvail;
+
+    if (commissionAvail <= 0) {
+      return {
+        success: false,
+        transferredLak: 0,
+        remainingCommissionLak: 0,
+        newWalletAvailableLak: curBal.available,
+        message:
+          'Your Affiliate Commission Balance is currently 0 LAK. Recommend a Friend, Singer Party Package, or Product to earn more Affiliate Commission!',
+      };
+    }
+
+    if (requestedAmt <= 0) {
+      return {
+        success: false,
+        transferredLak: 0,
+        remainingCommissionLak: commissionAvail,
+        newWalletAvailableLak: curBal.available,
+        message: 'Please enter a valid transfer amount in LAK greater than 0.',
+      };
+    }
+
+    if (requestedAmt > commissionAvail) {
+      return {
+        success: false,
+        transferredLak: 0,
+        remainingCommissionLak: commissionAvail,
+        newWalletAvailableLak: curBal.available,
+        message: `Transfer amount (${requestedAmt.toLocaleString()} LAK) exceeds your Affiliate Commission Balance (${commissionAvail.toLocaleString()} LAK).`,
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const remainingComm = Math.max(0, commissionAvail - requestedAmt);
+    const newWalletAvail = curBal.available + requestedAmt;
+    const txRef = `TX-TRF-AFF-${Date.now().toString().slice(-6)}`;
+
+    const transferRecord: CustomerAffiliateTransferRecord = {
+      id: `trf-aff-${Date.now()}`,
+      txRef,
+      memberId,
+      amountLak: requestedAmt,
+      commissionBalanceBeforeLak: commissionAvail,
+      commissionBalanceAfterLak: remainingComm,
+      walletAvailableBeforeLak: curBal.available,
+      walletAvailableAfterLak: newWalletAvail,
+      note:
+        note?.trim() ||
+        'Transferred from Affiliate Commission to Customer Wallet — Ready for Withdrawal',
+      transferredAt: nowIso,
+    };
+
+    const debitPendingEntry: LedgerEntry = {
+      id: `led-trf-aff-deb-${Date.now()}`,
+      txRef: `${txRef}-1`,
+      timestamp: nowIso,
+      memberId,
+      type: 'COMMISSION_CLEARED_AVAILABLE',
+      sourceRef: transferRecord.id,
+      debit: Math.min(curBal.pending, requestedAmt),
+      credit: 0,
+      targetBalance: 'PENDING',
+      balanceAfter: Math.max(0, curBal.pending - requestedAmt),
+      description: `Debit Affiliate Commission Pool (${txRef}) for transfer to Customer Wallet`,
+    };
+
+    const creditAvailableEntry: LedgerEntry = {
+      id: `led-trf-aff-crd-${Date.now() + 1}`,
+      txRef: `${txRef}-2`,
+      timestamp: nowIso,
+      memberId,
+      type: 'COMMISSION_CLEARED_AVAILABLE',
+      sourceRef: transferRecord.id,
+      debit: 0,
+      credit: requestedAmt,
+      targetBalance: 'AVAILABLE',
+      balanceAfter: newWalletAvail,
+      description: `Transferred +${requestedAmt.toLocaleString()} LAK from Affiliate Commission to Customer Wallet (${txRef}) — Ready to Withdraw`,
+    };
+
+    setCustomerAffiliateCommissionPool(prev => {
+      const next = { ...prev, [memberId]: remainingComm };
+      try {
+        localStorage.setItem(
+          'dmc_rev26_customer_affiliate_comm_pool_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setCustomerAffiliateTransfers(prev => {
+      const next = [transferRecord, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_customer_affiliate_transfers_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setLedgerEntries(prev => [creditAvailableEntry, debitPendingEntry, ...prev]);
+
+    // Also sync to Singer Wallet if memberId belongs to a Singer
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(s => {
+        if (!s.memberId || s.memberId.toUpperCase() !== memberId.toUpperCase()) {
+          return s;
+        }
+        changed = true;
+        return {
+          ...s,
+          walletAvailableLak: s.walletAvailableLak + requestedAmt,
+          totalEarnedLak: s.totalEarnedLak + requestedAmt,
+        };
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-trf-aff-${Date.now()}`,
+        timestamp: nowIso,
+        actor: memberId,
+        action: 'CUSTOMER_TRANSFER_AFFILIATE_COMMISSION_TO_WALLET',
+        entityType: 'WALLET_TRANSFER',
+        entityId: transferRecord.id,
+        details: {
+          memberId,
+          transferredLak: requestedAmt,
+          commissionBalanceBeforeLak: commissionAvail,
+          commissionBalanceAfterLak: remainingComm,
+          walletAvailableBeforeLak: curBal.available,
+          walletAvailableAfterLak: newWalletAvail,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      transferredLak: requestedAmt,
+      remainingCommissionLak: remainingComm,
+      newWalletAvailableLak: newWalletAvail,
+      transferRecord,
+      message: `Transferred ${requestedAmt.toLocaleString()} LAK from Affiliate Commission to your Customer Wallet! Your Customer Wallet Available Balance is now ${newWalletAvail.toLocaleString()} LAK — Ready to Withdraw!`,
+    };
+  };
+
+  const withdrawCustomerAffiliateWallet = (
+    memberId: string,
+    amountLak: number,
+    bankDetails: {
+      bankName: string;
+      accountNumber: string;
+      accountName: string;
+      customQrImageUrl?: string;
+    }
+  ): { success: boolean; message: string; withdrawalId?: string } => {
+    const cleanAmt = Math.max(0, Math.round(Number(amountLak) || 0));
+    if (cleanAmt <= 0) {
+      return { success: false, message: 'Please enter a valid withdrawal amount in LAK.' };
+    }
+    const curBal = getMemberBalances(memberId);
+    const untransferredComm = getCustomerAffiliateCommissionBalance(memberId);
+    if (curBal.available < cleanAmt) {
+      const hint =
+        untransferredComm > 0
+          ? ` You have ${untransferredComm.toLocaleString()} LAK in your Affiliate Commission Balance — please click "Transfer from Affiliate Commission to Customer Wallet" first, then Withdraw!`
+          : '';
+      return {
+        success: false,
+        message: `Insufficient Customer Wallet balance. Customer Wallet Available: ${curBal.available.toLocaleString()} LAK, Requested: ${cleanAmt.toLocaleString()} LAK.${hint}`,
+      };
+    }
+
+    const bankFee = 5000;
+    const netPayout = Math.max(0, cleanAmt - bankFee);
+    const withdrawalId = `WTH-AFF-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+
+    const reserveAvailableEntry: LedgerEntry = {
+      id: `led-wth-aff-deb-${Date.now()}`,
+      txRef: `TX-WTH-AFF-1-${Date.now().toString().slice(-6)}`,
+      timestamp: nowIso,
+      memberId,
+      type: 'WITHDRAWAL_RESERVE',
+      sourceRef: withdrawalId,
+      debit: cleanAmt,
+      credit: 0,
+      targetBalance: 'AVAILABLE',
+      balanceAfter: curBal.available - cleanAmt,
+      description: `Customer Affiliate Wallet Withdrawal Request (${withdrawalId}) — Held Waiting Administrator Approval`,
+    };
+
+    const creditHoldEntry: LedgerEntry = {
+      id: `led-wth-aff-hold-${Date.now() + 1}`,
+      txRef: `TX-WTH-AFF-2-${Date.now().toString().slice(-6)}`,
+      timestamp: nowIso,
+      memberId,
+      type: 'WITHDRAWAL_RESERVE',
+      sourceRef: withdrawalId,
+      debit: 0,
+      credit: cleanAmt,
+      targetBalance: 'HELD_FOR_WITHDRAWAL',
+      balanceAfter: curBal.heldForWithdrawal + cleanAmt,
+      description: `Reserved in HELD_FOR_WITHDRAWAL (${withdrawalId}) to ${bankDetails.bankName} (${bankDetails.accountNumber}) — Waiting Administrator Approval`,
+    };
+
+    const newReq: WithdrawalRequest = {
+      id: withdrawalId,
+      memberId,
+      amountLak: cleanAmt,
+      bankFeeLak: bankFee,
+      netPayoutLak: netPayout,
+      bankName: bankDetails.bankName,
+      accountNumber: bankDetails.accountNumber,
+      accountName: bankDetails.accountName.toUpperCase(),
+      status: 'ADMIN_REVIEW',
+      requestedAt: nowIso,
+    };
+
+    setLedgerEntries(prev => [creditHoldEntry, reserveAvailableEntry, ...prev]);
+    setWithdrawals(prev => [newReq, ...prev]);
+    updateMemberBankAccount(memberId, {
+      bankName: bankDetails.bankName,
+      accountNumber: bankDetails.accountNumber,
+      accountName: bankDetails.accountName.toUpperCase(),
+      customQrImageUrl: bankDetails.customQrImageUrl,
+      isDefault: true,
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-aff-wth-req-${Date.now()}`,
+        timestamp: nowIso,
+        actor: memberId,
+        action: 'CUSTOMER_AFFILIATE_WITHDRAWAL_REQUESTED_PENDING_ADMIN',
+        entityType: 'WITHDRAWAL',
+        entityId: withdrawalId,
+        details: {
+          memberId,
+          amountLak: cleanAmt,
+          netPayoutLak: netPayout,
+          bankName: bankDetails.bankName,
+          accountNumber: bankDetails.accountNumber,
+          status: 'WAITING_ADMINISTRATOR_APPROVAL',
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      withdrawalId,
+      message: `Withdrawal request ${withdrawalId} of ${cleanAmt.toLocaleString()} LAK (Net: ${netPayout.toLocaleString()} LAK) submitted! Status: Waiting for Administrator Approval before transfer to ${bankDetails.bankName} (${bankDetails.accountNumber}).`,
+    };
+  };
+
+  // Unified 3-Level User Member Network Activation Commission (L1: 400,000 LAK, L2: 200,000 LAK, L3: 100,000 LAK)
+  // Ensures 1/ User Member, 2/ User Singer, and 3/ Customer Booking all share the exact same Free Member Active Level
+  // and receive the exact same L1 / L2 / L3 User Member Network Commission when they or their downlines Activate to Member.
+  const triggerUserMemberNetworkActivationCommission = (
+    activatedMemberId: string,
+    activatedMemberName?: string,
+    sourceReason?: string
+  ): {
+    success: boolean;
+    message: string;
+    l1Lak: number;
+    l2Lak: number;
+    l3Lak: number;
+    totalDistributedLak: number;
+  } => {
+    const cleanId = (activatedMemberId || currentMember.memberId).trim().toUpperCase();
+    const targetMember =
+      members.find(m => m.memberId.toUpperCase() === cleanId) || currentMember;
+    const displayName = activatedMemberName?.trim() || targetMember.name;
+    const nowIso = new Date().toISOString();
+    const orderId = `ACT-NET-${Date.now().toString().slice(-6)}`;
+
+    // 1. Ensure the target member & any held awards are upgraded to Free Member Active Level (ACTIVE_LIFETIME_MEMBER)
+    setMembers(prev => {
+      const next = prev.map(m =>
+        m.memberId.toUpperCase() === targetMember.memberId.toUpperCase()
+          ? {
+              ...m,
+              membershipState: 'ACTIVE_LIFETIME_MEMBER' as const,
+              isAutomaticAffiliate: true,
+              autoAffiliateCode: m.autoAffiliateCode || `AFF-${m.memberId}`,
+              activatedAt: m.activatedAt || nowIso,
+              activationMethod: m.activationMethod || ('DIRECT_CASH' as const),
+              kycStatus: 'VERIFIED' as const,
+              bankVerified: true,
+            }
+          : m
+      );
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 2. Resolve 3-Level User Member Network Chain (L1: 400,000 LAK, L2: 200,000 LAK, L3: 100,000 LAK)
+    const chain = getSponsorChain(targetMember.memberId);
+    const l1Target = chain.l1 || targetMember;
+    const l2Target =
+      chain.l2 ||
+      members.find(m => m.memberId === 'DMC-LA-00002') ||
+      members.find(m => m.memberId === 'DMC-LA-00001') ||
+      targetMember;
+    const l3Target =
+      chain.l3 ||
+      members.find(m => m.memberId === 'DMC-LA-00001') ||
+      targetMember;
+
+    const l1Lak = 400000;
+    const l2Lak = 200000;
+    const l3Lak = 100000;
+
+    // Credit targetMember directly as L1 (+400,000 LAK) AND credit L1/L2/L3 upline sponsors
+    const recipients: { tier: CommissionTier; amount: number; member: Member; label: string }[] = [
+      {
+        tier: 'L1',
+        amount: l1Lak,
+        member: targetMember,
+        label: `Direct Active Member Network Commission (${targetMember.memberId})`,
+      },
+    ];
+    if (l1Target && l1Target.memberId !== targetMember.memberId) {
+      recipients.push({
+        tier: 'L1',
+        amount: l1Lak,
+        member: l1Target,
+        label: `L1 Direct Sponsor Network Commission (${l1Target.memberId})`,
+      });
+    }
+    if (
+      l2Target &&
+      l2Target.memberId !== targetMember.memberId &&
+      l2Target.memberId !== l1Target.memberId
+    ) {
+      recipients.push({
+        tier: 'L2',
+        amount: l2Lak,
+        member: l2Target,
+        label: `L2 Tier-2 Sponsor Network Commission (${l2Target.memberId})`,
+      });
+    }
+    if (
+      l3Target &&
+      l3Target.memberId !== targetMember.memberId &&
+      l3Target.memberId !== l1Target.memberId &&
+      l3Target.memberId !== l2Target.memberId
+    ) {
+      recipients.push({
+        tier: 'L3',
+        amount: l3Lak,
+        member: l3Target,
+        label: `L3 Tier-3 Sponsor Network Commission (${l3Target.memberId})`,
+      });
+    }
+
+    const createdAwards: CommissionAward[] = [];
+    const createdLedgers: LedgerEntry[] = [];
+
+    recipients.forEach((r, idx) => {
+      const awdId = `awd-unilevel-${Date.now()}-${idx}-${r.tier}`;
+      createdAwards.push({
+        id: awdId,
+        orderId,
+        orderLineId: `line-${orderId}-${idx}`,
+        sku: 'MUSIC_SINGLE_1600',
+        tier: r.tier,
+        beneficiaryMemberId: r.member.memberId,
+        buyerMemberId: targetMember.memberId,
+        grossAwardLak: r.amount,
+        status: 'AVAILABLE',
+        ruleVersion: 'v2.6',
+        createdAt: nowIso,
+        clearedAt: nowIso,
+      });
+      createdLedgers.push({
+        id: `led-unilevel-${Date.now()}-${idx}-${r.tier}`,
+        txRef: `TX-NET-${r.tier}-${Date.now().toString().slice(-5)}-${idx}`,
+        timestamp: nowIso,
+        memberId: r.member.memberId,
+        type: 'COMMISSION_CLEARED_AVAILABLE',
+        sourceRef: awdId,
+        debit: 0,
+        credit: r.amount,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 0,
+        description: `${r.tier} User Member Network Commission (+${r.amount.toLocaleString()} LAK • ${
+          sourceReason || 'Free Member Active Level Activation'
+        }) — Active Member: ${displayName} (${targetMember.memberId})`,
+      });
+    });
+
+    setAwards(prev => [...createdAwards, ...prev]);
+    setLedgerEntries(prev => [...createdLedgers, ...prev]);
+
+    // Sync to Customer Affiliate Commission Pool
+    setCustomerAffiliateCommissionPool(prev => {
+      const next = { ...prev };
+      for (const awd of createdAwards) {
+        const cur = next[awd.beneficiaryMemberId] !== undefined ? next[awd.beneficiaryMemberId] : 600000;
+        next[awd.beneficiaryMemberId] = cur + awd.grossAwardLak;
+      }
+      try {
+        localStorage.setItem(
+          'dmc_rev26_customer_affiliate_comm_pool_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Sync to Singer Profiles so Singers receive the exact same L1/L2/L3 User Member Network Commission in their Singer Wallet
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(sp => {
+        const matched = createdAwards.filter(
+          awd =>
+            sp.memberId &&
+            sp.memberId.toUpperCase() === awd.beneficiaryMemberId.toUpperCase()
+        );
+        if (matched.length === 0) return sp;
+        changed = true;
+        const sumLak = matched.reduce((s, a) => s + a.grossAwardLak, 0);
+        const sales: DmcSingerAffiliateSaleRecord[] = matched.map(awd => ({
+          id: `aff-unilevel-${awd.id}`,
+          singerId: sp.id,
+          sku: 'MUSIC_SINGLE_1600',
+          productTitle: `${awd.tier} User Member Network Commission (Free Member Active: ${displayName})`,
+          buyerName: `${displayName} (${targetMember.memberId})`,
+          orderAmountLak: 1600000,
+          affiliateCommissionLak: awd.grossAwardLak,
+          affiliateLink: `https://dmcxayraxa.music/network?sponsor=${encodeURIComponent(
+            sp.memberId || ''
+          )}&tier=${awd.tier}`,
+          createdAt: nowIso,
+        }));
+        return {
+          ...sp,
+          walletAvailableLak: sp.walletAvailableLak + sumLak,
+          totalEarnedLak: sp.totalEarnedLak + sumLak,
+          affiliateSales: [...sales, ...sp.affiliateSales],
+        };
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singer_profiles_v4', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+
+    const totalDistributedLak = l1Lak + l2Lak + l3Lak;
+    return {
+      success: true,
+      l1Lak,
+      l2Lak,
+      l3Lak,
+      totalDistributedLak,
+      message: `Free Member Active Level Verified for ${displayName} (${targetMember.memberId})! Distributed Same 3-Level User Member Network Commission: L1 +${l1Lak.toLocaleString()} LAK (50%) • L2 +${l2Lak.toLocaleString()} LAK (30%) • L3 +${l3Lak.toLocaleString()} LAK (20%) (Total Pool: 700,000 LAK) into Member Wallet, Singer Wallet & Customer Booking Affiliate Pool!`,
+    };
+  };
+
+  // Customer Payment for Active Package (1,600,000 LAK) Any Time -> Requests Administrator Approval to Become User Member
+  const submitCustomerActivePackagePayment = (
+    memberId: string,
+    options?: {
+      paymentMethod?: 'LAO_QR' | 'BCEL_ONE' | 'BANK_TRANSFER' | 'WALLET_CREDIT';
+      paymentRef?: string;
+      billImageUrl?: string;
+      amountLak?: number;
+    }
+  ): {
+    success: boolean;
+    message: string;
+    order?: Order;
+  } => {
+    const cleanId = (memberId || currentMember.memberId).trim().toUpperCase();
+    const targetMember =
+      members.find(m => m.memberId.toUpperCase() === cleanId) || currentMember;
+    const nowIso = new Date().toISOString();
+    const paidLak = options?.amountLak || 1600000;
+    const payMethod = options?.paymentMethod || 'LAO_QR';
+    const payRef =
+      options?.paymentRef?.trim() ||
+      `ACT-PKG-${Date.now().toString().slice(-6)}`;
+
+    // 1. Update Customer Member status to PENDING_ADMIN_APPROVAL
+    setMembers(prev => {
+      const next = prev.map(m =>
+        m.memberId.toUpperCase() === targetMember.memberId.toUpperCase()
+          ? {
+              ...m,
+              activePackagePaymentStatus: 'PENDING_ADMIN_APPROVAL' as const,
+              activePackagePaidAmountLak: paidLak,
+              activePackagePaymentMethod: payMethod,
+              activePackagePaymentRef: payRef,
+              activePackageBillImageUrl: options?.billImageUrl || m.activePackageBillImageUrl,
+              activePackagePaidAt: nowIso,
+            }
+          : m
+      );
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 2. Create Active Package Order record (1,600,000 LAK)
+    const musicSku = products.find(p => p.sku === 'MUSIC_SINGLE_1600');
+    const orderId = `ORD-ACT-${Date.now().toString().slice(-6)}`;
+    const newOrder: Order = {
+      id: orderId,
+      buyerMemberId: targetMember.memberId,
+      items: [
+        {
+          orderLineId: `line-${orderId}`,
+          sku: 'MUSIC_SINGLE_1600',
+          title: musicSku?.titleEn || 'Active User Member Package (1 Studio Song Production)',
+          unitPriceLak: paidLak,
+          quantity: 1,
+          totalLak: paidLak,
+          commissionPoolLak: 700000,
+          itemType: 'DIGITAL_SERVICE',
+        },
+      ],
+      subtotalLak: paidLak,
+      shippingFeeLak: 0,
+      totalLak: paidLak,
+      paymentMethod: payMethod === 'WALLET_CREDIT' ? 'LAO_QR' : payMethod,
+      paymentReference: payRef,
+      status: 'PAID',
+      createdAt: nowIso,
+      paidAt: nowIso,
+    };
+    setOrders(prev => [newOrder, ...prev]);
+
+    // 3. Notify Administrator Panel via Official Report
+    const rptCode = `RPT-ACT-PKG-${Date.now().toString().slice(-5)}`;
+    const newReport: DmcAdminPanelBookingReport = {
+      id: `rpt-act-pkg-${Date.now()}`,
+      reportCode: rptCode,
+      reportTitle: `Customer Active Package Payment (${paidLak.toLocaleString()} LAK) — Waiting Admin Approval to Become User Member: ${targetMember.name} (${targetMember.memberId})`,
+      reportType: 'FULL_SUMMARY_REPORT',
+      submittedBy: `${targetMember.name} (${targetMember.memberId})`,
+      totalPackagePriceLak: paidLak,
+      loanWalletCut10PercentLak: 0,
+      singerNetPayout90PercentLak: paidLak,
+      loanWalletBalanceSnapshotLak: loanWalletBalanceLak,
+      packageSummary: `Customer ${targetMember.name} (${targetMember.memberId}) paid Active Package (${paidLak.toLocaleString()} LAK via ${payMethod} • Ref: ${payRef}) to become an Official User Member. Click "Approve Customer → User Member" any time!`,
+      paymentBillImageUrl: options?.billImageUrl,
+      paymentBillRefNo: payRef,
+      status: 'SENT_TO_ADMIN_PANEL',
+      notes: `Customer Active Package Payment (${paidLak.toLocaleString()} LAK) submitted at ${nowIso}. Ready for Administrator Approval any time.`,
+      createdAt: nowIso,
+    };
+    setAdminPanelBookingReports(prev => {
+      const next = [newReport, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_admin_booking_reports_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-act-pkg-pay-${Date.now()}`,
+        timestamp: nowIso,
+        actor: targetMember.memberId,
+        action: 'CUSTOMER_PAID_ACTIVE_PACKAGE_WAITING_ADMIN_APPROVAL',
+        entityType: 'MEMBER',
+        entityId: targetMember.memberId,
+        details: {
+          memberName: targetMember.name,
+          amountLak: paidLak,
+          paymentMethod: payMethod,
+          paymentRef: payRef,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      order: newOrder,
+      message: `Active Package Payment (${paidLak.toLocaleString()} LAK • Ref: ${payRef}) submitted for ${targetMember.name} (${targetMember.memberId})! Administrator can now approve Customer to become an Active User Member at any time.`,
+    };
+  };
+
+  // Administrator Approval Any Time: Approve Customer -> Become Active User Member (ACTIVE_LIFETIME_MEMBER)
+  const adminApproveCustomerToActiveMember = (
+    memberId: string,
+    adminActor?: string
+  ): {
+    success: boolean;
+    message: string;
+    unlockedHeldLak: number;
+    l1Lak: number;
+    l2Lak: number;
+    l3Lak: number;
+  } => {
+    const cleanId = (memberId || currentMember.memberId).trim().toUpperCase();
+    const targetMember =
+      members.find(m => m.memberId.toUpperCase() === cleanId) || currentMember;
+    const nowIso = new Date().toISOString();
+    const actorName = adminActor || 'ADMINISTRATOR';
+
+    // Clean "(Sample FREE Member)" from customer name if present so UI reflects Approved User Member
+    const cleanDisplayName = targetMember.name
+      .replace(/\s*\(Sample FREE Member\)/gi, '')
+      .trim();
+
+    // 1. Check if customer has any HELD_FOR_QUALIFICATION balance (e.g., 1,200,000 LAK) and release it to AVAILABLE!
+    const currentBalances = getMemberBalances(targetMember.memberId);
+    const heldToUnlockLak = Math.max(0, currentBalances.heldForQualification);
+
+    if (heldToUnlockLak > 0) {
+      const unlockEntries: LedgerEntry[] = [
+        {
+          id: `led-unlk-deb-${Date.now()}`,
+          txRef: `TX-UNLK-DEB-${Date.now().toString().slice(-5)}`,
+          timestamp: nowIso,
+          memberId: targetMember.memberId,
+          type: 'RECOVERY_ADJUSTMENT',
+          sourceRef: `ADM-APPROVE-USER-MEM-${Date.now()}`,
+          debit: heldToUnlockLak,
+          credit: 0,
+          targetBalance: 'HELD_FOR_QUALIFICATION',
+          balanceAfter: 0,
+          description: `Administrator Approved Customer Active Package (1,600,000 LAK): Released ${heldToUnlockLak.toLocaleString()} LAK from Held for Qualification`,
+        },
+        {
+          id: `led-unlk-crd-${Date.now()}`,
+          txRef: `TX-UNLK-CRD-${Date.now().toString().slice(-5)}`,
+          timestamp: nowIso,
+          memberId: targetMember.memberId,
+          type: 'COMMISSION_CLEARED_AVAILABLE',
+          sourceRef: `ADM-APPROVE-USER-MEM-${Date.now()}`,
+          debit: 0,
+          credit: heldToUnlockLak,
+          targetBalance: 'AVAILABLE',
+          balanceAfter: currentBalances.available + heldToUnlockLak,
+          description: `Administrator Approved Customer → User Member: Unlocked ${heldToUnlockLak.toLocaleString()} LAK into Available for Payout`,
+        },
+      ];
+      setLedgerEntries(prev => [...unlockEntries, ...prev]);
+
+      // Also mark any HELD_FOR_QUALIFICATION awards for this member as AVAILABLE
+      setAwards(prev =>
+        prev.map(a =>
+          a.beneficiaryMemberId.toUpperCase() === targetMember.memberId.toUpperCase() &&
+          a.status === 'HELD_FOR_QUALIFICATION'
+            ? { ...a, status: 'AVAILABLE' as const, clearedAt: nowIso }
+            : a
+        )
+      );
+    }
+
+    // 2. Upgrade Member state to ACTIVE_LIFETIME_MEMBER & mark Active Package as APPROVED
+    setMembers(prev => {
+      const next = prev.map(m =>
+        m.memberId.toUpperCase() === targetMember.memberId.toUpperCase()
+          ? {
+              ...m,
+              name: cleanDisplayName || m.name,
+              membershipState: 'ACTIVE_LIFETIME_MEMBER' as const,
+              activePackagePaymentStatus: 'APPROVED' as const,
+              activePackagePaidAmountLak: m.activePackagePaidAmountLak || 1600000,
+              activePackagePaymentMethod: m.activePackagePaymentMethod || 'LAO_QR',
+              activePackagePaymentRef:
+                m.activePackagePaymentRef ||
+                `ACT-PKG-${Date.now().toString().slice(-6)}`,
+              activePackagePaidAt: m.activePackagePaidAt || nowIso,
+              activePackageApprovedAt: nowIso,
+              activePackageApprovedBy: actorName,
+              activatedAt: nowIso,
+              activationMethod: 'DIRECT_CASH' as const,
+              kycStatus: 'VERIFIED' as const,
+              isAutomaticAffiliate: true,
+              autoAffiliateCode: m.autoAffiliateCode || `AFF-${m.memberId}`,
+            }
+          : m
+      );
+      try {
+        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 3. Issue 1 Studio Song Production Entitlement if not already present
+    const existingSongs = songs.filter(
+      s => s.memberId.toUpperCase() === targetMember.memberId.toUpperCase()
+    );
+    if (existingSongs.length === 0) {
+      const newSong: SongProductionProject = {
+        id: `sng-adm-app-${Date.now()}`,
+        memberId: targetMember.memberId,
+        title: `${cleanDisplayName}'s Active Member Studio Single`,
+        genre: 'Lao Modern Pop / Acoustic',
+        tempo: '100 BPM',
+        status: 'IN_QUEUE',
+        producer: 'Xay Raxa',
+        studioLocation: 'DMC Central Studio, Vientiane',
+        progressPercent: 15,
+        updatedAt: nowIso,
+      };
+      setSongs(prev => [newSong, ...prev]);
+    }
+
+    // 4. Trigger 3-Level User Member Network Activation Commission (L1: 400k, L2: 200k, L3: 100k)
+    const commRes = triggerUserMemberNetworkActivationCommission(
+      targetMember.memberId,
+      cleanDisplayName,
+      'Administrator Approved Customer Active Package Payment (1,600,000 LAK) → Upgraded to User Member'
+    );
+
+    // 5. Mark any pending Admin Panel reports for this customer as APPROVED
+    setAdminPanelBookingReports(prev => {
+      const next = prev.map(r =>
+        r.submittedBy.includes(targetMember.memberId) ||
+        r.reportTitle.includes(targetMember.memberId)
+          ? { ...r, status: 'APPROVED' as const }
+          : r
+      );
+      try {
+        localStorage.setItem(
+          'dmc_rev26_admin_booking_reports_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 6. Audit Log
+    setAuditLogs(prev => [
+      {
+        id: `aud-adm-app-cust-${Date.now()}`,
+        timestamp: nowIso,
+        actor: actorName,
+        action: 'ADMIN_APPROVED_CUSTOMER_ACTIVE_PACKAGE_TO_USER_MEMBER',
+        entityType: 'MEMBER',
+        entityId: targetMember.memberId,
+        details: {
+          memberName: cleanDisplayName,
+          activePackageAmountLak: 1600000,
+          unlockedHeldLak: heldToUnlockLak,
+          l1Lak: commRes.l1Lak,
+          l2Lak: commRes.l2Lak,
+          l3Lak: commRes.l3Lak,
+        },
+      },
+      ...prev,
+    ]);
+
+    return {
+      success: true,
+      unlockedHeldLak: heldToUnlockLak,
+      l1Lak: commRes.l1Lak,
+      l2Lak: commRes.l2Lak,
+      l3Lak: commRes.l3Lak,
+      message: `Administrator Approved! Customer ${cleanDisplayName} (${targetMember.memberId}) is now an Official Active User Member (ACTIVE_LIFETIME_MEMBER)!${
+        heldToUnlockLak > 0
+          ? ` Unlocked ${heldToUnlockLak.toLocaleString()} LAK from Held for Qualification into Available for Payout`
+          : ''
+      } + Credited L1/L2/L3 Active Package Commission (+${commRes.l1Lak.toLocaleString()} LAK L1) & 1 Studio Song Entitlement!`,
+    };
+  };
+
+  const submitReportToAdminPanel = (
+    input: Partial<DmcAdminPanelBookingReport> & { reportTitle: string }
+  ): DmcAdminPanelBookingReport => {
+    const nextNum = adminPanelBookingReports.length + 1;
+    const reportCode =
+      input.reportCode || `RPT-ADM-2026-${String(nextNum).padStart(3, '0')}`;
+    const totalLak = Math.max(
+      0,
+      Math.round(Number(input.totalPackagePriceLak) || 0)
+    );
+    const cut10Lak =
+      input.loanWalletCut10PercentLak !== undefined
+        ? Math.max(0, Math.round(Number(input.loanWalletCut10PercentLak) || 0))
+        : Math.round(totalLak * 0.1);
+    const net90Lak =
+      input.singerNetPayout90PercentLak !== undefined
+        ? Math.max(0, Math.round(Number(input.singerNetPayout90PercentLak) || 0))
+        : Math.max(0, totalLak - cut10Lak);
+
+    const newReport: DmcAdminPanelBookingReport = {
+      id: `rpt-adm-${Date.now()}`,
+      reportCode,
+      reportTitle: input.reportTitle.trim() || 'Singer Booking & Loan Wallet Report',
+      reportType: input.reportType || 'FULL_SUMMARY_REPORT',
+      submittedBy:
+        input.submittedBy ||
+        (isAdminMode ? 'Administrator' : currentMember?.name || 'Singer Hub'),
+      bookingId: input.bookingId,
+      bookingCode: input.bookingCode,
+      singerStageName: input.singerStageName,
+      totalPackagePriceLak: totalLak,
+      loanWalletCut10PercentLak: cut10Lak,
+      singerNetPayout90PercentLak: net90Lak,
+      loanWalletBalanceSnapshotLak:
+        input.loanWalletBalanceSnapshotLak !== undefined
+          ? input.loanWalletBalanceSnapshotLak
+          : loanWalletBalanceLak,
+      packageSummary:
+        input.packageSummary ||
+        `Loan Wallet Balance: ${loanWalletBalanceLak.toLocaleString()} LAK • Bookings: ${singerBookings.length}`,
+      paymentBillImageUrl: input.paymentBillImageUrl,
+      paymentBillFileName: input.paymentBillFileName,
+      paymentBillRefNo: input.paymentBillRefNo,
+      status: input.status || 'SENT_TO_ADMIN_PANEL',
+      notes: input.notes || 'Official report transmitted to Administrator Panel.',
+      createdAt: new Date().toISOString(),
+    };
+
+    setAdminPanelBookingReports(prev => {
+      const next = [newReport, ...prev];
+      try {
+        localStorage.setItem(
+          'dmc_rev26_admin_booking_reports_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    setAuditLogs(prev => [
+      {
+        id: `aud-rpt-adm-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: newReport.submittedBy,
+        action: 'REPORT_TO_ADMINISTRATOR_PANEL',
+        entityType: 'ADMIN_PANEL_REPORT',
+        entityId: newReport.reportCode,
+        details: {
+          reportTitle: newReport.reportTitle,
+          reportType: newReport.reportType,
+          totalPackagePriceLak: newReport.totalPackagePriceLak,
+          loanWalletCut10PercentLak: newReport.loanWalletCut10PercentLak,
+          loanWalletBalanceSnapshotLak: newReport.loanWalletBalanceSnapshotLak,
+        },
+      },
+      ...prev,
+    ]);
+
+    return newReport;
+  };
+
+  const updateAdminPanelBookingReport = (
+    id: string,
+    updates: Partial<DmcAdminPanelBookingReport>
+  ) => {
+    setAdminPanelBookingReports(prev => {
+      const next = prev.map(r => {
+        if (r.id !== id) return r;
+        const merged = { ...r, ...updates };
+        if (updates.totalPackagePriceLak !== undefined) {
+          const totalLak = Math.max(
+            0,
+            Math.round(Number(updates.totalPackagePriceLak) || 0)
+          );
+          const cut10Lak =
+            updates.loanWalletCut10PercentLak !== undefined
+              ? Math.max(0, Math.round(Number(updates.loanWalletCut10PercentLak) || 0))
+              : Math.round(totalLak * 0.1);
+          const net90Lak = Math.max(0, totalLak - cut10Lak);
+          return {
+            ...merged,
+            totalPackagePriceLak: totalLak,
+            loanWalletCut10PercentLak: cut10Lak,
+            singerNetPayout90PercentLak: net90Lak,
+          };
+        }
+        return merged;
+      });
+      try {
+        localStorage.setItem(
+          'dmc_rev26_admin_booking_reports_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const deleteAdminPanelBookingReport = (id: string): boolean => {
+    setAdminPanelBookingReports(prev => {
+      const next = prev.filter(r => r.id !== id);
+      try {
+        localStorage.setItem(
+          'dmc_rev26_admin_booking_reports_v1',
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    return true;
+  };
+
+  // 4. Songs CRUD & Copyright Song Package Purchase
   const adminAddSong = (song: SongProductionProject) => {
-    setSongs(prev => [...prev, song]);
+    setSongs(prev => {
+      const next = [song, ...prev];
+      try {
+        localStorage.setItem('dmc_rev26_copyright_songs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const adminUpdateSong = (songId: string, updates: Partial<SongProductionProject>) => {
-    setSongs(prev =>
-      prev.map(s => (s.id === songId ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s))
-    );
+    setSongs(prev => {
+      const next = prev.map(s =>
+        s.id === songId ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
+      );
+      try {
+        localStorage.setItem('dmc_rev26_copyright_songs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const adminDeleteSong = (songId: string): boolean => {
-    setSongs(prev => prev.filter(s => s.id !== songId));
+    setSongs(prev => {
+      const next = prev.filter(s => s.id !== songId);
+      try {
+        localStorage.setItem('dmc_rev26_copyright_songs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
     return true;
+  };
+
+  const purchaseCopyrightSongPackage = async (
+    songId: string,
+    paymentMethod: Order['paymentMethod'] = 'LAO_QR',
+    paymentRef?: string
+  ): Promise<{ success: boolean; message: string; order?: Order }> => {
+    const targetSong = songs.find(s => s.id === songId);
+    if (!targetSong) {
+      return { success: false, message: 'Song package not found.' };
+    }
+
+    const price = targetSong.priceLak || 1600000;
+    const pool = targetSong.commissionPoolLak || 700000;
+    const nowIso = new Date().toISOString();
+    const orderId = `ORD-SNG-${Date.now().toString().slice(-6)}`;
+
+    const newOrder: Order = {
+      id: orderId,
+      buyerMemberId: currentMember.memberId,
+      items: [
+        {
+          orderLineId: `line-sng-${Date.now()}`,
+          sku: 'MUSIC_SINGLE_1600',
+          title: `Copyright Song Package: ${targetSong.title}`,
+          unitPriceLak: price,
+          quantity: 1,
+          totalLak: price,
+          commissionPoolLak: pool,
+          itemType: 'SERVICE',
+        },
+      ],
+      subtotalLak: price,
+      shippingFeeLak: 0,
+      totalLak: price,
+      paymentMethod,
+      paymentReference: paymentRef || `PAY-SNG-${Date.now().toString().slice(-6)}`,
+      status: 'PAID',
+      createdAt: nowIso,
+      paidAt: nowIso,
+    };
+
+    setOrders(prev => [newOrder, ...prev]);
+
+    // Unlock song ownership & download for currentMember
+    setSongs(prev => {
+      const next = prev.map(s => {
+        if (s.id !== songId) return s;
+        const existingBuyers = s.purchasedByMemberIds || [s.memberId];
+        const updatedBuyers = existingBuyers.includes(currentMember.memberId)
+          ? existingBuyers
+          : [...existingBuyers, currentMember.memberId];
+        return {
+          ...s,
+          status: 'RELEASED' as const,
+          progressPercent: 100,
+          purchasedByMemberIds: updatedBuyers,
+          updatedAt: nowIso,
+        };
+      });
+      try {
+        localStorage.setItem('dmc_rev26_copyright_songs_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // Distribute L1/L2/L3 Unilevel Commissions & Activate Buyer if FREE_MEMBER
+    distributeCommissionsForOrder(newOrder, currentMember);
+
+    return {
+      success: true,
+      order: newOrder,
+      message: `Purchased "${targetSong.title}" (${price.toLocaleString()} LAK)! Full Master Song Package & Official Copyright Certificate are now unlocked for instant download.`,
+    };
   };
 
   // 5. Balance Adjustment
@@ -4383,7 +9465,9 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orders,
         createOrder,
         updateOrderStatus,
+        allSongs: songs,
         getMemberSongs,
+        purchaseCopyrightSongPackage,
         registerMember,
         redeemHeldCreditForQualification,
         withdrawals,
@@ -4391,6 +9475,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         verifyWithdrawalOtp,
         makerApproveWithdrawal,
         checkerExecutePayout,
+        adminApproveWithdrawalRequest,
         rejectWithdrawal,
         adminAddMember,
         adminUpdateMember,
@@ -4433,6 +9518,47 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminResetPrivacyPolicySections,
         customHomeIcons,
         adminUpdateHomeIcon,
+        singerProfiles,
+        applyForSingerJob,
+        updateSingerProfile,
+        deleteSingerProfile,
+        addSingerBankQrAccount,
+        updateSingerBankQrAccount,
+        deleteSingerBankQrAccount,
+        setDefaultSingerBankQrAccount,
+        toggleSingerRecommendedProduct,
+        recordSingerAffiliateSale,
+        withdrawFromSingerWallet,
+        resetSingerMemberWalletToZero,
+        loanWalletBalanceLak,
+        loanWalletTransactions,
+        adminDepositLoanWallet,
+        adminWithdrawLoanWallet,
+        adminUpdateLoanWalletTransaction,
+        adminDeleteLoanWalletTransaction,
+        singerBookingPricing,
+        updateSingerBookingPricing,
+        bookingPackageOptions,
+        adminAddBookingPackageOption,
+        adminUpdateBookingPackageOption,
+        adminDeleteBookingPackageOption,
+        adminResetBookingPackageOptions,
+        singerBookings,
+        createSingerPartyBooking,
+        recordCustomerAffiliateCommission,
+        getCustomerAffiliateCommissionBalance,
+        getCustomerAffiliateTransfers,
+        transferAffiliateCommissionToCustomerWallet,
+        withdrawCustomerAffiliateWallet,
+        triggerUserMemberNetworkActivationCommission,
+        submitCustomerActivePackagePayment,
+        adminApproveCustomerToActiveMember,
+        updateSingerPartyBooking,
+        deleteSingerPartyBooking,
+        adminPanelBookingReports,
+        submitReportToAdminPanel,
+        updateAdminPanelBookingReport,
+        deleteAdminPanelBookingReport,
         adminAddSong,
         adminUpdateSong,
         adminDeleteSong,

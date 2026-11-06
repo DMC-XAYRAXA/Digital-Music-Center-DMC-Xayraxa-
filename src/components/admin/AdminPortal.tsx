@@ -31,6 +31,7 @@ import {
   ArrowRight,
   Plus,
   Pencil,
+  Edit3,
   Trash2,
   Users,
   Search,
@@ -61,6 +62,7 @@ import { AdminCompanyProfilePdfHub } from './AdminCompanyProfilePdfHub';
 import { AdminBusinessCardStudio } from './AdminBusinessCardStudio';
 import { AdminStepByStepPdfHub } from './AdminStepByStepPdfHub';
 import { AdminPrivacyPolicyHub } from './AdminPrivacyPolicyHub';
+import { LoanWalletAndSingerBookingHub } from '../common/LoanWalletAndSingerBookingHub';
 import {
   DEFAULT_COMPANY_PROFILE_DATA,
   downloadCompanyProfilePdf,
@@ -93,6 +95,7 @@ export const AdminPortal: React.FC = () => {
     withdrawals, 
     makerApproveWithdrawal, 
     checkerExecutePayout, 
+    adminApproveWithdrawalRequest,
     rejectWithdrawal,
     products, 
     orders, 
@@ -107,6 +110,7 @@ export const AdminPortal: React.FC = () => {
     adminAddMember,
     adminUpdateMember,
     adminDeleteMember,
+    adminApproveCustomerToActiveMember,
     adminAddProduct,
     adminUpdateProduct,
     adminDeleteProduct,
@@ -148,9 +152,12 @@ export const AdminPortal: React.FC = () => {
     adminUpgradeMemberToStaff,
     adminDowngradeStaffToMember,
     privacyPolicySections,
+    singerBookings,
+    singerProfiles,
+    updateSingerProfile,
   } = useDmc();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'PRIVACY_POLICY' | 'MEMBERS' | 'STAFF' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('BUSINESS_CARDS');
+  const [activeAdminTab, setActiveAdminTab] = useState<'LOAN_WALLET_CENTER' | 'BUSINESS_CARDS' | 'STEP_BY_STEP_PDF' | 'COMPANY_PROFILE_PDF' | 'EXCEL_REPORTS' | 'PRIVACY_POLICY' | 'MEMBERS' | 'STAFF' | 'ORGANIZE' | 'EVENTS' | 'ADMIN_PROFILE' | 'PRODUCTS' | 'ORDERS' | 'SONGS' | 'WITHDRAWALS' | 'BANKS' | 'RULES' | 'UAT' | 'AUDIT'>('LOAN_WALLET_CENTER');
   const [adminStaffFilterPos, setAdminStaffFilterPos] = useState<StaffPosition | 'ALL'>('ALL');
   const [adminEditingStaffId, setAdminEditingStaffId] = useState<string | null>(null);
   const [adminSelectedMemberToUpgrade, setAdminSelectedMemberToUpgrade] = useState<string>('');
@@ -206,6 +213,42 @@ export const AdminPortal: React.FC = () => {
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  // Administrator Master User Profile & Password Manager State (1/ User Member • 2/ User Singer • 3/ User Customer)
+  const [adminMasterRoleTarget, setAdminMasterRoleTarget] = useState<'MEMBER' | 'SINGER' | 'CUSTOMER'>('MEMBER');
+  const [adminMasterMemberId, setAdminMasterMemberId] = useState<string>(allMembers[0]?.memberId || 'DMC-LA-00404');
+  const selectedMasterMember = allMembers.find((m) => m.memberId === adminMasterMemberId) || allMembers[0];
+  const selectedMasterSinger =
+    singerProfiles.find((s) => s.memberId?.toUpperCase() === (selectedMasterMember?.memberId || '').toUpperCase()) ||
+    singerProfiles[0];
+  const [adminMasterName, setAdminMasterName] = useState<string>(selectedMasterMember?.name || '');
+  const [adminMasterStageName, setAdminMasterStageName] = useState<string>(selectedMasterSinger?.stageName || '');
+  const [adminMasterPhone, setAdminMasterPhone] = useState<string>(selectedMasterMember?.phone || '');
+  const [adminMasterEmail, setAdminMasterEmail] = useState<string>(selectedMasterMember?.email || '');
+  const [adminMasterProvince, setAdminMasterProvince] = useState<string>(
+    selectedMasterMember?.deliveryAddress?.province || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane Capital)'
+  );
+  const [adminMasterPassword, setAdminMasterPassword] = useState<string>(selectedMasterMember?.password || '123456');
+  const [adminMasterAvatar, setAdminMasterAvatar] = useState<string>(selectedMasterMember?.avatarUrl || '');
+
+  const loadMasterUserIntoForm = (memberId: string) => {
+    setAdminMasterMemberId(memberId);
+    const mem = allMembers.find((m) => m.memberId === memberId);
+    const sng = singerProfiles.find((s) => s.memberId?.toUpperCase() === memberId.toUpperCase());
+    if (mem) {
+      setAdminMasterName(mem.name);
+      setAdminMasterPhone(mem.phone);
+      setAdminMasterEmail(mem.email || '');
+      setAdminMasterProvince(mem.deliveryAddress?.province || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane Capital)');
+      setAdminMasterPassword(mem.password || '123456');
+      setAdminMasterAvatar(mem.avatarUrl || sng?.avatarUrl || '');
+    }
+    if (sng) {
+      setAdminMasterStageName(sng.stageName);
+    } else if (mem) {
+      setAdminMasterStageName(mem.name);
+    }
+  };
 
   const showNotification = (msg: string) => {
     setSuccessBanner(msg);
@@ -774,6 +817,7 @@ export const AdminPortal: React.FC = () => {
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
         {[
+          { id: 'LOAN_WALLET_CENTER', label: 'DMC Party Wallet Balance (Withdraw / Deposit) & Singer Booking (10% Saving for Loan)', icon: Landmark, count: singerBookings.length },
           { id: 'BUSINESS_CARDS', label: '1/ Design Business Cards', icon: CreditCard, count: 4 },
           { id: 'STEP_BY_STEP_PDF', label: '2/ Step-By-Step Summary PDF', icon: FileText, count: 10 },
           { id: 'COMPANY_PROFILE_PDF', label: 'Company Profile PDF', icon: FileText, count: 4 },
@@ -816,6 +860,11 @@ export const AdminPortal: React.FC = () => {
           );
         })}
       </div>
+
+      {/* ================= TAB: LOAN WALLET CENTER (WITHDRAW / DEPOSIT) & SINGER PARTY BOOKING (10% CUT) ================= */}
+      {activeAdminTab === 'LOAN_WALLET_CENTER' && (
+        <LoanWalletAndSingerBookingHub initialMode="ALL" />
+      )}
 
       {/* ================= TAB: 1/ DESIGN BUSINESS CARDS STUDIO ================= */}
       {activeAdminTab === 'BUSINESS_CARDS' && (
@@ -1295,6 +1344,30 @@ export const AdminPortal: React.FC = () => {
                       </div>
 
                       <button
+                        type="button"
+                        onClick={() => {
+                          const res = adminApproveCustomerToActiveMember(
+                            member.memberId,
+                            'ADMINISTRATOR'
+                          );
+                          showNotification(res.message);
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer ${
+                          isAct && member.activePackagePaymentStatus === 'APPROVED'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow'
+                        }`}
+                        title="Approve Customer to become an Active User Member when they pay Active Package (1,600,000 LAK) any time"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>
+                          {isAct && member.activePackagePaymentStatus === 'APPROVED'
+                            ? '✓ Approved User Member'
+                            : 'Approve Customer → User Member (1.6M)'}
+                        </span>
+                      </button>
+
+                      <button
                         onClick={() => setAdjustingMember(member)}
                         className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-[11px] flex items-center gap-1 border border-slate-700"
                         title="Adjust balance with audit note"
@@ -1484,7 +1557,7 @@ export const AdminPortal: React.FC = () => {
                             mem.staffPosition || existingStf?.position || prev.position,
                           phone: mem.phone,
                           email:
-                            mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                            mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.music`,
                           branch:
                             existingStf?.branch ||
                             mem.staffBranch ||
@@ -2191,7 +2264,7 @@ export const AdminPortal: React.FC = () => {
                   </div>
 
                   <div className="pt-2 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold ${
                       isPaid
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         : isApproved
@@ -2200,22 +2273,39 @@ export const AdminPortal: React.FC = () => {
                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         : 'bg-red-500/20 text-red-300 border border-red-500/30'
                     }`}>
-                      Status: {w.status}
+                      {isPaid
+                        ? '✓ ADMINISTRATOR APPROVED • PAID'
+                        : isSubmitted || isApproved
+                        ? `⏳ WAITING ADMINISTRATOR APPROVED (${w.status})`
+                        : `Status: ${w.status}`}
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(isSubmitted || isApproved) && (
+                        <button
+                          onClick={() => {
+                            const res = adminApproveWithdrawalRequest(w.id, 'SUPER-ADMIN-01');
+                            showNotice(res.message);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow transition-colors cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Administrator Approve &amp; Pay</span>
+                        </button>
+                      )}
+
                       {isSubmitted && (
                         <>
                           <button
                             onClick={() => makerApproveWithdrawal(w.id, 'ADM-FIN-MAKER-01')}
-                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <UserCheck className="w-3.5 h-3.5" />
                             <span>Maker: Approve</span>
                           </button>
                           <button
                             onClick={() => setRejectReasonModal(w.id)}
-                            className="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-300 font-bold text-[11px] transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-300 font-bold text-[11px] transition-colors cursor-pointer"
                           >
                             Reject
                           </button>
@@ -2226,16 +2316,16 @@ export const AdminPortal: React.FC = () => {
                         <>
                           <button
                             onClick={() => checkerExecutePayout(w.id, 'ADM-FIN-CHECKER-02')}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <Send className="w-3.5 h-3.5" />
                             <span>Checker: Settle Bank Payout</span>
                           </button>
                           <button
                             onClick={() => setRejectReasonModal(w.id)}
-                            className="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-300 font-bold text-[11px] transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-300 font-bold text-[11px] transition-colors cursor-pointer"
                           >
-                            Reject & Release
+                            Reject &amp; Release
                           </button>
                         </>
                       )}
@@ -3057,6 +3147,318 @@ export const AdminPortal: React.FC = () => {
                 <Check className="w-4 h-4" />
                 <span>2. Verify SMS OTP & Reset Password Now</span>
               </button>
+            </div>
+          </div>
+
+          {/* Card 3: Administrator Master User Profile & Password Manager (1/ User Member • 2/ User Singer • 3/ User Customer — Update All) */}
+          <div className="lg:col-span-2 bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-6 shadow-lg space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Administrator Master Profile & Password Update — 1/ User Member • 2/ User Singer • 3/ User Customer
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Administrator can change and update ALL User Member, User Singer, and User Customer passwords, photos, and profiles (User Members cannot change Administrator password/profile).
+                  </p>
+                </div>
+              </div>
+
+              {/* Role Switcher */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setAdminMasterRoleTarget('MEMBER')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    adminMasterRoleTarget === 'MEMBER'
+                      ? 'bg-amber-500 text-slate-950 font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  1/ User Member ({adminMasterMemberId})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminMasterRoleTarget('SINGER')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    adminMasterRoleTarget === 'SINGER'
+                      ? 'bg-orange-500 text-white font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  2/ User Singer ({selectedMasterSinger?.singerCode || adminMasterMemberId})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminMasterRoleTarget('CUSTOMER')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    adminMasterRoleTarget === 'CUSTOMER'
+                      ? 'bg-emerald-500 text-slate-950 font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  3/ User Customer ({adminMasterMemberId})
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              {/* Select Any Account */}
+              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <label className="text-amber-300 font-bold block mb-1.5">
+                  Select User Account to Edit Profile & Password ({allMembers.length} Accounts):
+                </label>
+                <select
+                  value={adminMasterMemberId}
+                  onChange={(e) => loadMasterUserIntoForm(e.target.value)}
+                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl p-2.5 text-white font-bold"
+                >
+                  {allMembers.map((m) => {
+                    const sng = singerProfiles.find(
+                      (s) => s.memberId?.toUpperCase() === m.memberId.toUpperCase()
+                    );
+                    return (
+                      <option key={m.memberId} value={m.memberId}>
+                        {m.memberId} — {m.name} {sng ? `• Singer: ${sng.stageName} (${sng.singerCode})` : ''} • Current Pass/PIN: {m.password || '123456'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Photo Upload + URL */}
+              <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <img
+                  src={
+                    adminMasterAvatar ||
+                    selectedMasterMember?.avatarUrl ||
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80'
+                  }
+                  alt={adminMasterName}
+                  className="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shrink-0"
+                />
+                <div className="flex-1 min-w-[200px] space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <label className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>
+                        Upload{' '}
+                        {adminMasterRoleTarget === 'SINGER'
+                          ? 'Singer'
+                          : adminMasterRoleTarget === 'CUSTOMER'
+                          ? 'Customer'
+                          : 'Member'}{' '}
+                        Photo
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              setAdminMasterAvatar(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <span className="text-[11px] text-slate-400">Or paste photo URL below</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={adminMasterAvatar}
+                    onChange={(e) => setAdminMasterAvatar(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-[11px]"
+                  />
+                </div>
+              </div>
+
+              {/* Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    {adminMasterRoleTarget === 'SINGER'
+                      ? 'Singer Full Name'
+                      : adminMasterRoleTarget === 'CUSTOMER'
+                      ? 'Customer Full Name'
+                      : 'Member Full Name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={adminMasterName}
+                    onChange={(e) => setAdminMasterName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+
+                {adminMasterRoleTarget === 'SINGER' && (
+                  <div>
+                    <label className="text-orange-300 font-bold block mb-1">
+                      Singer Stage Name
+                    </label>
+                    <input
+                      type="text"
+                      value={adminMasterStageName}
+                      onChange={(e) => setAdminMasterStageName(e.target.value)}
+                      className="w-full bg-slate-950 border border-orange-500/40 rounded-xl p-2.5 text-white font-bold"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-emerald-300 font-bold block mb-1">
+                    Province / Location (Lao PDR)
+                  </label>
+                  <input
+                    type="text"
+                    value={adminMasterProvince}
+                    onChange={(e) => setAdminMasterProvince(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Lao Phone Number (SMS Recovery +856)
+                  </label>
+                  <input
+                    type="text"
+                    value={adminMasterPhone}
+                    onChange={(e) => setAdminMasterPhone(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={adminMasterEmail}
+                    onChange={(e) => setAdminMasterEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-amber-300 font-bold block mb-1">
+                    New Password / 6-Digit PIN
+                  </label>
+                  <input
+                    type="text"
+                    value={adminMasterPassword}
+                    onChange={(e) => setAdminMasterPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-2.5 text-emerald-300 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    adminUpdateMember(adminMasterMemberId, {
+                      name: adminMasterName.trim() || selectedMasterMember?.name,
+                      phone: adminMasterPhone.trim() || selectedMasterMember?.phone,
+                      email: adminMasterEmail.trim(),
+                      password: adminMasterPassword.trim() || '123456',
+                      avatarUrl: adminMasterAvatar.trim() || selectedMasterMember?.avatarUrl,
+                      deliveryAddress: {
+                        recipientName: adminMasterName.trim() || selectedMasterMember?.name,
+                        phone: adminMasterPhone.trim() || selectedMasterMember?.phone,
+                        province: adminMasterProvince.trim() || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane Capital)',
+                        district: selectedMasterMember?.deliveryAddress?.district || 'Chanthabouly',
+                        village: selectedMasterMember?.deliveryAddress?.village || 'Dongdok Campus',
+                        note: selectedMasterMember?.deliveryAddress?.note || '',
+                      },
+                      lastPasswordUpdatedAt: new Date().toISOString(),
+                    });
+                    if (selectedMasterSinger) {
+                      updateSingerProfile(selectedMasterSinger.id, {
+                        stageName: adminMasterStageName.trim() || selectedMasterSinger.stageName,
+                        fullName: adminMasterName.trim() || selectedMasterSinger.fullName,
+                        phone: adminMasterPhone.trim() || selectedMasterSinger.phone,
+                        email: adminMasterEmail.trim(),
+                        province: adminMasterProvince.trim() || selectedMasterSinger.province,
+                        password: adminMasterPassword.trim() || '123456',
+                        avatarUrl: adminMasterAvatar.trim() || selectedMasterSinger.avatarUrl,
+                      });
+                    }
+                    showNotification(
+                      `Administrator updated ${
+                        adminMasterRoleTarget === 'SINGER'
+                          ? '2/ User Singer'
+                          : adminMasterRoleTarget === 'CUSTOMER'
+                          ? '3/ User Customer'
+                          : '1/ User Member'
+                      } (${adminMasterMemberId}) Profile & Password!`
+                    );
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>
+                    Save{' '}
+                    {adminMasterRoleTarget === 'SINGER'
+                      ? '2/ User Singer'
+                      : adminMasterRoleTarget === 'CUSTOMER'
+                      ? '3/ User Customer'
+                      : '1/ User Member'}{' '}
+                    Profile & Password
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    adminUpdateMember(adminMasterMemberId, {
+                      name: adminMasterName.trim() || selectedMasterMember?.name,
+                      phone: adminMasterPhone.trim() || selectedMasterMember?.phone,
+                      email: adminMasterEmail.trim(),
+                      password: adminMasterPassword.trim() || '123456',
+                      avatarUrl: adminMasterAvatar.trim() || selectedMasterMember?.avatarUrl,
+                      deliveryAddress: {
+                        recipientName: adminMasterName.trim() || selectedMasterMember?.name,
+                        phone: adminMasterPhone.trim() || selectedMasterMember?.phone,
+                        province: adminMasterProvince.trim() || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane Capital)',
+                        district: selectedMasterMember?.deliveryAddress?.district || 'Chanthabouly',
+                        village: selectedMasterMember?.deliveryAddress?.village || 'Dongdok Campus',
+                        note: selectedMasterMember?.deliveryAddress?.note || '',
+                      },
+                      lastPasswordUpdatedAt: new Date().toISOString(),
+                    });
+                    if (selectedMasterSinger) {
+                      updateSingerProfile(selectedMasterSinger.id, {
+                        stageName: adminMasterStageName.trim() || selectedMasterSinger.stageName,
+                        fullName: adminMasterName.trim() || selectedMasterSinger.fullName,
+                        phone: adminMasterPhone.trim() || selectedMasterSinger.phone,
+                        email: adminMasterEmail.trim(),
+                        province: adminMasterProvince.trim() || selectedMasterSinger.province,
+                        password: adminMasterPassword.trim() || '123456',
+                        avatarUrl: adminMasterAvatar.trim() || selectedMasterSinger.avatarUrl,
+                      });
+                    }
+                    showNotification(
+                      `Administrator Updated ALL (1/ User Member • 2/ User Singer • 3/ User Customer) Profile & Password for ${adminMasterMemberId}!`
+                    );
+                  }}
+                  className="py-3 px-5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Update All (User Member • User Singer • User Customer)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

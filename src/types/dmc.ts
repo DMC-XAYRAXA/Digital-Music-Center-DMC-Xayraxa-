@@ -133,6 +133,21 @@ export interface Member {
   staffCode?: string;
   staffBranch?: string;
   staffBioOrDuty?: string;
+  // General Member Booking Singer -> Automatic Affiliate Status
+  isAutomaticAffiliate?: boolean;
+  autoAffiliateCode?: string;
+  autoAffiliateLink?: string;
+  autoAffiliateBookedSingerId?: string;
+  autoAffiliateActivatedAt?: string;
+  // Customer Active Package (1,600,000 LAK) Payment & Administrator Approval to Become User Member Any Time
+  activePackagePaymentStatus?: 'NONE' | 'PENDING_ADMIN_APPROVAL' | 'APPROVED';
+  activePackagePaidAmountLak?: number;
+  activePackagePaymentMethod?: 'LAO_QR' | 'BCEL_ONE' | 'BANK_TRANSFER' | 'WALLET_CREDIT';
+  activePackagePaymentRef?: string;
+  activePackageBillImageUrl?: string;
+  activePackagePaidAt?: string;
+  activePackageApprovedAt?: string;
+  activePackageApprovedBy?: string;
 }
 
 export interface SuperAdminProfile {
@@ -224,6 +239,7 @@ export interface SongProductionProject {
   id: string;
   memberId: string;
   title: string;
+  artistName?: string;
   genre: string;
   tempo: string;
   status: 'IN_QUEUE' | 'ARRANGING' | 'VOCAL_RECORDING' | 'MIXING_MASTERING' | 'RELEASED';
@@ -232,6 +248,18 @@ export interface SongProductionProject {
   progressPercent: number;
   previewAudioUrl?: string;
   downloadWavUrl?: string;
+  audioFileName?: string;
+  coverImageUrl?: string;
+  priceLak?: number;
+  marketPriceLak?: number;
+  memberDiscountLak?: number;
+  commissionPoolLak?: number;
+  copyrightCode?: string;
+  isrcCode?: string;
+  copyrightLicenseType?: string;
+  description?: string;
+  lyricsExcerpt?: string;
+  purchasedByMemberIds?: string[];
   updatedAt: string;
 }
 
@@ -644,3 +672,363 @@ export interface DmcPrivacyPolicySection {
   status: 'ACTIVE' | 'DRAFT';
   updatedAt: string;
 }
+
+export type SingerVocalStyle =
+  | 'Lao Modern Pop'
+  | 'Morlam & Traditional Lao'
+  | 'Acoustic Ballad'
+  | 'Indie / R&B Soul'
+  | 'Rock & Live Band'
+  | 'Hip-Hop / Rap Vocal'
+  | 'Country / Luk Thung';
+
+export const DMC_SINGER_VOCAL_STYLES: SingerVocalStyle[] = [
+  'Lao Modern Pop',
+  'Morlam & Traditional Lao',
+  'Acoustic Ballad',
+  'Indie / R&B Soul',
+  'Rock & Live Band',
+  'Hip-Hop / Rap Vocal',
+  'Country / Luk Thung',
+];
+
+export interface DmcSingerWithdrawalRecord {
+  id: string;
+  singerId: string;
+  memberId?: string;
+  amountLak: number;
+  bankFeeLak: number;
+  netPayoutLak: number;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  customQrImageUrl?: string;
+  status: 'PAID' | 'APPROVED' | 'PENDING_REVIEW' | 'REJECTED';
+  requestedAt: string;
+  approvedAt?: string;
+  approvedByAdminId?: string;
+  rejectionReason?: string;
+  note?: string;
+}
+
+export interface DmcSingerAffiliateSaleRecord {
+  id: string;
+  singerId: string;
+  sku: string;
+  productTitle: string;
+  buyerName: string;
+  orderAmountLak: number;
+  affiliateCommissionLak: number;
+  affiliateLink: string;
+  createdAt: string;
+}
+
+export interface DmcSingerBankQrItem {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  branch?: string;
+  customQrImageUrl?: string;
+  isDefault?: boolean;
+  updatedAt: string;
+}
+
+export interface DmcSingerProfile {
+  id: string;
+  singerCode: string; // e.g. DMC-SNG-001
+  memberId?: string; // Linked DMC Member ID
+  registrationType?: 'GENERAL_PUBLIC' | 'EXISTING_MEMBER';
+  gender?: 'MAN' | 'WOMAN';
+  fullName: string;
+  stageName: string;
+  phone: string;
+  email?: string;
+  province: string;
+  vocalStyle: SingerVocalStyle | string;
+  experienceYears: number;
+  demoAudioOrVideoUrl?: string;
+  avatarUrl: string;
+  bio: string;
+  applicationStatus: 'APPROVED_ACTIVE' | 'PENDING_AUDITION' | 'FEATURED_ARTIST';
+  walletAvailableLak: number;
+  walletPendingLak: number;
+  totalEarnedLak: number;
+  totalWithdrawnLak: number;
+  affiliateCode: string;
+  recommendedProductSkus: string[];
+  bankAccount: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    branch?: string;
+    customQrImageUrl?: string;
+  };
+  bankQrAccounts?: DmcSingerBankQrItem[];
+  withdrawals: DmcSingerWithdrawalRecord[];
+  affiliateSales: DmcSingerAffiliateSaleRecord[];
+  appliedAt: string;
+  // Custom Singer Booking Tier Prices (optional per-singer override)
+  startSingerPriceLak?: number;
+  packagePartyPriceLak?: number;
+  cheaperPriceLak?: number;
+  mediumPriceLak?: number;
+  expensivePriceLak?: number;
+  newBrandSetPriceLak?: number;
+  oldBrandSetPriceLak?: number;
+  copyrightOwnMusicStyles?: SingerCopyrightMusicType[];
+}
+
+// ============================================================================
+// LOAN WALLET CENTER (ADMINISTRATOR PANEL) & SINGER PARTY BOOKING PACKAGE
+// ============================================================================
+
+export type SingerPriceTier = 'CHEAPER' | 'MEDIUM' | 'EXPENSIVE' | string;
+
+export type BrandSetPackageType = 'NEW_BRAND_SET' | 'OLD_BRAND_SET' | string;
+
+export type SingerCopyrightMusicType =
+  | 'ROCK_PERFORMANCE'
+  | 'MUSIC_PERFORMANCE'
+  | 'TRADITIONAL_MUSIC'
+  | string;
+
+export type DmcBookingPackageCategory =
+  | 'SINGER_PRICE_TIER'
+  | 'BRAND_SET_PACKAGE'
+  | 'COPYRIGHT_OWN_MUSIC';
+
+export interface DmcBookingPackageOption {
+  id: string;
+  category: DmcBookingPackageCategory;
+  code: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  priceLak: number;
+  updatedAt: string;
+}
+
+export const DEFAULT_BOOKING_PACKAGE_OPTIONS: DmcBookingPackageOption[] = [
+  // 1/ Booking singer Music Cain party set package — Singer price
+  {
+    id: 'pkg-singer-cheaper',
+    category: 'SINGER_PRICE_TIER',
+    code: 'CHEAPER',
+    title: 'Cheaper price',
+    subtitle: 'Standard Acoustic / Solo Party Vocal Set (2 Hours)',
+    badge: 'ECONOMY PARTY SET',
+    priceLak: 2500000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  {
+    id: 'pkg-singer-medium',
+    category: 'SINGER_PRICE_TIER',
+    code: 'MEDIUM',
+    title: 'Medium Price',
+    subtitle: 'Popular Music Cain Party Set Package (3 Hours Live)',
+    badge: 'MOST POPULAR',
+    priceLak: 5000000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  {
+    id: 'pkg-singer-expensive',
+    category: 'SINGER_PRICE_TIER',
+    code: 'EXPENSIVE',
+    title: 'Expensive price',
+    subtitle: 'VIP Headliner Concert & Full Gala Party Set (4+ Hours)',
+    badge: 'VIP HEADLINER',
+    priceLak: 10000000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  // 2/ Select Calendar Booking singer for party — Brand Set Package Price
+  {
+    id: 'pkg-brand-new',
+    category: 'BRAND_SET_PACKAGE',
+    code: 'NEW_BRAND_SET',
+    title: 'New Brand Set package price',
+    subtitle:
+      'Latest 2026 DMC Pro Line-Array Sound System, LED Stage Lighting & Full Band Instruments',
+    badge: 'NEW BRAND EQUIPMENT',
+    priceLak: 6500000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  {
+    id: 'pkg-brand-old',
+    category: 'BRAND_SET_PACKAGE',
+    code: 'OLD_BRAND_SET',
+    title: 'Old Brand Set Package Price',
+    subtitle:
+      'Standard Classic DMC PA Sound System, Stage Monitors & Party Band Setup',
+    badge: 'CLASSIC BRAND SET',
+    priceLak: 3500000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  // 3/ Singer copies right own Music
+  {
+    id: 'pkg-copy-rock',
+    category: 'COPYRIGHT_OWN_MUSIC',
+    code: 'ROCK_PERFORMANCE',
+    title: 'Rock performance',
+    subtitle:
+      'Singer performs original copyright Rock & Modern Lao Live Band anthems',
+    badge: 'OWN COPYRIGHT • ROCK',
+    priceLak: 1800000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  {
+    id: 'pkg-copy-music',
+    category: 'COPYRIGHT_OWN_MUSIC',
+    code: 'MUSIC_PERFORMANCE',
+    title: 'Music performance',
+    subtitle:
+      'Singer performs original copyright Pop, Acoustic Ballad & Studio Hits',
+    badge: 'OWN COPYRIGHT • POP / LIVE',
+    priceLak: 1500000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+  {
+    id: 'pkg-copy-traditional',
+    category: 'COPYRIGHT_OWN_MUSIC',
+    code: 'TRADITIONAL_MUSIC',
+    title: 'Traditional music',
+    subtitle:
+      'Singer performs original copyright Morlam, Lamvong & Lao Traditional Heritage songs',
+    badge: 'OWN COPYRIGHT • TRADITIONAL',
+    priceLak: 1200000,
+    updatedAt: '2026-10-20T08:00:00Z',
+  },
+];
+
+export interface DmcSingerBookingPricingConfig {
+  // Singer price tiers
+  cheaperPriceLak: number; // Cheaper price
+  mediumPriceLak: number; // Medium Price
+  expensivePriceLak: number; // Expensive price
+  // Brand Set package prices
+  newBrandSetPackagePriceLak: number; // New Brand Set package price
+  oldBrandSetPackagePriceLak: number; // Old Brand Set Package Price
+  // Singer copies right own Music prices
+  rockPerformancePriceLak: number; // Rock performance
+  musicPerformancePriceLak: number; // Music performance
+  traditionalMusicPriceLak: number; // Traditional music
+  // Loan Wallet Cut Percentage (Fixed 10% default)
+  loanWalletCutPercent: number; // 10%
+}
+
+export const DEFAULT_SINGER_BOOKING_PRICING: DmcSingerBookingPricingConfig = {
+  cheaperPriceLak: 2500000, // 2,500,000 LAK (Cheaper price)
+  mediumPriceLak: 5000000, // 5,000,000 LAK (Medium Price)
+  expensivePriceLak: 10000000, // 10,000,000 LAK (Expensive price)
+  newBrandSetPackagePriceLak: 6500000, // 6,500,000 LAK (New Brand Set package price)
+  oldBrandSetPackagePriceLak: 3500000, // 3,500,000 LAK (Old Brand Set Package Price)
+  rockPerformancePriceLak: 1800000, // 1,800,000 LAK (Rock performance)
+  musicPerformancePriceLak: 1500000, // 1,500,000 LAK (Music performance)
+  traditionalMusicPriceLak: 1200000, // 1,200,000 LAK (Traditional music)
+  loanWalletCutPercent: 10, // 10% cut from booking Singer price to the Loan Wallet
+};
+
+export interface DmcSingerPartyBooking {
+  id: string;
+  bookingCode: string; // e.g. BK-SNG-2026-001
+  singerId: string;
+  singerCode: string;
+  singerStageName: string;
+  singerFullName: string;
+  singerGender?: 'MAN' | 'WOMAN';
+  singerAvatarUrl?: string;
+  // Customer / General Member Info & Automatic Affiliate Enrollment
+  customerMemberId?: string; // e.g. DMC-LA-00303 or newly auto-enrolled Member ID
+  customerName: string;
+  customerPhone: string;
+  partyEventName: string;
+  eventLocation: string;
+  bookingDate: string; // YYYY-MM-DD from Calendar
+  bookingTimeSlot: string; // e.g. 18:00 - 22:00 (Evening Party Set)
+  autoAffiliateActivated?: boolean;
+  autoAffiliateCode?: string;
+  autoAffiliateLink?: string;
+  // Explicit Start Singer Price & Package Party Price
+  startSingerPriceLak?: number;
+  packagePartyPriceLak?: number;
+  // 1. Booking singer Music Cain party set package -> Singer price
+  singerPriceTier: SingerPriceTier;
+  singerPriceTierLabel: string;
+  singerPriceLak: number;
+  // 2. Select Calendar Booking singer for party -> Brand Set Package Price
+  brandSetPackageType: BrandSetPackageType;
+  brandSetPackageLabel: string;
+  brandSetPackagePriceLak: number;
+  // 3. Singer copies right own Music
+  copyrightMusicType: SingerCopyrightMusicType;
+  copyrightMusicLabel: string;
+  copyrightMusicPriceLak: number;
+  ownMusicSongTitles?: string;
+  // Financial Breakdown & 10% Saving for Loan (5% from DMC Party Wallet + 5% from Singer Wallet)
+  totalPackagePriceLak: number;
+  loanWalletCut10PercentLak: number; // 10% Saving for Loan (5% from DMC Party Wallet + 5% from Singer Wallet)
+  singerNetPayout90PercentLak: number; // 95% of Start Singer Price credited direct to Singer Wallet (after 5% to Saving for Loan)
+  singerWallet5PercentSavingLak?: number; // 5% from Singer Wallet to Saving for Loan
+  dmcPartyWallet5PercentSavingLak?: number; // 5% from DMC Party Wallet to Saving for Loan
+  dmcPartyWalletNetCreditLak?: number; // 95% of Selected Package Party credited to DMC Party Wallet Balance
+  paymentMethod: 'BCEL_ONE_QR' | 'LAO_QR' | 'BANK_TRANSFER' | 'CASH_SETTLEMENT';
+  paymentBillImageUrl?: string;
+  paymentBillFileName?: string;
+  paymentBillRefNo?: string;
+  status: 'CONFIRMED_PAID' | 'COMPLETED' | 'CANCELLED';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface DmcLoanWalletTransaction {
+  id: string;
+  txRef: string;
+  type: 'DEPOSIT' | 'WITHDRAW' | 'SINGER_BOOKING_10_PERCENT_CUT';
+  amountLak: number;
+  balanceAfterLak: number;
+  actor: string;
+  bookingId?: string;
+  bookingCode?: string;
+  singerId?: string;
+  singerStageName?: string;
+  grossBookingAmountLak?: number;
+  singerPriceLak?: number;
+  packagePartyPriceLak?: number;
+  singerWallet5PercentSavingLak?: number;
+  dmcPartyWallet5PercentSavingLak?: number;
+  dmcPartyWalletNetCreditLak?: number;
+  singerNetPayoutLak?: number;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  customQrImageUrl?: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface DmcAdminPanelBookingReport {
+  id: string;
+  reportCode: string; // e.g. RPT-ADM-2026-001
+  reportTitle: string;
+  reportType:
+    | 'SINGER_BOOKING_REPORT'
+    | 'PACKAGE_PRICE_UPDATE_REPORT'
+    | 'LOAN_WALLET_10_PERCENT_REPORT'
+    | 'FULL_SUMMARY_REPORT';
+  submittedBy: string;
+  bookingId?: string;
+  bookingCode?: string;
+  singerStageName?: string;
+  totalPackagePriceLak: number;
+  loanWalletCut10PercentLak: number;
+  singerNetPayout90PercentLak: number;
+  loanWalletBalanceSnapshotLak: number;
+  packageSummary: string;
+  paymentBillImageUrl?: string;
+  paymentBillFileName?: string;
+  paymentBillRefNo?: string;
+  status: 'SENT_TO_ADMIN_PANEL' | 'REVIEWED_BY_ADMIN' | 'APPROVED';
+  notes?: string;
+  createdAt: string;
+}
+

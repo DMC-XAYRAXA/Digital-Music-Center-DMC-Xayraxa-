@@ -21,7 +21,7 @@ import { AuthPortalModal } from './components/common/AuthPortalModal';
 
 function AppContent() {
   const { isAdminMode, isLoggedOut } = useDmc();
-  const [activeTab, setActiveTab] = useState<MainNavTab | 'membership' | 'catalog'>('home');
+  const [activeTab, setActiveTab] = useState<MainNavTab | 'membership' | 'catalog' | 'mymusic'>('home');
   const [deviceFrame, setDeviceFrame] = useState<'mobile' | 'desktop'>('mobile');
   const [showSpecDeck, setShowSpecDeck] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
@@ -71,17 +71,18 @@ function AppContent() {
               <div className="flex-1 overflow-y-auto no-scrollbar">
                 {activeTab === 'home' && <HomeScreen onNavigate={setActiveTab} />}
                 {activeTab === 'academy' && <div className="p-4"><AcademyScreen /></div>}
-                {activeTab === 'musichub' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} /></div>}
+                {activeTab === 'musichub' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} viewMode="HUB" /></div>}
                 {activeTab === 'wallet' && <div className="p-4"><WalletScreen onNavigate={setActiveTab} /></div>}
                 {activeTab === 'network' && <div className="p-4"><NetworkScreen onNavigate={setActiveTab} /></div>}
                 {activeTab === 'aidmc' && <div className="p-4"><AiDmcScreen /></div>}
                 {activeTab === 'membership' && <div className="p-4"><MembershipScreen onNavigate={setActiveTab} /></div>}
-                {activeTab === 'catalog' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} /></div>}
+                {activeTab === 'catalog' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} viewMode="PACKAGE" /></div>}
+                {activeTab === 'mymusic' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} viewMode="MY_MUSIC" /></div>}
               </div>
 
               {/* Bottom Nav docked cleanly */}
               <BottomNavigation 
-                currentTab={activeTab === 'membership' || activeTab === 'catalog' ? 'musichub' : activeTab} 
+                currentTab={activeTab === 'membership' || activeTab === 'catalog' || activeTab === 'mymusic' ? 'musichub' : activeTab} 
                 onSelectTab={setActiveTab} 
                 isInsideFrame={true}
               />
@@ -92,16 +93,17 @@ function AppContent() {
           <div className="pb-24">
             {activeTab === 'home' && <HomeScreen onNavigate={setActiveTab} />}
             {activeTab === 'academy' && <AcademyScreen />}
-            {activeTab === 'musichub' && <CatalogScreen onNavigate={setActiveTab} />}
+            {activeTab === 'musichub' && <CatalogScreen onNavigate={setActiveTab} viewMode="HUB" />}
             {activeTab === 'wallet' && <WalletScreen onNavigate={setActiveTab} />}
             {activeTab === 'network' && <NetworkScreen onNavigate={setActiveTab} />}
             {activeTab === 'aidmc' && <AiDmcScreen />}
             {activeTab === 'membership' && <MembershipScreen onNavigate={setActiveTab} />}
-            {activeTab === 'catalog' && <CatalogScreen onNavigate={setActiveTab} />}
+            {activeTab === 'catalog' && <CatalogScreen onNavigate={setActiveTab} viewMode="PACKAGE" />}
+            {activeTab === 'mymusic' && <CatalogScreen onNavigate={setActiveTab} viewMode="MY_MUSIC" />}
 
             {/* Bottom Nav */}
             <BottomNavigation 
-              currentTab={activeTab === 'membership' || activeTab === 'catalog' ? 'musichub' : activeTab} 
+              currentTab={activeTab === 'membership' || activeTab === 'catalog' || activeTab === 'mymusic' ? 'musichub' : activeTab} 
               onSelectTab={setActiveTab} 
             />
           </div>

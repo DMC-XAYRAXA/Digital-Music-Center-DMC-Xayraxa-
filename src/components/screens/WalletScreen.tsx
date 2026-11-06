@@ -46,18 +46,30 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
     getMemberLedger, 
     requestWithdrawal, 
     verifyWithdrawalOtp, 
+    adminApproveWithdrawalRequest,
+    rejectWithdrawal,
     withdrawals, 
     redeemHeldCreditForQualification,
     language,
     updateMemberBankAccount,
     adminUpdateMember,
     laoBanks,
-    adminAdjustMemberBalance
+    adminAdjustMemberBalance,
+    getCustomerAffiliateCommissionBalance,
+    getCustomerAffiliateTransfers,
+    transferAffiliateCommissionToCustomerWallet,
   } = useDmc();
 
   const t = translations[language];
   const balances = getMemberBalances(currentMember.memberId);
   const ledgerEntries = getMemberLedger(currentMember.memberId);
+  const affiliateCommissionBalance = getCustomerAffiliateCommissionBalance(
+    currentMember.memberId
+  );
+  const affiliateTransfers = getCustomerAffiliateTransfers(currentMember.memberId);
+  const [transferToWalletAmt, setTransferToWalletAmt] = useState<number>(
+    affiliateCommissionBalance || 500000
+  );
 
   const isActive = currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER';
 
@@ -255,6 +267,10 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
       setCreatedWithdrawalId(null);
       setWithdrawAmount('');
       setOtpCode('');
+      setRedemptionNotice(
+        `Withdrawal request ${createdWithdrawalId} for ${formatLak(numAmount)} submitted! Status: Waiting for Administrator Approval before bank transfer.`
+      );
+      setTimeout(() => setRedemptionNotice(null), 6000);
     } else {
       setOtpError('Invalid OTP code. Enter 6 digits (e.g. 123456).');
     }
@@ -339,7 +355,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* 5-BALANCE ACCOUNT CARDS (Strict Rev 2.6 Invariants) */}
+      {/* 5-BALANCE ACCOUNT CARDS (Strict Rev 2.6 Invariants — Same for User Member, User Singer & User Customer) */}
       <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-3.5">
         {/* Account 1: PENDING */}
         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
@@ -1016,44 +1032,84 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
       {/* RECENT WITHDRAWAL REQUESTS */}
       {myWithdrawals.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-amber-400" />
-            <span>Bank Withdrawal Requests</span>
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-amber-400" />
+              <span>Bank Withdrawal Requests (Waiting Administrator Approved)</span>
+            </h3>
+            <span className="text-[11px] font-bold text-amber-300">
+              Every withdrawal request waits for Administrator approval
+            </span>
+          </div>
 
           <div className="space-y-2">
-            {myWithdrawals.map(w => (
-              <div
-                key={w.id}
-                className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs"
-              >
-                <div>
-                  <div className="font-bold text-white flex items-center gap-2">
-                    <span className="font-mono text-amber-300">{w.id}</span>
-                    <span>•</span>
-                    <span>{w.bankName}</span>
-                    <span className="font-mono text-slate-400">({w.accountNumber})</span>
+            {myWithdrawals.map(w => {
+              const isWaitingAdmin =
+                w.status === 'ADMIN_REVIEW' ||
+                w.status === 'APPROVED' ||
+                w.status === 'OTP_PENDING';
+              return (
+                <div
+                  key={w.id}
+                  className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs"
+                >
+                  <div>
+                    <div className="font-bold text-white flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-amber-300">{w.id}</span>
+                      <span>•</span>
+                      <span>{w.bankName}</span>
+                      <span className="font-mono text-slate-400">({w.accountNumber})</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Requested: {new Date(w.requestedAt).toLocaleString()} • Gross: {formatLak(w.amountLak)} • Net: {formatLak(w.netPayoutLak)} (Fee: {formatLak(w.bankFeeLak)})
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Requested: {new Date(w.requestedAt).toLocaleString()} • Net: {formatLak(w.netPayoutLak)} (Fee: {formatLak(w.bankFeeLak)})
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-1 rounded text-[10px] font-bold ${
-                    w.status === 'PAID'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : w.status === 'APPROVED'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                      : w.status === 'ADMIN_REVIEW'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'bg-slate-700 text-slate-300'
-                  }`}>
-                    {w.status}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                      w.status === 'PAID'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : isWaitingAdmin
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                    }`}>
+                      {w.status === 'PAID'
+                        ? '✓ ADMINISTRATOR APPROVED • PAID'
+                        : isWaitingAdmin
+                        ? '⏳ WAITING ADMINISTRATOR APPROVED'
+                        : `✕ ${w.status}`}
+                    </span>
+
+                    {isWaitingAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const res = adminApproveWithdrawalRequest(w.id, 'SUPER-ADMIN-01');
+                            setRedemptionNotice(res.message);
+                            setTimeout(() => setRedemptionNotice(null), 5000);
+                          }}
+                          className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black cursor-pointer"
+                        >
+                          Administrator Approve &amp; Pay
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            rejectWithdrawal(w.id, 'Rejected by Administrator — Refunded to Wallet');
+                            setRedemptionNotice(`Withdrawal ${w.id} rejected by Administrator and refunded to Available Balance.`);
+                            setTimeout(() => setRedemptionNotice(null), 5000);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-[10px] font-bold cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

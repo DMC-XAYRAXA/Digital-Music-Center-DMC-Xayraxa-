@@ -28,7 +28,9 @@ import {
   Building2,
   Camera,
   Upload,
+  Mic,
 } from 'lucide-react';
+import { SingerApplicationDashboardModal } from './SingerApplicationDashboardModal';
 
 interface AuthPortalModalProps {
   isOpen?: boolean;
@@ -60,11 +62,14 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     sendSmsRecoveryOtp,
     resetPasswordWithSmsOtp,
     registerMember,
+    singerProfiles,
+    singerBookings,
     sessionExpiredNotice,
     setSessionExpiredNotice,
   } = useDmc();
 
   const [loginMode, setLoginMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>(initialMode);
+  const [userRoleType, setUserRoleType] = useState<'USER_MEMBER' | 'USER_SINGER' | 'USER_CUSTOMER'>('USER_MEMBER');
   const [identifier, setIdentifier] = useState(currentMember.memberId || 'DMC-LA-00404');
   const [password, setPassword] = useState(currentMember.password || '123456');
   const [showMemberPassword, setShowMemberPassword] = useState(false);
@@ -91,6 +96,10 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   const [regGeneratedOtp, setRegGeneratedOtp] = useState('482910');
   const [regOtpInput, setRegOtpInput] = useState('482910');
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPublicSingerModal, setShowPublicSingerModal] = useState(false);
+  const [publicSingerModalTab, setPublicSingerModalTab] = useState<
+    'APPLY' | 'DASHBOARD' | 'BOOKING_PARTY'
+  >('APPLY');
 
   // Profile Update & Phone SMS Recovery State
   const [recoveryTarget, setRecoveryTarget] = useState<'MEMBER' | 'SUPER_ADMIN'>('MEMBER');
@@ -140,45 +149,166 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     setLoginMode(initialMode);
   }, [initialMode]);
 
+  useEffect(() => {
+    if (currentMember?.memberId) {
+      setIdentifier(currentMember.memberId);
+      setPassword(currentMember.password || '123456');
+    }
+  }, [currentMember?.memberId]);
+
   if (!isOpen && !isLoggedOut) return null;
 
+  // Unified Sign-In for User Member, User Singer, and Customer (both Free User Customer & Active Customer)
   const handleMemberSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    const trimmed = identifier.trim().toUpperCase();
-    const matched = allMembers.find(
-      (m) =>
-        m.memberId.toUpperCase() === trimmed ||
-        m.phone.replace(/\s+/g, '').includes(identifier.trim().replace(/\s+/g, '')) ||
-        m.name.toUpperCase().includes(trimmed)
+    const raw = identifier.trim();
+    const trimmed = raw.toUpperCase();
+    const cleanPhone = raw.replace(/\s+/g, '');
+
+    // 1. Check if signing in as a Singer (by Member ID, Singer Code, Stage Name, Affiliate Code, or Singer Phone)
+    const matchedSingerExplicit = singerProfiles.find(
+      (s) =>
+        (s.memberId && s.memberId.toUpperCase() === trimmed) ||
+        s.singerCode.toUpperCase() === trimmed ||
+        s.stageName.toUpperCase() === trimmed ||
+        s.stageName.toUpperCase().includes(trimmed) ||
+        s.affiliateCode.toUpperCase() === trimmed ||
+        (cleanPhone.length >= 6 && s.phone.replace(/\s+/g, '').includes(cleanPhone))
     );
 
-    if (!matched) {
-      setErrorMsg(`Account "${identifier}" not found. Please select a verified Member ID or register a new account.`);
-      return;
+    // 2. Check if signing in as a Customer who booked a Singer Party Set
+    const matchedCustomerBooking = singerBookings.find(
+      (b) =>
+        (b.customerMemberId && b.customerMemberId.toUpperCase() === trimmed) ||
+        b.bookingCode.toUpperCase() === trimmed ||
+        (b.autoAffiliateCode && b.autoAffiliateCode.toUpperCase() === trimmed) ||
+        b.customerName.toUpperCase() === trimmed ||
+        b.customerName.toUpperCase().includes(trimmed) ||
+        (cleanPhone.length >= 6 && b.customerPhone.replace(/\s+/g, '').includes(cleanPhone))
+    );
+
+    // 3. Check Member list (supports both FREE_MEMBER and ACTIVE_LIFETIME_MEMBER)
+    let matchedMember =
+      allMembers.find(
+        (m) =>
+          m.memberId.toUpperCase() === trimmed ||
+          (cleanPhone.length >= 6 && m.phone.replace(/\s+/g, '').includes(cleanPhone)) ||
+          m.name.toUpperCase().includes(trimmed) ||
+          (m.email && m.email.toUpperCase() === trimmed)
+      ) ||
+      (matchedSingerExplicit?.memberId
+        ? allMembers.find((m) => m.memberId === matchedSingerExplicit.memberId)
+        : undefined) ||
+      (matchedCustomerBooking?.customerMemberId
+        ? allMembers.find((m) => m.memberId === matchedCustomerBooking.customerMemberId)
+        : undefined);
+
+    // If signing in under 3/ User Customer with a new Free Customer ID or phone not yet in allMembers, auto-create a Free User Customer account so any Free or Active Customer can login
+    if (!matchedMember && !matchedSingerExplicit && !matchedCustomerBooking && userRoleType === 'USER_CUSTOMER' && raw.length >= 3) {
+      const regRes = registerMember({
+        name: raw.startsWith('DMC-') ? `Customer ${raw}` : raw,
+        phone: cleanPhone.length >= 6 ? raw : '+856 20 5588 9900',
+        password: password.trim() || '123456',
+        sponsorCode: 'DMC-LA-00404',
+        termsConsent: true,
+        autoRedeemConsent: true,
+      });
+      if (regRes.success && regRes.member) {
+        matchedMember = regRes.member;
+      }
     }
 
-    if (
-      matched.password &&
-      password.trim() !== '' &&
-      password.trim() !== matched.password &&
-      password.trim() !== '123456'
-    ) {
+    if (!matchedMember && !matchedSingerExplicit && !matchedCustomerBooking) {
       setErrorMsg(
-        `Invalid password for ${matched.name}. Please verify your password or click "Forgot Password?" below.`
+        `Account "${identifier}" not found. Enter your Member ID (e.g. DMC-LA-00404), Singer Code, or Customer Phone (+856).`
       );
       return;
     }
 
-    setCurrentMemberId(matched.memberId);
+    if (!password.trim()) {
+      setErrorMsg('Please enter your Password / PIN.');
+      return;
+    }
+
+    if (
+      matchedMember?.password &&
+      password.trim() !== matchedMember.password &&
+      password.trim() !== '123456'
+    ) {
+      setErrorMsg(
+        `Invalid password for ${matchedMember.name} (${matchedMember.memberId}).`
+      );
+      return;
+    }
+
+    const resolvedMemberId =
+      matchedMember?.memberId ||
+      matchedSingerExplicit?.memberId ||
+      matchedCustomerBooking?.customerMemberId ||
+      currentMember.memberId;
+
+    const resolvedSinger =
+      matchedSingerExplicit ||
+      singerProfiles.find((s) => s.memberId === resolvedMemberId) ||
+      singerProfiles[0];
+
+    const isExplicitSingerCodeInput = singerProfiles.some(
+      (s) => s.singerCode.toUpperCase() === trimmed
+    );
+    const effectiveRole =
+      userRoleType === 'USER_SINGER' || isExplicitSingerCodeInput
+        ? 'USER_SINGER'
+        : userRoleType;
+
+    try {
+      if (effectiveRole === 'USER_SINGER') {
+        sessionStorage.setItem('dmc_active_home_role', 'SINGER');
+        sessionStorage.setItem('dmc_post_login_dashboard', 'SINGER');
+        if (resolvedSinger) {
+          sessionStorage.setItem('dmc_post_login_singer_id', resolvedSinger.id);
+        }
+      } else if (effectiveRole === 'USER_CUSTOMER') {
+        sessionStorage.setItem('dmc_active_home_role', 'CUSTOMER');
+        sessionStorage.setItem('dmc_post_login_dashboard', 'CUSTOMER');
+      } else {
+        sessionStorage.setItem('dmc_active_home_role', 'MEMBER');
+        sessionStorage.setItem('dmc_post_login_dashboard', 'MEMBER');
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    setCurrentMemberId(resolvedMemberId);
     setIsAdminMode(false);
     setIsAdminAuthenticated(false);
     setIsLoggedOut(false);
-    setSuccessMsg(`Welcome, ${matched.name} (${matched.memberId}). Signing in...`);
+
+    const customerTierLabel =
+      matchedMember?.membershipState === 'FREE_MEMBER'
+        ? 'Free User Customer'
+        : 'Active Customer';
+
+    if (effectiveRole === 'USER_SINGER' && resolvedSinger) {
+      setSuccessMsg(
+        `Welcome User Singer ${resolvedSinger.stageName} (Member ID: ${resolvedMemberId} • Singer ID: ${resolvedSinger.singerCode}). Opening Singer & Member Dashboard...`
+      );
+    } else if (effectiveRole === 'USER_CUSTOMER') {
+      setSuccessMsg(
+        `Welcome ${customerTierLabel} ${
+          matchedCustomerBooking?.customerName || matchedMember?.name || resolvedMemberId
+        } (${resolvedMemberId}). Opening Customer Dashboard...`
+      );
+    } else {
+      setSuccessMsg(
+        `Welcome User Member ${matchedMember?.name || resolvedMemberId} (${resolvedMemberId}). Opening Member Home App...`
+      );
+    }
+
     setTimeout(() => {
       setSuccessMsg('');
       if (onClose) onClose();
-    }, 500);
+    }, 350);
   };
 
   const handleQuickMemberSelect = (memberId: string) => {
@@ -705,34 +835,104 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               TAB 1: CLASSIC MEMBER USER LOGIN FORM
              ========================================================= */}
           {loginMode === 'MEMBER' && (
-            <form onSubmit={handleMemberSignIn} className="space-y-4">
-              {/* Username / Member ID Field */}
+            <form onSubmit={handleMemberSignIn} className="space-y-3.5">
+              {/* Quick 3-Role Selector Bar: 1/ User Member • 2/ User Singer • 3/ User Customer */}
+              <div className="p-1.5 rounded-xl bg-slate-200/80 border border-slate-300 grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserRoleType('USER_MEMBER');
+                    setErrorMsg('');
+                    setIdentifier('DMC-LA-00404');
+                    setPassword('123456');
+                  }}
+                  className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                    userRoleType === 'USER_MEMBER'
+                      ? 'bg-[#6B0816] text-[#F9E498] shadow'
+                      : 'bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  1/ User Member
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserRoleType('USER_SINGER');
+                    setErrorMsg('');
+                    const firstSinger = singerProfiles[0];
+                    setIdentifier(
+                      firstSinger?.memberId || firstSinger?.singerCode || 'DMC-LA-00421'
+                    );
+                    setPassword('123456');
+                  }}
+                  className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                    userRoleType === 'USER_SINGER'
+                      ? 'bg-amber-500 text-slate-950 shadow ring-2 ring-[#6B0816]'
+                      : 'bg-white text-slate-700 hover:bg-amber-50'
+                  }`}
+                >
+                  2/ User Singer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserRoleType('USER_CUSTOMER');
+                    setErrorMsg('');
+                    const latestBooking = singerBookings[0];
+                    setIdentifier(latestBooking?.customerMemberId || 'DMC-LA-00303');
+                    setPassword('123456');
+                  }}
+                  className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                    userRoleType === 'USER_CUSTOMER'
+                      ? 'bg-emerald-700 text-white shadow'
+                      : 'bg-white text-slate-700 hover:bg-emerald-50'
+                  }`}
+                >
+                  3/ User Customer (Free &amp; Active)
+                </button>
+              </div>
+
+              {/* Member ID or Phone (+856) Field */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1.5">
-                  Username / Member ID or Phone (+856)
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                    {userRoleType === 'USER_SINGER'
+                      ? 'Singer Member ID or Phone (+856)'
+                      : userRoleType === 'USER_CUSTOMER'
+                      ? 'Customer Member ID or Phone (+856)'
+                      : 'Member ID or Phone (+856)'}
+                  </label>
+                  {userRoleType === 'USER_CUSTOMER' && (
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black shrink-0">
+                      Free User Customer &amp; Active Can Login ✓
+                    </span>
+                  )}
+                  {userRoleType === 'USER_SINGER' && (
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black shrink-0">
+                      Singer Member ✓
+                    </span>
+                  )}
+                </div>
+
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="e.g., DMC-LA-00404 or +856 20..."
+                    placeholder="Type Member ID (e.g., DMC-LA-00404) or Phone (+856)"
                     required
-                    className="w-full bg-white border border-slate-400 rounded pl-9 pr-3 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6B0816] focus:ring-1 focus:ring-[#6B0816] shadow-inner"
+                    className="w-full bg-white border border-slate-400 rounded pl-9 pr-3 py-2.5 text-sm font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6B0816] focus:ring-1 focus:ring-[#6B0816] shadow-inner"
                   />
                 </div>
               </div>
 
               {/* Password Field */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
                     Password / PIN
                   </label>
-                  <span className="text-[11px] font-mono text-slate-600">
-                    Default: <strong>123456</strong>
-                  </span>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -742,7 +942,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
-                    className="w-full bg-white border border-slate-400 rounded pl-9 pr-16 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6B0816] focus:ring-1 focus:ring-[#6B0816] shadow-inner"
+                    className="w-full bg-white border border-slate-400 rounded pl-9 pr-16 py-2.5 text-sm font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6B0816] focus:ring-1 focus:ring-[#6B0816] shadow-inner"
                   />
                   <button
                     type="button"
@@ -790,35 +990,68 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                 className="w-full py-3 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] hover:from-[#8F0C20] hover:to-[#630614] text-[#F9E498] font-bold text-sm uppercase tracking-wider border border-[#C5A059] shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Sign In as Member</span>
+                <span>
+                  {userRoleType === 'USER_SINGER'
+                    ? `Sign In User Singer (${identifier || 'Member ID'})`
+                    : userRoleType === 'USER_CUSTOMER'
+                    ? `Sign In User Customer (${identifier || 'Member ID'})`
+                    : `Sign In User Member (${identifier || 'Member ID'})`}
+                </span>
               </button>
 
               {/* Classic Divider & Secondary Links */}
-              <div className="pt-3 border-t border-[#D5CFC0] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+              <div className="pt-3 border-t border-[#D5CFC0] space-y-2.5 text-xs">
+                <div className="flex items-center justify-start">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginMode('REGISTER');
+                      setErrorMsg('');
+                    }}
+                    className="font-bold text-[#6B0816] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Create New Account (Register)</span>
+                  </button>
+                </div>
+
+                {/* Single Full-Width Register New Singer (0 LAK) Button matching screenshot */}
                 <button
                   type="button"
                   onClick={() => {
-                    setLoginMode('REGISTER');
-                    setErrorMsg('');
+                    setPublicSingerModalTab('APPLY');
+                    setShowPublicSingerModal(true);
                   }}
-                  className="font-bold text-[#6B0816] hover:underline flex items-center gap-1 cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded bg-gradient-to-r from-amber-500 via-orange-500 to-[#b91c1c] hover:from-amber-400 hover:to-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Create New Account (Register)</span>
+                  <Mic className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                  <span>Register New Singer (0 LAK)</span>
                 </button>
 
+                {/* General Member Booking Singer & Become Automatic Affiliate Card */}
                 <button
                   type="button"
                   onClick={() => {
-                    setRecoveryTarget('MEMBER');
-                    setRecoveryMethod('DIRECT_UPDATE');
-                    setLoginMode('RECOVERY');
-                    setErrorMsg('');
+                    setPublicSingerModalTab('BOOKING_PARTY');
+                    setShowPublicSingerModal(true);
                   }}
-                  className="font-semibold text-slate-700 hover:text-slate-900 hover:underline flex items-center gap-1 cursor-pointer"
+                  className="w-full mt-2 p-3 rounded-xl bg-gradient-to-r from-[#5a060f] via-[#9e1122] to-[#3b040a] hover:from-[#730814] hover:via-[#b81428] hover:to-[#4f050d] text-left border-2 border-amber-400/80 shadow-md transition-all cursor-pointer group"
                 >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Update Profile / Password</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider">
+                      BOOKING FORM • CALENDAR PARTY SET
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-400/20 border border-emerald-400/60 text-emerald-300 text-[9px] font-black uppercase">
+                      Auto-Become Affiliate
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1.5 text-white font-black text-xs sm:text-sm group-hover:text-amber-200 transition-colors">
+                    <Mic className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Booking singer Music Cain party set package</span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-amber-200/95 font-semibold leading-snug">
+                    General Member booking singer &amp; become Automatic Affiliate • Select Singer • Calendar Party Date • 10% Cut to Loan Wallet
+                  </p>
                 </button>
               </div>
             </form>
@@ -947,21 +1180,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               </div>
 
               {/* Secondary Links */}
-              <div className="pt-3 border-t border-[#D5CFC0] flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecoveryTarget('SUPER_ADMIN');
-                    setRecoveryMethod('DIRECT_UPDATE');
-                    setLoginMode('RECOVERY');
-                    setErrorMsg('');
-                  }}
-                  className="font-bold text-[#065F46] hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Update Admin Profile & PIN</span>
-                </button>
-
+              <div className="pt-3 border-t border-[#D5CFC0] flex items-center justify-end text-xs">
                 <button
                   type="button"
                   onClick={() => {
@@ -981,6 +1200,25 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
              ========================================================= */}
           {loginMode === 'REGISTER' && (
             <div className="space-y-4">
+              {/* General People Singer Registration Banner */}
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-400 flex items-center justify-between gap-2">
+                <div className="text-[11px] leading-tight">
+                  <div className="font-bold text-[#6B0816] flex items-center gap-1">
+                    <Mic className="w-3.5 h-3.5 text-[#df1c2d]" />
+                    <span>General People: Register as Singer</span>
+                  </div>
+                  <div className="text-[10px] text-slate-600">
+                    Get Singer Wallet, Affiliate Product Links & Bank QR Withdrawals
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPublicSingerModal(true)}
+                  className="px-2.5 py-1.5 rounded bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-[10px] shrink-0 cursor-pointer shadow-xs"
+                >
+                  Register Singer →
+                </button>
+              </div>
               {!regOtpStep ? (
                 <form
                   onSubmit={(e) => {
@@ -1181,31 +1419,33 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
              ========================================================= */}
           {loginMode === 'RECOVERY' && (
             <form onSubmit={handleCompleteSmsRecoveryOrUpdate} className="space-y-3.5">
-              {/* Target Selector: Member vs Admin */}
-              <div className="grid grid-cols-2 gap-2 p-1 bg-[#E8E2D5] rounded border border-[#C8BFA8]">
-                <button
-                  type="button"
-                  onClick={() => setRecoveryTarget('MEMBER')}
-                  className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
-                    recoveryTarget === 'MEMBER'
-                      ? 'bg-[#6B0816] text-white'
-                      : 'text-slate-700 hover:bg-white/50'
-                  }`}
-                >
-                  Member User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecoveryTarget('SUPER_ADMIN')}
-                  className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
-                    recoveryTarget === 'SUPER_ADMIN'
-                      ? 'bg-[#065F46] text-white'
-                      : 'text-slate-700 hover:bg-white/50'
-                  }`}
-                >
-                  Administrator
-                </button>
-              </div>
+              {/* Target Selector: Member vs Admin (Admin option only shown when Admin is authenticated or recovering Admin password) */}
+              {(isAdminAuthenticated || isAdminMode) && (
+                <div className="grid grid-cols-2 gap-2 p-1 bg-[#E8E2D5] rounded border border-[#C8BFA8]">
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryTarget('MEMBER')}
+                    className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
+                      recoveryTarget === 'MEMBER'
+                        ? 'bg-[#6B0816] text-white'
+                        : 'text-slate-700 hover:bg-white/50'
+                    }`}
+                  >
+                    Member User
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryTarget('SUPER_ADMIN')}
+                    className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
+                      recoveryTarget === 'SUPER_ADMIN'
+                        ? 'bg-[#065F46] text-white'
+                        : 'text-slate-700 hover:bg-white/50'
+                    }`}
+                  >
+                    Administrator
+                  </button>
+                </div>
+              )}
 
               {recoveryTarget === 'MEMBER' && (
                 <div className="space-y-3">
@@ -1446,6 +1686,14 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
             <span className="text-[#0088cc]/70">|</span>
             <button
               type="button"
+              onClick={() => setShowPublicSingerModal(true)}
+              className="hover:underline font-bold text-[#df1c2d] cursor-pointer"
+            >
+              Register Singer
+            </button>
+            <span className="text-[#0088cc]/70">|</span>
+            <button
+              type="button"
               onClick={() => setShowTermsModal(true)}
               className="hover:underline cursor-pointer"
             >
@@ -1467,6 +1715,16 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
           setRegTermsConsent(true);
           setErrorMsg('');
         }}
+      />
+
+      {/* General People Singer Registration & Profile Dashboard Modal */}
+      <SingerApplicationDashboardModal
+        isOpen={showPublicSingerModal}
+        onClose={() => {
+          setShowPublicSingerModal(false);
+          if (onClose) onClose();
+        }}
+        initialTab={publicSingerModalTab}
       />
     </div>
   );

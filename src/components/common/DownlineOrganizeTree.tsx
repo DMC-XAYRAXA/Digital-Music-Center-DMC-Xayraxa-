@@ -235,7 +235,10 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     e.preventDefault();
     if (!editName.trim()) return;
 
-    const cleanNewId = editMemberId.trim() || editingOriginalId;
+    const originalMember = allMembers.find((m) => m.memberId === editingOriginalId);
+    const cleanNewId = isAdmin
+      ? editMemberId.trim() || editingOriginalId
+      : editingOriginalId;
     const currentBal = getMemberBalances(editingOriginalId);
 
     adminUpdateMember(editingOriginalId, {
@@ -244,9 +247,20 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
       phone: editPhone.trim(),
       email: editEmail.trim() || undefined,
       avatarUrl: editAvatarUrl.trim() || PRESET_PORTRAITS[0],
-      membershipState: editMembershipState,
-      sponsorId: editSponsorId ? editSponsorId : null,
-      kycStatus: editKycStatus,
+      membershipState: isAdmin
+        ? editMembershipState
+        : originalMember?.membershipState || editMembershipState,
+      // CRITICAL: Only Administrator can change Direct Upline / Downline Sponsor
+      sponsorId: isAdmin
+        ? editSponsorId
+          ? editSponsorId
+          : null
+        : originalMember
+        ? originalMember.sponsorId
+        : editSponsorId || null,
+      kycStatus: isAdmin
+        ? editKycStatus
+        : originalMember?.kycStatus || editKycStatus,
       password: editPassword.trim() || '123456',
       preferredCarrierId: editCarrierId,
       bankAccount: {
@@ -263,34 +277,36 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
       },
     });
 
-    // Apply balance adjustments if changed
-    const heldDelta = Math.round(editHeldLak) - currentBal.heldForQualification;
-    if (heldDelta !== 0) {
-      adminAdjustMemberBalance(
-        cleanNewId,
-        'HELD_FOR_QUALIFICATION',
-        heldDelta,
-        'Admin Organize Tree Held Balance Update'
-      );
-    }
+    // Only Administrator can adjust balances or upgrade staff status
+    if (isAdmin) {
+      const heldDelta = Math.round(editHeldLak) - currentBal.heldForQualification;
+      if (heldDelta !== 0) {
+        adminAdjustMemberBalance(
+          cleanNewId,
+          'HELD_FOR_QUALIFICATION',
+          heldDelta,
+          'Admin Organize Tree Held Balance Update'
+        );
+      }
 
-    const availDelta = Math.round(editAvailableLak) - currentBal.available;
-    if (availDelta !== 0) {
-      adminAdjustMemberBalance(
-        cleanNewId,
-        'AVAILABLE',
-        availDelta,
-        'Admin Organize Tree Available Balance Update'
-      );
-    }
+      const availDelta = Math.round(editAvailableLak) - currentBal.available;
+      if (availDelta !== 0) {
+        adminAdjustMemberBalance(
+          cleanNewId,
+          'AVAILABLE',
+          availDelta,
+          'Admin Organize Tree Available Balance Update'
+        );
+      }
 
-    if (editIsStaff) {
-      adminUpgradeMemberToStaff(cleanNewId, editStaffPosition, {
-        staffCode: editStaffCode.trim() || `DMC-STF-${cleanNewId}`,
-        branch: editStaffBranch.trim() || 'Dongdok Campus Studio Hub, Vientiane',
-      });
-    } else {
-      adminDowngradeStaffToMember(cleanNewId);
+      if (editIsStaff) {
+        adminUpgradeMemberToStaff(cleanNewId, editStaffPosition, {
+          staffCode: editStaffCode.trim() || `DMC-STF-${cleanNewId}`,
+          branch: editStaffBranch.trim() || 'Dongdok Campus Studio Hub, Vientiane',
+        });
+      } else {
+        adminDowngradeStaffToMember(cleanNewId);
+      }
     }
 
     if (focusedMemberId === editingOriginalId && cleanNewId !== editingOriginalId) {
@@ -299,9 +315,11 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     setSelectedNodeId(cleanNewId);
     setShowEditModal(false);
     showToast(
-      editIsStaff
+      isAdmin && editIsStaff
         ? `Updated member ${editName.trim()} (${cleanNewId}) & Upgraded to ${editStaffPosition} Staff!`
-        : `Updated member ${editName.trim()} (${cleanNewId}) in Organize Tree!`
+        : isAdmin
+        ? `Administrator updated member & Upline/Downline tree for ${editName.trim()} (${cleanNewId})!`
+        : `Updated profile for ${editName.trim()} (${cleanNewId})! (Direct Upline/Downline Sponsor locked to Administrator)`
     );
   };
 
@@ -400,37 +418,29 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {/* 1-Click Admin Edit Mode Toggle */}
-            <button
-              type="button"
-              onClick={() => {
-                const next = !isAdminAuthenticated;
-                setIsAdminAuthenticated(next);
-                showToast(
-                  next
-                    ? 'Administrator Edit Mode Enabled: Click any member node in the tree to Update, Edit, Upload Photo, or Delete!'
-                    : 'Switched to Standard Member Organize View.'
-                );
-              }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition-all shadow ${
-                isAdmin
-                  ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
-              }`}
-              title="Toggle Administrator Edit / Update / Delete / Photo Mode"
-            >
-              {isAdmin ? (
-                <>
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>Admin Edit: ON</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Unlock Admin Edit</span>
-                </>
-              )}
-            </button>
+            {/* Admin Upline/Downline Permission Status Badge */}
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdminAuthenticated(false);
+                  showToast('Switched to Standard Member Profile Edit View (Upline/Downline Locked).');
+                }}
+                className="px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition-all shadow bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+                title="Administrator Mode Active — Click to lock back to standard User mode"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>Admin Upline/Downline Edit: ON</span>
+              </button>
+            ) : (
+              <div
+                className="px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold flex items-center gap-1.5 bg-slate-800/90 text-amber-300 border border-amber-500/40"
+                title="Only Administrator can change Direct Upline or Downline Sponsor"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Upline/Downline: Admin Only</span>
+              </div>
+            )}
 
             {focusedMemberId !== currentMember.memberId && (
               <button
@@ -445,91 +455,6 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                 <span>My Root ({currentMember.memberId})</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                const rows: (string | number)[][] = [];
-                const visited = new Set<string>();
-                const buildTree = (memberId: string, depth: number) => {
-                  if (visited.has(memberId)) return;
-                  const m = allMembers.find((x) => x.memberId === memberId);
-                  if (!m) return;
-                  visited.add(memberId);
-                  const bal = getMemberBalances(m.memberId);
-                  const dl = getDownlines(m.memberId);
-                  const chain = getSponsorChain(m.memberId);
-                  const levelText =
-                    depth === 0
-                      ? 'ROOT (Organize Head)'
-                      : `LEVEL ${depth} (L${depth})`;
-                  const prefix =
-                    depth === 0 ? '👑 ROOT: ' : `${'   '.repeat(depth - 1)}└── L${depth}: `;
-                  rows.push([
-                    rows.length + 1,
-                    levelText,
-                    `${prefix}${m.name} (${m.memberId})`,
-                    m.memberId,
-                    m.name,
-                    m.phone,
-                    m.membershipState === 'ACTIVE_LIFETIME_MEMBER'
-                      ? 'ACTIVE LIFETIME'
-                      : 'FREE MEMBER',
-                    chain.l1 ? `${chain.l1.name} (${chain.l1.memberId})` : 'ROOT HEAD',
-                    chain.l2 ? `${chain.l2.name} (${chain.l2.memberId})` : '-',
-                    chain.l3 ? `${chain.l3.name} (${chain.l3.memberId})` : '-',
-                    dl.l1.length,
-                    dl.l2.length,
-                    dl.l3.length,
-                    dl.l1.length + dl.l2.length + dl.l3.length,
-                    bal.heldForQualification,
-                    bal.available,
-                    m.kycStatus,
-                  ]);
-                  allMembers
-                    .filter((c) => c.sponsorId === m.memberId)
-                    .forEach((c) => buildTree(c.memberId, depth + 1));
-                };
-                buildTree(rootMember.memberId, 0);
-                allMembers.forEach((m) => {
-                  if (!visited.has(m.memberId)) buildTree(m.memberId, 0);
-                });
-                const sheet: ExcelSheetData = {
-                  sheetName: '7_Downline_Organize_Tree',
-                  title: '7/ REPORT DOWN LINE ORGANIZE TREE FILE — DMC XAYRAXA',
-                  subtitle: `Focused Root: ${rootMember.name} (${rootMember.memberId}) • Total Members: ${rows.length}`,
-                  headers: [
-                    'No.',
-                    'Hierarchy Level',
-                    'Visual Organize Tree Path',
-                    'Member ID',
-                    'Full Name',
-                    'Phone (+856)',
-                    'Status',
-                    'Direct Sponsor (L1)',
-                    'L2 Upline',
-                    'L3 Upline',
-                    'L1 Count',
-                    'L2 Count',
-                    'L3 Count',
-                    'Total 3-Level Team',
-                    'Held Qualification (LAK)',
-                    'Available Balance (LAK)',
-                    'KYC Status',
-                  ],
-                  rows,
-                };
-                downloadExcelWorkbook('7_DMC_Report_Downline_Organize_Tree_File.xls', [sheet]);
-                showToast(
-                  'Downloaded Excel File: 7_DMC_Report_Downline_Organize_Tree_File.xls!'
-                );
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1 shadow cursor-pointer"
-              title="Download 7/ Report Down line Organize Tree Excel File (.xls)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>7/ Organize Excel (.xls)</span>
-            </button>
 
             <button
               type="button"
@@ -1135,16 +1060,29 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
               <div className="flex items-center gap-2.5">
                 <DmcOfficialLogo size={36} rounded="xl" withGoldRing={true} />
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="text-sm sm:text-base font-black text-white">
-                      Organize Member Control (Update, Edit, Photo & Delete)
+                      {isAdmin
+                        ? 'Organize Member Control (Update, Edit, Photo & Delete)'
+                        : 'Update Member Profile & Photo'}
                     </h4>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                      ADMIN CRUD
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
+                        isAdmin
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      }`}
+                    >
+                      {isAdmin ? 'ADMIN CRUD (UPLINE/DOWNLINE UNLOCKED)' : 'USER PROFILE UPDATE (UPLINE/DOWNLINE LOCKED)'}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Editing Node: <strong className="text-amber-300">{editName}</strong> ({editingOriginalId})
+                    Editing Profile: <strong className="text-amber-300">{editName}</strong> ({editingOriginalId})
+                    {!isAdmin && (
+                      <span className="ml-2 text-rose-300 font-bold">
+                        • Direct Upline & Downline Sponsor: Administrator Only
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -1250,16 +1188,26 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                      Member ID Code *
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                      <span>Member ID Code *</span>
+                      {!isAdmin && (
+                        <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5" /> Admin Only
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
                       required
+                      disabled={!isAdmin}
                       value={editMemberId}
                       onChange={(e) => setEditMemberId(e.target.value)}
                       placeholder="e.g. DMC-LA-00303"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none ${
+                        isAdmin
+                          ? 'bg-slate-900 border-slate-700 text-amber-300 focus:border-amber-400'
+                          : 'bg-slate-900/50 border-slate-800 text-slate-400 cursor-not-allowed'
+                      }`}
                     />
                   </div>
 
@@ -1290,22 +1238,32 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                         type="email"
                         value={editEmail}
                         onChange={(e) => setEditEmail(e.target.value)}
-                        placeholder="member@dmcxayraxa.la"
+                        placeholder="member@dmcxayraxa.music"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                      Membership Status (ACTIVE / FREE)
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                      <span>Membership Status (ACTIVE / FREE)</span>
+                      {!isAdmin && (
+                        <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5" /> Admin Only
+                        </span>
+                      )}
                     </label>
                     <select
+                      disabled={!isAdmin}
                       value={editMembershipState}
                       onChange={(e) =>
                         setEditMembershipState(e.target.value as Member['membershipState'])
                       }
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-300 focus:outline-none focus:border-amber-400"
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-extrabold focus:outline-none ${
+                        isAdmin
+                          ? 'bg-slate-900 border-slate-700 text-emerald-300 focus:border-amber-400'
+                          : 'bg-slate-900/50 border-slate-800 text-emerald-300/70 cursor-not-allowed'
+                      }`}
                     >
                       <option value="ACTIVE_LIFETIME_MEMBER">
                         ACTIVE LIFETIME MEMBER (1.6M Qualified)
@@ -1317,35 +1275,148 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                      Direct Upline Sponsor (L1 Parent in Tree)
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between gap-1">
+                      <span>Direct Upline Sponsor (L1 Parent in Tree)</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-1 ${
+                          isAdmin
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                        }`}
+                      >
+                        {isAdmin ? (
+                          <>
+                            <Unlock className="w-2.5 h-2.5" />
+                            <span>ADMIN EDITABLE</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>ADMIN ONLY</span>
+                          </>
+                        )}
+                      </span>
                     </label>
-                    <select
-                      value={editSponsorId}
-                      onChange={(e) => setEditSponsorId(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-purple-300 focus:outline-none focus:border-amber-400"
-                    >
-                      <option value="">ROOT (Top Head — No Upline Sponsor)</option>
-                      {allMembers
-                        .filter((m) => m.memberId !== editingOriginalId)
-                        .map((m) => (
-                          <option key={m.memberId} value={m.memberId}>
-                            {m.name} ({m.memberId})
-                          </option>
-                        ))}
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        value={editSponsorId}
+                        onChange={(e) => setEditSponsorId(e.target.value)}
+                        className="w-full bg-slate-900 border-2 border-amber-400/80 rounded-xl px-3 py-2 text-xs font-bold text-purple-200 focus:outline-none focus:border-amber-400"
+                      >
+                        <option value="">ROOT (Top Head — No Upline Sponsor)</option>
+                        {allMembers
+                          .filter((m) => m.memberId !== editingOriginalId)
+                          .map((m) => (
+                            <option key={m.memberId} value={m.memberId}>
+                              {m.name} ({m.memberId})
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <div className="w-full bg-slate-900/60 border border-rose-500/40 rounded-xl px-3 py-2 text-xs font-bold text-slate-300 flex items-center justify-between gap-2 cursor-not-allowed select-none">
+                        <span className="truncate">
+                          {editSponsorId
+                            ? (() => {
+                                const sp = allMembers.find((m) => m.memberId === editSponsorId);
+                                return sp ? `${sp.name} (${sp.memberId})` : editSponsorId;
+                              })()
+                            : 'ROOT (Top Head — No Upline Sponsor)'}
+                        </span>
+                        <span className="text-[9px] font-black text-rose-300 bg-rose-950/80 border border-rose-500/40 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Locked</span>
+                        </span>
+                      </div>
+                    )}
+                    {!isAdmin && (
+                      <p className="text-[9px] text-rose-300/90 font-semibold mt-1">
+                        Only Administrator can change Direct Upline / Downline Sponsor.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Direct Downline (L1 Children) Control — Locked for Users, Editable for Administrator */}
+                  <div className="sm:col-span-2 p-2.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-slate-300 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Direct Downline Members (L1 Children under {editingOriginalId})</span>
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-1 ${
+                          isAdmin
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                        }`}
+                      >
+                        {isAdmin ? (
+                          <>
+                            <Unlock className="w-2.5 h-2.5" />
+                            <span>ADMIN CAN CHANGE DOWNLINE</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>LOCKED — ONLY ADMINISTRATOR CAN CHANGE</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    {(() => {
+                      const directL1 = allMembers.filter((m) => m.sponsorId === editingOriginalId);
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {directL1.length > 0 ? (
+                            directL1.map((dl) => (
+                              <span
+                                key={dl.memberId}
+                                className="px-2 py-1 rounded-lg bg-purple-950/60 border border-purple-500/30 text-[10px] font-bold text-purple-200 flex items-center gap-1.5"
+                              >
+                                <span>
+                                  {dl.name} ({dl.memberId})
+                                </span>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openMemberEditModal(dl, 0)}
+                                    className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[9px] font-black cursor-pointer"
+                                    title="Admin: Change this Downline Member's Sponsor"
+                                  >
+                                    Change Sponsor
+                                  </button>
+                                )}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-slate-500 italic">
+                              No direct L1 downline members under this node yet.
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                      KYC Verification Status
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                      <span>KYC Verification Status</span>
+                      {!isAdmin && (
+                        <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5" /> Admin Only
+                        </span>
+                      )}
                     </label>
                     <select
+                      disabled={!isAdmin}
                       value={editKycStatus}
                       onChange={(e) =>
                         setEditKycStatus(e.target.value as Member['kycStatus'])
                       }
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${
+                        isAdmin
+                          ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400'
+                          : 'bg-slate-900/50 border-slate-800 text-slate-400 cursor-not-allowed'
+                      }`}
                     >
                       <option value="VERIFIED">VERIFIED</option>
                       <option value="PENDING">PENDING</option>
@@ -1375,9 +1446,16 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Wallet Balances */}
                 <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2.5">
-                  <div className="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Wallet className="w-3.5 h-3.5" />
-                    <span>3. Member Balances (LAK)</span>
+                  <div className="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center justify-between gap-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>3. Member Balances (LAK)</span>
+                    </span>
+                    {!isAdmin && (
+                      <span className="text-[9px] text-amber-400 flex items-center gap-0.5 font-bold">
+                        <Lock className="w-2.5 h-2.5" /> Admin Only
+                      </span>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 mb-1">
@@ -1386,9 +1464,14 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                     <input
                       type="number"
                       step={50000}
+                      disabled={!isAdmin}
                       value={editHeldLak}
                       onChange={(e) => setEditHeldLak(Number(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                      className={`w-full border rounded-xl px-3 py-1.5 text-xs font-mono font-bold focus:outline-none ${
+                        isAdmin
+                          ? 'bg-slate-900 border-slate-700 text-amber-300 focus:border-amber-400'
+                          : 'bg-slate-900/50 border-slate-800 text-amber-300/70 cursor-not-allowed'
+                      }`}
                     />
                   </div>
                   <div>
@@ -1398,9 +1481,14 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                     <input
                       type="number"
                       step={50000}
+                      disabled={!isAdmin}
                       value={editAvailableLak}
                       onChange={(e) => setEditAvailableLak(Number(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-emerald-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                      className={`w-full border rounded-xl px-3 py-1.5 text-xs font-mono font-bold focus:outline-none ${
+                        isAdmin
+                          ? 'bg-slate-900 border-slate-700 text-emerald-300 focus:border-amber-400'
+                          : 'bg-slate-900/50 border-slate-800 text-emerald-300/70 cursor-not-allowed'
+                      }`}
                     />
                   </div>
                 </div>
@@ -1475,122 +1563,132 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                 </div>
               </div>
 
-              {/* 5. ADMINISTRATOR UPGRADE MEMBER TO BECOME STAFF */}
-              <div className="p-3.5 rounded-2xl bg-sky-950/40 border-2 border-sky-500/40 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[11px] font-black text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-sky-400" />
-                    <span>5. Administrator: Upgrade Member to Become Official Staff</span>
+              {/* 5. ADMINISTRATOR UPGRADE MEMBER TO BECOME STAFF (ADMIN ONLY) */}
+              {isAdmin && (
+                <div className="p-3.5 rounded-2xl bg-sky-950/40 border-2 border-sky-500/40 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-black text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-sky-400" />
+                      <span>5. Administrator: Upgrade Member to Become Official Staff</span>
+                    </div>
+                    <label className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-900 border border-sky-500/40 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editIsStaff}
+                        onChange={(e) => setEditIsStaff(e.target.checked)}
+                        className="rounded border-slate-600 text-sky-500 focus:ring-sky-500"
+                      />
+                      <span className="text-xs font-black text-white">
+                        {editIsStaff ? 'Active Official Staff Member' : 'Upgrade to Staff'}
+                      </span>
+                    </label>
                   </div>
-                  <label className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-900 border border-sky-500/40 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editIsStaff}
-                      onChange={(e) => setEditIsStaff(e.target.checked)}
-                      className="rounded border-slate-600 text-sky-500 focus:ring-sky-500"
-                    />
-                    <span className="text-xs font-black text-white">
-                      {editIsStaff ? 'Active Official Staff Member' : 'Upgrade to Staff'}
-                    </span>
-                  </label>
-                </div>
 
-                {editIsStaff && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                    <div>
-                      <label className="block text-[10px] font-black text-sky-200 mb-1">
-                        Official Staff Position (8 Positions) *
-                      </label>
-                      <select
-                        value={editStaffPosition}
-                        onChange={(e) =>
-                          setEditStaffPosition(e.target.value as StaffPosition)
-                        }
-                        className="w-full bg-slate-900 border-2 border-amber-400 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-black"
-                      >
-                        {DMC_STAFF_POSITIONS.map((pos) => (
-                          <option key={pos.id} value={pos.id}>
-                            - {pos.labelEn} ({pos.labelLo})
-                          </option>
-                        ))}
-                      </select>
+                  {editIsStaff && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-black text-sky-200 mb-1">
+                          Official Staff Position (8 Positions) *
+                        </label>
+                        <select
+                          value={editStaffPosition}
+                          onChange={(e) =>
+                            setEditStaffPosition(e.target.value as StaffPosition)
+                          }
+                          className="w-full bg-slate-900 border-2 border-amber-400 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-black"
+                        >
+                          {DMC_STAFF_POSITIONS.map((pos) => (
+                            <option key={pos.id} value={pos.id}>
+                              - {pos.labelEn} ({pos.labelLo})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-300 mb-1">
+                          Staff ID Code
+                        </label>
+                        <input
+                          type="text"
+                          value={editStaffCode}
+                          onChange={(e) => setEditStaffCode(e.target.value.toUpperCase())}
+                          placeholder={`DMC-STF-${editMemberId}`}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-300 mb-1">
+                          Staff Branch / Department
+                        </label>
+                        <input
+                          type="text"
+                          value={editStaffBranch}
+                          onChange={(e) => setEditStaffBranch(e.target.value)}
+                          placeholder="Dongdok Campus Studio Hub, Vientiane"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-300 mb-1">
-                        Staff ID Code
-                      </label>
-                      <input
-                        type="text"
-                        value={editStaffCode}
-                        onChange={(e) => setEditStaffCode(e.target.value.toUpperCase())}
-                        placeholder={`DMC-STF-${editMemberId}`}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-300 mb-1">
-                        Staff Branch / Department
-                      </label>
-                      <input
-                        type="text"
-                        value={editStaffBranch}
-                        onChange={(e) => setEditStaffBranch(e.target.value)}
-                        placeholder="Dongdok Campus Studio Hub, Vientiane"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* 6. ORGANIZE TREE QUICK ACTIONS & DELETE CONFIRMATION */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Delete Member Button / Confirmation */}
-                  {!confirmDeleteStep ? (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteStep(true)}
-                      className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete Member</span>
-                    </button>
+                  {/* Delete Member & Add Downline Placement — Administrator Only */}
+                  {isAdmin ? (
+                    <>
+                      {!confirmDeleteStep ? (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteStep(true)}
+                          className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete Member</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5 bg-rose-950/80 border border-rose-500/60 px-2.5 py-1.5 rounded-xl">
+                          <span className="text-[11px] font-black text-rose-200">
+                            Confirm Delete?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleDeleteMemberFromTree}
+                            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] cursor-pointer"
+                          >
+                            Yes, Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteStep(false)}
+                            className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
+                          >
+                            No
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEditModal(false);
+                          setQuickAddSponsorId(editingOriginalId);
+                          setShowQuickAddModal(true);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/45 border border-purple-400/40 text-purple-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>+ Add Downline Here</span>
+                      </button>
+                    </>
                   ) : (
-                    <div className="flex items-center gap-1.5 bg-rose-950/80 border border-rose-500/60 px-2.5 py-1.5 rounded-xl">
-                      <span className="text-[11px] font-black text-rose-200">
-                        Confirm Delete?
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleDeleteMemberFromTree}
-                        className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] cursor-pointer"
-                      >
-                        Yes, Delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteStep(false)}
-                        className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
-                      >
-                        No
-                      </button>
+                    <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
+                      <Lock className="w-3 h-3 text-amber-400" />
+                      <span>Direct Upline / Downline Sponsor changes allowed by Administrator only</span>
                     </div>
                   )}
-
-                  {/* Add Direct L1 Downline under this Member */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowEditModal(false);
-                      setQuickAddSponsorId(editingOriginalId);
-                      setShowQuickAddModal(true);
-                    }}
-                    className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/45 border border-purple-400/40 text-purple-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>+ Add Downline Here</span>
-                  </button>
 
                   {/* Focus Tree on this Member */}
                   {focusedMemberId !== editingOriginalId && (
@@ -1621,7 +1719,7 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-lg"
                   >
                     <Save className="w-4 h-4" />
-                    <span>Save & Update Member</span>
+                    <span>{isAdmin ? 'Save & Update Member' : 'Save Profile Update'}</span>
                   </button>
                 </div>
               </div>
@@ -1679,13 +1777,25 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Direct Upline Sponsor (L1 Parent)
+                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Direct Upline Sponsor (L1 Parent)</span>
+                  {!isAdmin && (
+                    <span className="text-[9px] text-rose-300 flex items-center gap-1 font-black">
+                      <Lock className="w-2.5 h-2.5" /> Locked (Admin Only)
+                    </span>
+                  )}
                 </label>
                 <select
-                  value={quickAddSponsorId}
-                  onChange={(e) => setQuickAddSponsorId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold"
+                  disabled={!isAdmin}
+                  value={isAdmin ? quickAddSponsorId : currentMember.memberId}
+                  onChange={(e) => {
+                    if (isAdmin) setQuickAddSponsorId(e.target.value);
+                  }}
+                  className={`w-full border rounded-xl px-3 py-2 text-xs font-bold ${
+                    isAdmin
+                      ? 'bg-slate-950 border-slate-700 text-amber-300'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   {allMembers.map((m) => (
                     <option key={m.memberId} value={m.memberId}>
@@ -1693,6 +1803,11 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                     </option>
                   ))}
                 </select>
+                {!isAdmin && (
+                  <p className="text-[9px] text-rose-300/90 mt-1">
+                    Only Administrator can change Direct Upline / Downline Sponsor placement.
+                  </p>
+                )}
               </div>
 
               <div>

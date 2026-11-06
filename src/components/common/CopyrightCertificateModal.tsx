@@ -85,7 +85,7 @@ export async function downloadDmcCertificateImage({
   const opusNumber = `Op. ${cleanId.slice(-2) || '26'} • No. 1 in F Major`;
   const ipLawRef = 'Lao PDR Law on Intellectual Property No. 38/NA & WIPO Berne Convention';
   const issueDateFormatted = '15 October 2026';
-  const verifyUrl = `https://dmcxayraxa.la/verify/copyright?cert=${certSerial}&member=${encodeURIComponent(memberId)}`;
+  const verifyUrl = `https://dmcxayraxa.music/verify/copyright?cert=${certSerial}&member=${encodeURIComponent(memberId)}`;
   const sha256Fingerprint = `8f4b29a17c804e${cleanId}df302914ba761e05c87a2`;
 
   // 1. OUTER VELVET / MAHOGANY CONSERVATORY FRAME
@@ -784,7 +784,7 @@ export const CopyrightCertificateModal: React.FC<CopyrightCertificateModalProps>
   const opusNumber = `Op. ${cleanId.slice(-2) || '26'} • No. 1`;
   const ipLawRef = 'Lao PDR Law on Intellectual Property No. 38/NA & WIPO Berne Conv.';
   const issueDateFormatted = '15 October 2026';
-  const verifyUrl = `https://dmcxayraxa.la/verify/copyright?cert=${certSerial}&member=${encodeURIComponent(
+  const verifyUrl = `https://dmcxayraxa.music/verify/copyright?cert=${certSerial}&member=${encodeURIComponent(
     memberId
   )}`;
   const sha256Fingerprint = `8f4b29a17c804e${cleanId}df302914ba761e05c87a2`;

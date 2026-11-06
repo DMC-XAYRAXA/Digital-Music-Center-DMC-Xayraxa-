@@ -65,6 +65,9 @@ import {
   Truck,
   Briefcase,
   ArrowRight,
+  Mic,
+  Share2,
+  Copy,
 } from 'lucide-react';
 import { QrCodeModal } from '../common/QrCodeModal';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
@@ -76,6 +79,7 @@ import { AuthPortalModal } from '../common/AuthPortalModal';
 import { DownlineOrganizeTree } from '../common/DownlineOrganizeTree';
 import { MemberRegistrationTutorialGuide } from '../common/MemberRegistrationTutorialGuide';
 import { DmcPricingStructureCard } from '../common/DmcPricingStructureCard';
+import { SingerApplicationDashboardModal } from '../common/SingerApplicationDashboardModal';
 import {
   LaoShippingCarrierId,
   ProductSKU,
@@ -141,11 +145,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     adminUpdateHomeIcon,
     shippingCarriers,
     isAdminMode,
+    setIsAdminMode,
     isAdminAuthenticated,
     setIsAdminAuthenticated,
     getDownlines,
     isLoggedOut,
     setIsLoggedOut,
+    loanWalletBalanceLak,
+    singerBookings,
+    updateSingerPartyBooking,
+    singerProfiles,
+    updateSingerProfile,
+    recordSingerAffiliateSale,
+    withdrawFromSingerWallet,
+    resetSingerMemberWalletToZero,
+    recordCustomerAffiliateCommission,
+    getCustomerAffiliateCommissionBalance,
+    transferAffiliateCommissionToCustomerWallet,
+    withdrawCustomerAffiliateWallet,
+    triggerUserMemberNetworkActivationCommission,
+    submitCustomerActivePackagePayment,
+    adminApproveCustomerToActiveMember,
+    getSponsorChain,
+    getMemberAwards,
+    withdrawals,
+    laoBanks,
   } = useDmc();
   const t = translations[language];
 
@@ -296,6 +320,121 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     status: 'ACTIVE',
   });
   const [showStaffModal, setShowStaffModal] = useState(false);
+  const [showSingerModal, setShowSingerModal] = useState(false);
+  const [singerModalInitialTab, setSingerModalInitialTab] = useState<
+    'APPLY' | 'DASHBOARD' | 'BOOKING_PARTY' | 'LOAN_WALLET' | 'DIRECTORY'
+  >('APPLY');
+
+  const [activeHomeRole, setActiveHomeRole] = useState<'MEMBER' | 'SINGER' | 'CUSTOMER'>(() => {
+    try {
+      const saved = sessionStorage.getItem('dmc_active_home_role');
+      if (saved === 'SINGER' || saved === 'CUSTOMER' || saved === 'MEMBER') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'MEMBER';
+  });
+  const [activeHomeSingerId, setActiveHomeSingerId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('dmc_post_login_singer_id') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [homeSingerTab, setHomeSingerTab] = useState<'ALL' | 'WALLET' | 'WITHDRAW' | 'COMMISSION' | 'SCHEDULE'>('ALL');
+  const [homeSingerWithdrawAmt, setHomeSingerWithdrawAmt] = useState<number>(500000);
+  const [homeCustomerTab, setHomeCustomerTab] = useState<'ALL' | 'WALLET' | 'WITHDRAW' | 'COMMISSION' | 'BOOKINGS'>('ALL');
+  const [homeCustomerWithdrawAmt, setHomeCustomerWithdrawAmt] = useState<number>(400000);
+
+  const activeHomeSinger = useMemo(() => {
+    if (activeHomeSingerId) {
+      const byId = singerProfiles.find((s) => s.id === activeHomeSingerId);
+      if (byId) return byId;
+    }
+    return (
+      singerProfiles.find((s) => s.memberId === currentMember.memberId) ||
+      singerProfiles[0]
+    );
+  }, [activeHomeSingerId, singerProfiles, currentMember.memberId]);
+
+  const homeSingerBookings = useMemo(() => {
+    if (!activeHomeSinger) return singerBookings;
+    const filtered = singerBookings.filter(
+      (b) =>
+        b.singerId === activeHomeSinger.id ||
+        b.singerCode === activeHomeSinger.singerCode
+    );
+    return filtered.length > 0 ? filtered : singerBookings;
+  }, [singerBookings, activeHomeSinger]);
+
+  const homeCustomerBookings = useMemo(() => {
+    const filtered = singerBookings.filter(
+      (b) => b.customerMemberId === currentMember.memberId
+    );
+    return filtered.length > 0 ? filtered : singerBookings.slice(0, 1);
+  }, [singerBookings, currentMember.memberId]);
+
+  const homeCustomerAwards = useMemo(
+    () => getMemberAwards(currentMember.memberId),
+    [getMemberAwards, currentMember.memberId, allMembers]
+  );
+
+  const homeCustomerWithdrawals = useMemo(
+    () => withdrawals.filter((w) => w.memberId === currentMember.memberId),
+    [withdrawals, currentMember.memberId]
+  );
+
+  const [homeCustomerTransferAmt, setHomeCustomerTransferAmt] = useState<number>(600000);
+  const homeCustomerAffiliateCommissionBalance = getCustomerAffiliateCommissionBalance(
+    currentMember.memberId
+  );
+
+  const homeCustomerTotalCommissionLak = useMemo(() => {
+    const fromAwards = homeCustomerAwards.reduce((sum, a) => sum + a.grossAwardLak, 0);
+    return Math.max(
+      fromAwards,
+      homeCustomerAffiliateCommissionBalance + balances.available
+    );
+  }, [homeCustomerAwards, homeCustomerAffiliateCommissionBalance, balances.available]);
+
+  const homeCustomerTotalWithdrawnLak = useMemo(
+    () => homeCustomerWithdrawals.reduce((sum, w) => sum + w.amountLak, 0),
+    [homeCustomerWithdrawals]
+  );
+
+  useEffect(() => {
+    try {
+      setShowSingerModal(false);
+      const postBookingNotice = sessionStorage.getItem('dmc_post_booking_notice');
+      if (postBookingNotice) {
+        sessionStorage.removeItem('dmc_post_booking_notice');
+        setRedemptionNotice(postBookingNotice);
+        setTimeout(() => setRedemptionNotice(null), 7000);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      const savedRole = sessionStorage.getItem('dmc_active_home_role');
+      const targetDashboard = sessionStorage.getItem('dmc_post_login_dashboard');
+      const savedSingerId = sessionStorage.getItem('dmc_post_login_singer_id');
+      if (savedSingerId) {
+        setActiveHomeSingerId(savedSingerId);
+      }
+      if (targetDashboard === 'SINGER' || savedRole === 'SINGER') {
+        sessionStorage.removeItem('dmc_post_login_dashboard');
+        setActiveHomeRole('SINGER');
+      } else if (targetDashboard === 'CUSTOMER' || savedRole === 'CUSTOMER') {
+        sessionStorage.removeItem('dmc_post_login_dashboard');
+        setActiveHomeRole('CUSTOMER');
+      } else if (targetDashboard === 'MEMBER' || savedRole === 'MEMBER') {
+        sessionStorage.removeItem('dmc_post_login_dashboard');
+        setActiveHomeRole('MEMBER');
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [currentMember.memberId, isLoggedOut]);
+
   const [selectedStaffPositionFilter, setSelectedStaffPositionFilter] = useState<StaffPosition | 'ALL'>('ALL');
   const [staffModalMode, setStaffModalMode] = useState<'LIST' | 'CREATE' | 'EDIT' | 'ICONS' | 'UPGRADE_MEMBER'>('LIST');
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -686,8 +825,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   // Dynamic qualification calculations bound to Core Product MUSIC_SINGLE_1600
   const coreProduct = products.find((p) => p.sku === 'MUSIC_SINGLE_1600');
   const QUALIFICATION_TARGET = coreProduct?.priceLak || 1600000;
-  const isActive = currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER';
-  const eligibleClearedHeld = balances.heldForQualification;
+  const isRegisteredSinger = singerProfiles.some(
+    (s) => s.memberId?.toUpperCase() === currentMember.memberId.toUpperCase()
+  );
+  const isActive =
+    currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER' ||
+    isRegisteredSinger ||
+    Boolean(currentMember.isAutomaticAffiliate);
+  const eligibleClearedHeld = isActive
+    ? Math.max(balances.heldForQualification, QUALIFICATION_TARGET)
+    : balances.heldForQualification;
   const remainingToActive = Math.max(0, QUALIFICATION_TARGET - eligibleClearedHeld);
   const progressPercent = isActive
     ? 100
@@ -727,6 +874,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         adminUpdateMember(currentMember.memberId, { avatarUrl: reader.result });
+        if (activeHomeSinger) {
+          updateSingerProfile(activeHomeSinger.id, { avatarUrl: reader.result });
+        }
         setCustomAvatarInput(reader.result);
         setRedemptionNotice(`Updated profile image for ${currentMember.name}!`);
         setTimeout(() => setRedemptionNotice(null), 3500);
@@ -768,7 +918,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             >
               <div className="w-full h-full rounded-full p-0.5 bg-gradient-to-tr from-[#f5a623] via-[#fff3b0] to-[#e69110] shadow-lg">
                 <img
-                  src={avatarUrl}
+                  src={
+                    activeHomeRole === 'SINGER' && activeHomeSinger?.avatarUrl
+                      ? activeHomeSinger.avatarUrl
+                      : avatarUrl
+                  }
                   alt={currentMember.name}
                   className="w-full h-full rounded-full object-cover border-2 border-[#69030e]"
                 />
@@ -788,13 +942,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               title="Click to open User Profile Control Panel"
             >
               <h2 className="text-[13px] sm:text-sm font-extrabold text-white group-hover:text-amber-200 tracking-tight leading-tight truncate">
-                {(currentMember.name || 'DMC Xayraxa').replace(/\s*\(.*?\)\s*/g, '')}
+                {activeHomeRole === 'SINGER' && activeHomeSinger
+                  ? activeHomeSinger.stageName
+                  : (currentMember.name || 'DMC Xayraxa').replace(/\s*\(.*?\)\s*/g, '')}
               </h2>
               <div className="text-[10px] text-red-200 font-mono leading-tight mt-0.5 truncate">
-                ID: {currentMember.memberId || 'DM000123'}
+                {activeHomeRole === 'SINGER' && activeHomeSinger
+                  ? `Singer ID: ${activeHomeSinger.singerCode}`
+                  : activeHomeRole === 'CUSTOMER'
+                  ? `Customer ID: ${currentMember.memberId}`
+                  : `ID: ${currentMember.memberId || 'DM000123'}`}
               </div>
               <div className="text-[9px] font-black text-amber-300 tracking-wider uppercase leading-tight mt-0.5 truncate flex items-center gap-1 flex-wrap">
-                <span>{isActive ? t.activeMember : t.freeMember}</span>
+                {activeHomeRole === 'SINGER' ? (
+                  <span className="px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
+                    Home App • Singer Dashboard
+                  </span>
+                ) : activeHomeRole === 'CUSTOMER' ? (
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
+                    Home App • Customer Booking Dashboard
+                  </span>
+                ) : (
+                  <span>{isActive ? t.activeMember : t.freeMember}</span>
+                )}
                 {(currentMember.isStaff || staffMembers.some((s) => s.memberId === currentMember.memberId)) && (
                   <span className="px-1.5 py-0.2 rounded bg-sky-400 text-slate-950 text-[8px] font-black uppercase shrink-0">
                     Staff: {currentMember.staffPosition || staffMembers.find((s) => s.memberId === currentMember.memberId)?.position}
@@ -855,22 +1025,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       </span>
                     </div>
 
-                    {/* Active Session Header */}
-                    <div className="px-2.5 py-2 rounded-xl bg-slate-950/90 border border-slate-800 flex items-center gap-2.5">
-                      <img
-                        src={avatarUrl}
-                        alt={currentMember.name}
-                        className="w-9 h-9 rounded-full object-cover border border-amber-400 shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-extrabold text-white truncate">
-                          {(currentMember.name || 'DMC Xayraxa').replace(/\s*\(.*?\)\s*/g, '')}
-                        </div>
-                        <div className="text-[10px] font-mono text-amber-300 truncate">
-                          {currentMember.memberId} • {isAdmin ? 'ADMIN ACTIVE' : 'MEMBER'}
+                    {/* Active Session Header (Click to Update My Profile / Password) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLoginDropdown(false);
+                        setShowUserControlModal(true);
+                      }}
+                      className="w-full text-left px-2.5 py-2 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-slate-800 hover:border-amber-400/50 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={avatarUrl}
+                          alt={currentMember.name}
+                          className="w-9 h-9 rounded-full object-cover border border-amber-400 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-extrabold text-white truncate">
+                            {(currentMember.name || 'DMC Xayraxa').replace(/\s*\(.*?\)\s*/g, '')}
+                          </div>
+                          <div className="text-[10px] font-mono text-amber-300 truncate">
+                            {currentMember.memberId} • Edit My Profile / Password
+                          </div>
                         </div>
                       </div>
-                    </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    </button>
 
                     {/* PRIMARY DROP DOWN OPTIONS: 1. SIGN IN & 2. SIGN OUT */}
                     <div className="grid grid-cols-1 gap-1.5 pt-0.5">
@@ -929,19 +1109,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                         <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                       </button>
 
-                      {/* 4. Profile & SMS (+856) */}
+                      {/* 3B. Register Singer (General People) */}
                       <button
                         type="button"
                         onClick={() => {
                           setShowLoginDropdown(false);
-                          setAuthInitialMode('RECOVERY');
-                          setShowAuthPortalModal(true);
+                          setSingerModalInitialTab('APPLY');
+                          setShowSingerModal(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-300 bg-gradient-to-r from-amber-500/15 to-red-500/15 hover:from-amber-500/25 hover:to-red-500/25 border border-amber-400/30 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Mic className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Register Singer (General People)</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+                      </button>
+
+                      {/* 4. Update My Profile / Password */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginDropdown(false);
+                          setShowUserControlModal(true);
                         }}
                         className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-sky-300 hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <span className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-sky-400 shrink-0" />
-                          <span>{t.profileAndSms} (+856)</span>
+                          <Pencil className="w-4 h-4 text-sky-400 shrink-0" />
+                          <span>Update My Profile / Password</span>
                         </span>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                       </button>
@@ -1479,7 +1675,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                                           fullName: mem.name.replace(/\s*\(.*?\)\s*/g, ''),
                                           position: memberStaffPos || 'Teacher',
                                           phone: mem.phone,
-                                          email: mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                                          email: mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.music`,
                                           branch:
                                             existingStaffRecord?.branch ||
                                             mem.staffBranch ||
@@ -1529,279 +1725,1169 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* 2A/ HEAD LINE EVENT AND ACTIVITY SLIDE SHOW (Administrator Only Post) */}
-        <div className="mt-1 mb-2.5 rounded-lg bg-white text-[#850818] px-2.5 py-1.5 shadow-md border border-amber-300/80 flex items-center justify-between gap-2">
-          <div
-            onClick={() => {
-              if (currentEvent) {
-                if (isAdmin) openEditEventModal(currentEvent);
-                else setViewingEventDetail(currentEvent);
-              } else if (isAdmin) {
-                openCreateEventModal();
-              }
-            }}
-            className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer"
-            title={
-              isAdmin
-                ? 'Administrator: Click to Edit Head Line Event & Activity'
-                : 'Head Line Event And Activity Slide Show (Click to view details)'
-            }
-          >
-            <span className="px-1.5 py-0.5 rounded bg-[#df1c2d] text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
-              <Megaphone className="w-2.5 h-2.5" />
-              <span>EVENT</span>
-            </span>
-            <span className="text-[11px] font-extrabold text-[#850818] truncate">
-              {currentEvent
-                ? currentEvent.headline
-                : 'Head Line Event And Activity Slide Show'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {isAdmin ? (
-              <button
-                type="button"
-                onClick={openCreateEventModal}
-                className="px-2 py-0.5 rounded bg-[#850818] hover:bg-red-950 text-amber-300 text-[9px] font-black flex items-center gap-0.5 cursor-pointer shadow-xs"
-                title="Administrator Only: Post New Event & Activity"
-              >
-                <Plus className="w-2.5 h-2.5" />
-                <span>Post</span>
-              </button>
-            ) : (
-              <button
-                type="button"
+        {/* ====================================================================
+            ROLE-BASED TOP HERO AREA (BELOW SEARCH BAR):
+            - MEMBER: 2A Headline Event + 2B Event Slideshow + 2. Gold DMC Card
+            - SINGER: Home App • Singer Dashboard Card
+            - CUSTOMER: Home App • Customer Booking Dashboard Card (with Example 1 Booking Detail)
+           ==================================================================== */}
+        {(activeHomeRole === 'MEMBER' || activeHomeRole === 'SINGER' || activeHomeRole === 'CUSTOMER') && (
+          <>
+            {/* 2A/ HEAD LINE EVENT AND ACTIVITY SLIDE SHOW (Administrator Only Post) */}
+            <div className="mt-1 mb-2.5 rounded-lg bg-white text-[#850818] px-2.5 py-1.5 shadow-md border border-amber-300/80 flex items-center justify-between gap-2">
+              <div
                 onClick={() => {
-                  setAuthInitialMode('ADMIN');
-                  setShowAuthPortalModal(true);
+                  if (currentEvent) {
+                    if (isAdmin) openEditEventModal(currentEvent);
+                    else setViewingEventDetail(currentEvent);
+                  } else if (isAdmin) {
+                    openCreateEventModal();
+                  }
                 }}
-                className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-[#850818] text-[8px] font-bold flex items-center gap-0.5 cursor-pointer border border-slate-200"
-                title="Administrator Only Post — Click to Sign In as Administrator"
+                className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer"
+                title={
+                  isAdmin
+                    ? 'Administrator: Click to Edit Head Line Event & Activity'
+                    : 'Head Line Event And Activity Slide Show (Click to view details)'
+                }
               >
-                <Lock className="w-2.5 h-2.5 text-[#850818]" />
-                <span>Admin Post</span>
-              </button>
-            )}
-          </div>
-        </div>
+                <span className="px-1.5 py-0.5 rounded bg-[#df1c2d] text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
+                  <Megaphone className="w-2.5 h-2.5" />
+                  <span>EVENT</span>
+                </span>
+                <span className="text-[11px] font-extrabold text-[#850818] truncate">
+                  {currentEvent
+                    ? currentEvent.headline
+                    : 'Head Line Event And Activity Slide Show'}
+                </span>
+              </div>
 
-        {/* 2B/ SLIDE SHOW IMAGE EVENT AND ACTIVITY (Administrator Only Post / Edit / Delete) */}
-        <div className="mb-3.5 rounded-xl overflow-hidden bg-white text-slate-900 shadow-xl border-2 border-white/95 relative group">
-          {currentEvent ? (
-            <div className="relative h-36 sm:h-40 w-full overflow-hidden bg-slate-900">
-              <img
-                src={currentEvent.imageUrl}
-                alt={currentEvent.title}
-                onClick={() => {
-                  if (!isAdmin) setViewingEventDetail(currentEvent);
-                }}
-                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 cursor-pointer"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20 pointer-events-none" />
+              <div className="flex items-center gap-1 shrink-0">
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={openCreateEventModal}
+                    className="px-2 py-0.5 rounded bg-[#850818] hover:bg-red-950 text-amber-300 text-[9px] font-black flex items-center gap-0.5 cursor-pointer shadow-xs"
+                    title="Administrator Only: Post New Event & Activity"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>Post</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthInitialMode('ADMIN');
+                      setShowAuthPortalModal(true);
+                    }}
+                    className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-[#850818] text-[8px] font-bold flex items-center gap-0.5 cursor-pointer border border-slate-200"
+                    title="Administrator Only Post — Click to Sign In as Administrator"
+                  >
+                    <Lock className="w-2.5 h-2.5 text-[#850818]" />
+                    <span>Admin Post</span>
+                  </button>
+                )}
+              </div>
+            </div>
 
-              {/* Top Row: Event Badge & Date + Admin-Only Post / Edit / Delete Controls */}
-              <div className="absolute top-2 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow">
-                    {currentEvent.badge || 'EVENT & ACTIVITY'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[9px] font-mono font-semibold flex items-center gap-1 truncate">
-                    <Calendar className="w-2.5 h-2.5 text-amber-300 shrink-0" />
-                    <span className="truncate">{currentEvent.eventDate}</span>
-                  </span>
+            {/* 2B/ SLIDE SHOW IMAGE EVENT AND ACTIVITY (Administrator Only Post / Edit / Delete) */}
+            <div className="mb-3.5 rounded-xl overflow-hidden bg-white text-slate-900 shadow-xl border-2 border-white/95 relative group">
+              {currentEvent ? (
+                <div className="relative h-36 sm:h-40 w-full overflow-hidden bg-slate-900">
+                  <img
+                    src={currentEvent.imageUrl}
+                    alt={currentEvent.title}
+                    onClick={() => {
+                      if (!isAdmin) setViewingEventDetail(currentEvent);
+                    }}
+                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 cursor-pointer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20 pointer-events-none" />
+
+                  {/* Top Row: Event Badge & Date + Admin-Only Post / Edit / Delete Controls */}
+                  <div className="absolute top-2 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow">
+                        {currentEvent.badge || 'EVENT & ACTIVITY'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[9px] font-mono font-semibold flex items-center gap-1 truncate">
+                        <Calendar className="w-2.5 h-2.5 text-amber-300 shrink-0" />
+                        <span className="truncate">{currentEvent.eventDate}</span>
+                      </span>
+                    </div>
+
+                    {/* Admin Quick Post / Upload / Edit / Delete Buttons — SHOWN ONLY TO ADMINISTRATOR */}
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={openCreateEventModal}
+                          className="px-1.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 text-[9px] font-black flex items-center gap-0.5 shadow cursor-pointer"
+                          title="Administrator Only: Post New Event & Activity Image"
+                        >
+                          <Upload className="w-2.5 h-2.5" />
+                          <span>+Post</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEditEventModal(currentEvent)}
+                          className="p-1 rounded-md bg-sky-500/85 hover:bg-sky-500 text-white shadow cursor-pointer"
+                          title="Administrator Only: Edit Event Image & Information"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        {eventPosts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              adminDeleteEventPost(currentEvent.id);
+                              setActiveEventIdx(0);
+                              setRedemptionNotice(`Deleted event "${currentEvent.title}"`);
+                              setTimeout(() => setRedemptionNotice(null), 3500);
+                            }}
+                            className="p-1 rounded-md bg-red-600/85 hover:bg-red-600 text-white shadow cursor-pointer"
+                            title="Administrator Only: Delete Event Slide"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Left / Right Slide Arrows */}
+                  {eventPosts.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveEventIdx((prev) => (prev - 1 + eventPosts.length) % eventPosts.length)
+                        }
+                        className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/25 flex items-center justify-center cursor-pointer"
+                        aria-label="Previous Event Slide"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveEventIdx((prev) => (prev + 1) % eventPosts.length)}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/25 flex items-center justify-center cursor-pointer"
+                        aria-label="Next Event Slide"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Bottom Event Title, Information & Slide Indicators */}
+                  <div className="absolute bottom-0 inset-x-0 p-2.5 flex items-end justify-between gap-2">
+                    <div
+                      onClick={() => {
+                        if (isAdmin) openEditEventModal(currentEvent);
+                        else setViewingEventDetail(currentEvent);
+                      }}
+                      className="min-w-0 flex-1 cursor-pointer"
+                    >
+                      <h4 className="text-xs sm:text-sm font-black text-white leading-tight truncate drop-shadow">
+                        {currentEvent.title}
+                      </h4>
+                      <p className="text-[10px] text-slate-200 leading-snug line-clamp-2 mt-0.5">
+                        {currentEvent.information}
+                      </p>
+                      <div className="flex items-center gap-1 text-[9px] text-amber-300 font-semibold mt-0.5 truncate">
+                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                        <span className="truncate">{currentEvent.location}</span>
+                      </div>
+                    </div>
+
+                    {/* Slide Dots */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {eventPosts.map((evt, idx) => (
+                        <button
+                          key={evt.id}
+                          type="button"
+                          onClick={() => setActiveEventIdx(idx)}
+                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                            idx === activeEventIdx % eventPosts.length
+                              ? 'w-4 bg-amber-400'
+                              : 'w-1.5 bg-white/50'
+                          }`}
+                          aria-label={`Event Slide ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
-
-                {/* Admin Quick Post / Upload / Edit / Delete Buttons — SHOWN ONLY TO ADMINISTRATOR */}
-                {isAdmin && (
-                  <div className="flex items-center gap-1 shrink-0">
+              ) : (
+                <div className="h-32 flex flex-col items-center justify-center p-4 text-center">
+                  <p className="text-xs font-bold text-[#850818]">Slide Show Image Event and Activity</p>
+                  {isAdmin && (
                     <button
                       type="button"
                       onClick={openCreateEventModal}
-                      className="px-1.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 text-[9px] font-black flex items-center gap-0.5 shadow cursor-pointer"
-                      title="Administrator Only: Post New Event & Activity Image"
+                      className="mt-2 px-3 py-1.5 rounded-lg bg-[#df1c2d] text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
                     >
-                      <Upload className="w-2.5 h-2.5" />
-                      <span>+Post</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Post Event & Activity</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditEventModal(currentEvent)}
-                      className="p-1 rounded-md bg-sky-500/85 hover:bg-sky-500 text-white shadow cursor-pointer"
-                      title="Administrator Only: Edit Event Image & Information"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    {eventPosts.length > 1 && (
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ---------------- 2. GOLD METALLIC DMC MEMBERSHIP CARD ---------------- */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#f5a623] via-[#f7b733] to-[#e69110] text-slate-950 p-4 shadow-xl border border-amber-200/60">
+              {/* Subtle Metallic Specular Sheen */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-black/5 via-white/20 to-transparent pointer-events-none"></div>
+
+              <div className="relative z-10 flex items-stretch justify-between gap-3">
+                {/* Left Card Details */}
+                <div className="flex-1 flex flex-col justify-between space-y-2 min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <DmcOfficialLogo
+                      size={50}
+                      rounded="full"
+                      withGoldRing={false}
+                      title="Official DMC R (ໄຊລາຊາ) Logo"
+                      className="shadow-md border border-amber-900/20 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <h1 className="text-3xl font-black tracking-tight text-slate-950 leading-none">
+                        DMC
+                      </h1>
+                      <div className="text-[10px] font-bold text-slate-900 tracking-wider mt-1 uppercase truncate">
+                        {t.digitalMusicCenter}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-1">
+                    <div className="text-sm sm:text-base font-black text-slate-950 uppercase tracking-tight leading-snug">
+                      {isActive ? t.activeMember : t.freeMember}
+                    </div>
+                    <div className="text-xs font-semibold text-slate-900/90 mt-0.5">
+                      {t.buildYourMusicFuture}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: White Card Insert with Member QR & Referral QR */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveQrModal('MEMBER')}
+                    className="bg-white p-2 rounded-xl shadow-md border border-amber-200/80 hover:scale-105 transition-transform flex flex-col items-center cursor-pointer group"
+                    title="Tap to enlarge User Member QR"
+                  >
+                    {/* Visual QR Code Matrix */}
+                    <div className="w-14 h-14 bg-slate-950 rounded-lg p-1.5 grid grid-cols-4 gap-0.5 relative">
+                      {Array.from({ length: 16 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`rounded-xs ${
+                            i % 2 === 0 || i === 0 || i === 3 || i === 12 || i === 15
+                              ? 'bg-amber-400'
+                              : 'bg-slate-700'
+                          }`}
+                        />
+                      ))}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <DmcOfficialLogo size={20} rounded="xl" withGoldRing={false} className="shadow" />
+                      </div>
+                    </div>
+
+                    {/* MEMBER QR text in royal blue */}
+                    <span className="mt-1 text-[8.5px] font-black text-[#0c4bb2] tracking-wider uppercase max-w-[68px] truncate">
+                      {t.memberQr}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveQrModal('REFERRAL')}
+                    className="bg-emerald-950 p-2 rounded-xl shadow-md border-2 border-emerald-400 hover:scale-105 transition-transform flex flex-col items-center cursor-pointer group"
+                    title="Tap to open Official Referral QR (dmcxayraxa.music)"
+                  >
+                    <div className="w-14 h-14 bg-white rounded-lg p-1.5 grid grid-cols-4 gap-0.5 relative">
+                      {Array.from({ length: 16 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`rounded-xs ${
+                            i % 3 === 0 || i === 0 || i === 3 || i === 12 || i === 15
+                              ? 'bg-slate-950'
+                              : 'bg-emerald-500'
+                          }`}
+                        />
+                      ))}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <DmcOfficialLogo size={20} rounded="xl" withGoldRing={false} className="shadow" />
+                      </div>
+                    </div>
+                    <span className="mt-1 text-[8.5px] font-black text-emerald-300 tracking-wider uppercase max-w-[68px] truncate">
+                      Referral QR
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 1/ USER MEMBER OFFICIAL REFERRAL LINK & REFERRAL QR BAR (dmcxayraxa.music) */}
+              {activeHomeRole === 'MEMBER' && (() => {
+                const memberRefUrl = `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
+                  currentMember.memberId
+                )}`;
+                return (
+                  <div className="relative z-10 mt-3 pt-2.5 border-t border-amber-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-950/90 text-white rounded-xl p-2.5 shadow-inner">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[8.5px] font-black uppercase">
+                          1/ User Member • Referral Link &amp; QR
+                        </span>
+                        <span className="text-[9.5px] font-mono font-bold text-emerald-300">
+                          dmcxayraxa.music
+                        </span>
+                      </div>
+                      <div className="text-[10.5px] font-mono text-amber-200 truncate mt-0.5">
+                        {memberRefUrl}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
-                          adminDeleteEventPost(currentEvent.id);
-                          setActiveEventIdx(0);
-                          setRedemptionNotice(`Deleted event "${currentEvent.title}"`);
-                          setTimeout(() => setRedemptionNotice(null), 3500);
+                          navigator.clipboard?.writeText(memberRefUrl).catch(() => {});
+                          setRedemptionNotice(
+                            `Copied User Member Referral Link: ${memberRefUrl}`
+                          );
+                          setTimeout(() => setRedemptionNotice(null), 4000);
                         }}
-                        className="p-1 rounded-md bg-red-600/85 hover:bg-red-600 text-white shadow cursor-pointer"
-                        title="Administrator Only: Delete Event Slide"
+                        className="px-2.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-xs"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Share2 className="w-3 h-3 shrink-0" />
+                        <span>Copy Referral Link</span>
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => setActiveQrModal('REFERRAL')}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <QrCode className="w-3 h-3 shrink-0" />
+                        <span>Referral QR</span>
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* Left / Right Slide Arrows */}
-              {eventPosts.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveEventIdx((prev) => (prev - 1 + eventPosts.length) % eventPosts.length)
-                    }
-                    className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/25 flex items-center justify-center cursor-pointer"
-                    aria-label="Previous Event Slide"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveEventIdx((prev) => (prev + 1) % eventPosts.length)}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/25 flex items-center justify-center cursor-pointer"
-                    aria-label="Next Event Slide"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
-
-              {/* Bottom Event Title, Information & Slide Indicators */}
-              <div className="absolute bottom-0 inset-x-0 p-2.5 flex items-end justify-between gap-2">
-                <div
-                  onClick={() => {
-                    if (isAdmin) openEditEventModal(currentEvent);
-                    else setViewingEventDetail(currentEvent);
-                  }}
-                  className="min-w-0 flex-1 cursor-pointer"
-                >
-                  <h4 className="text-xs sm:text-sm font-black text-white leading-tight truncate drop-shadow">
-                    {currentEvent.title}
-                  </h4>
-                  <p className="text-[10px] text-slate-200 leading-snug line-clamp-2 mt-0.5">
-                    {currentEvent.information}
-                  </p>
-                  <div className="flex items-center gap-1 text-[9px] text-amber-300 font-semibold mt-0.5 truncate">
-                    <MapPin className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{currentEvent.location}</span>
-                  </div>
-                </div>
-
-                {/* Slide Dots */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {eventPosts.map((evt, idx) => (
-                    <button
-                      key={evt.id}
-                      type="button"
-                      onClick={() => setActiveEventIdx(idx)}
-                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        idx === activeEventIdx % eventPosts.length
-                          ? 'w-4 bg-amber-400'
-                          : 'w-1.5 bg-white/50'
-                      }`}
-                      aria-label={`Event Slide ${idx + 1}`}
-                    />
-                  ))}
-                </div>
-              </div>
+                );
+              })()}
             </div>
-          ) : (
-            <div className="h-32 flex flex-col items-center justify-center p-4 text-center">
-              <p className="text-xs font-bold text-[#850818]">Slide Show Image Event and Activity</p>
-              {isAdmin && (
+          </>
+        )}
+
+        {/* SINGER DASHBOARD DIRECTLY BELOW GOLD DMC MEMBER CARD (DOES THE EXACT SAME AS USER MEMBER + SINGER PARTY SCHEDULE) */}
+        {activeHomeRole === 'SINGER' && activeHomeSinger && (() => {
+          const singerMemberId = activeHomeSinger.memberId || currentMember.memberId;
+          const singerMemberBalances = getMemberBalances(singerMemberId);
+          const singerChain = getSponsorChain(singerMemberId);
+          const singerDownlines = getDownlines(singerMemberId);
+          const singerCommPool = getCustomerAffiliateCommissionBalance(singerMemberId);
+          const singerWalletBalanceLak = Math.max(
+            activeHomeSinger.walletAvailableLak || 0,
+            singerMemberBalances.available || 0
+          );
+          const singerWithdrawnLak = activeHomeSinger.totalWithdrawnLak || 0;
+          const singerAffiliateEarnedLak = (activeHomeSinger.affiliateSales || []).reduce(
+            (sum, s) => sum + (s.affiliateCommissionLak || 0),
+            0
+          );
+          const singerTotalCommDisplayLak = Math.max(singerAffiliateEarnedLak, singerCommPool);
+          const singerShareUrl = `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
+            singerMemberId
+          )}&singer=${encodeURIComponent(activeHomeSinger.singerCode)}&aff=${encodeURIComponent(
+            activeHomeSinger.affiliateCode
+          )}`;
+
+          return (
+            <div className="mt-2.5 rounded-3xl bg-gradient-to-b from-slate-950 via-[#38040c] to-slate-950 text-white p-3.5 border-2 border-amber-400 shadow-2xl space-y-3">
+              {/* Singer + User Member Top Profile Banner */}
+              <div className="space-y-3 pb-3.5 border-b border-white/15">
+                {/* Row 1: Status Badge + Profile & Wallet Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Free Member Active</span>
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          sessionStorage.setItem('dmc_active_home_role', 'SINGER');
+                        } catch {
+                          // ignore
+                        }
+                        setShowUserControlModal(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black flex items-center gap-1 whitespace-nowrap cursor-pointer shadow-sm transition-colors"
+                      title="Edit User Singer Profile, Photo & Password"
+                    >
+                      <Pencil className="w-3 h-3 shrink-0" />
+                      <span>Edit Singer Profile</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = resetSingerMemberWalletToZero(activeHomeSinger.id);
+                        setRedemptionNotice(res.message);
+                        setTimeout(() => setRedemptionNotice(null), 5000);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/50 text-rose-200 text-[9.5px] font-black uppercase tracking-wide whitespace-nowrap cursor-pointer transition-colors"
+                      title="Reset Singer & Member Wallet to 0 LAK"
+                    >
+                      Reset Wallet: 0 LAK
+                    </button>
+                  </div>
+                </div>
+
+                {/* Row 2: Singer Avatar + Full Identity & Metadata */}
+                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/[0.04] border border-white/10">
+                  <div
+                    onClick={() => {
+                      try {
+                        sessionStorage.setItem('dmc_active_home_role', 'SINGER');
+                      } catch {
+                        // ignore
+                      }
+                      setShowUserControlModal(true);
+                    }}
+                    className="relative shrink-0 cursor-pointer group"
+                    title="Click to update Singer Profile Photo"
+                  >
+                    <img
+                      src={activeHomeSinger.avatarUrl}
+                      alt={activeHomeSinger.stageName}
+                      className="w-14 h-14 rounded-full object-cover border-2 border-amber-400 shadow-md group-hover:scale-105 transition-transform"
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-amber-400 text-slate-950 border border-slate-950 flex items-center justify-center shadow">
+                      <Camera className="w-2.5 h-2.5 stroke-[2.5]" />
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black text-white leading-tight truncate">
+                        {activeHomeSinger.stageName}
+                      </h3>
+                      <p className="text-[11px] font-semibold text-slate-300 truncate">
+                        {activeHomeSinger.fullName} • {activeHomeSinger.vocalStyle}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/50 text-amber-300 text-[9.5px] font-mono font-black whitespace-nowrap">
+                        ID: {singerMemberId}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/15 text-slate-200 text-[9.5px] font-mono font-bold whitespace-nowrap">
+                        Singer: {activeHomeSinger.singerCode}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[9.5px] font-mono font-bold whitespace-nowrap">
+                        Affiliate: {activeHomeSinger.affiliateCode}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 pt-0.5">
+                      <span>Unilevel Downlines:</span>
+                      <span className="text-amber-300 font-bold">L1: {singerDownlines.l1.length}</span>
+                      <span>•</span>
+                      <span className="text-sky-300 font-bold">L2: {singerDownlines.l2.length}</span>
+                      <span>•</span>
+                      <span className="text-emerald-300 font-bold">L3: {singerDownlines.l3.length}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: 2/ User Singer Official Referral Link & Referral QR (dmcxayraxa.music) */}
+                <div className="p-2.5 rounded-2xl bg-slate-950/90 border border-amber-400/50 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase">
+                      2/ User Singer • Referral Link &amp; Referral QR
+                    </span>
+                    <span className="text-[10px] font-mono font-black text-emerald-300">
+                      dmcxayraxa.music
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-black/60 border border-white/15 text-[10.5px] font-mono text-amber-200 break-all">
+                    {singerShareUrl}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveQrModal('MEMBER')}
+                      className="py-2.5 px-3 rounded-xl bg-white hover:bg-amber-50 text-slate-950 text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-[#0c4bb2] shrink-0" />
+                      <span>Member QR</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveQrModal('REFERRAL')}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                    >
+                      <QrCode className="w-3.5 h-3.5 shrink-0" />
+                      <span>Singer Referral QR</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(singerShareUrl).catch(() => {});
+                        setRedemptionNotice(
+                          `Copied User Singer Referral Link: ${singerShareUrl}`
+                        );
+                        setTimeout(() => setRedemptionNotice(null), 4000);
+                      }}
+                      className="col-span-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-200 text-slate-950 text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                    >
+                      <Share2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Copy Singer Referral Link (dmcxayraxa.music)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3-Level User Member Network Bar (Same as User Member Network: L1 400k, L2 200k, L3 100k) */}
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-950/95 via-slate-900 to-indigo-950/95 border border-emerald-400/50 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-black text-emerald-300 uppercase tracking-wide leading-snug">
+                    Same 3-Level User Member Network Commission
+                    <span className="block text-[9px] text-amber-300 font-mono mt-0.5">
+                      L1: +400,000 LAK (50%) • L2: +200,000 LAK (30%) • L3: +100,000 LAK (20%)
+                    </span>
+                  </div>
+                </div>
+
                 <button
                   type="button"
-                  onClick={openCreateEventModal}
-                  className="mt-2 px-3 py-1.5 rounded-lg bg-[#df1c2d] text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                  onClick={() => {
+                    const res = triggerUserMemberNetworkActivationCommission(
+                      singerMemberId,
+                      activeHomeSinger.stageName,
+                      `Singer User Member Network Activation (${activeHomeSinger.stageName})`
+                    );
+                    setRedemptionNotice(res.message);
+                    setTimeout(() => setRedemptionNotice(null), 5000);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 text-[10px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Post Event & Activity</span>
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>⚡ Activate Member &amp; Get L1/L2/L3 Commission (+400,000 LAK)</span>
                 </button>
-              )}
-            </div>
-          )}
-        </div>
 
-        {/* ---------------- 2. GOLD METALLIC DMC MEMBERSHIP CARD ---------------- */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#f5a623] via-[#f7b733] to-[#e69110] text-slate-950 p-4 shadow-xl border border-amber-200/60">
-          {/* Subtle Metallic Specular Sheen */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-black/5 via-white/20 to-transparent pointer-events-none"></div>
-
-          <div className="relative z-10 flex items-stretch justify-between gap-3">
-            {/* Left Card Details */}
-            <div className="flex-1 flex flex-col justify-between space-y-2 min-w-0">
-              <div className="flex items-center gap-2.5">
-                <DmcOfficialLogo
-                  size={50}
-                  rounded="full"
-                  withGoldRing={false}
-                  title="Official DMC R (ໄຊລາຊາ) Logo"
-                  className="shadow-md border border-amber-900/20 shrink-0"
-                />
-                <div className="min-w-0">
-                  <h1 className="text-3xl font-black tracking-tight text-slate-950 leading-none">
-                    DMC
-                  </h1>
-                  <div className="text-[10px] font-bold text-slate-900 tracking-wider mt-1 uppercase truncate">
-                    {t.digitalMusicCenter}
+                <div className="grid grid-cols-3 gap-2 text-[10px]">
+                  <div className="p-2 rounded-xl bg-black/35 border border-emerald-400/40 space-y-0.5">
+                    <div className="font-black text-emerald-300 text-[9px]">L1 Direct (50%)</div>
+                    <div className="font-mono font-black text-white text-[10px]">+400,000 LAK</div>
+                    <div className="text-[8.5px] text-slate-300 truncate">
+                      Up: {singerChain.l1 ? singerChain.l1.memberId : 'DMC-LA-00001'}
+                    </div>
+                    <div className="text-[8.5px] text-emerald-300 font-semibold">
+                      L1 Downlines: {singerDownlines.l1.length}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-black/35 border border-amber-400/40 space-y-0.5">
+                    <div className="font-black text-amber-300 text-[9px]">L2 Tier-2 (30%)</div>
+                    <div className="font-mono font-black text-white text-[10px]">+200,000 LAK</div>
+                    <div className="text-[8.5px] text-slate-300 truncate">
+                      Up: {singerChain.l2 ? singerChain.l2.memberId : 'DMC-LA-00001'}
+                    </div>
+                    <div className="text-[8.5px] text-amber-300 font-semibold">
+                      L2 Downlines: {singerDownlines.l2.length}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-black/35 border border-sky-400/40 space-y-0.5">
+                    <div className="font-black text-sky-300 text-[9px]">L3 Tier-3 (20%)</div>
+                    <div className="font-mono font-black text-white text-[10px]">+100,000 LAK</div>
+                    <div className="text-[8.5px] text-slate-300 truncate">
+                      Up: {singerChain.l3 ? singerChain.l3.memberId : 'DMC-LA-00001'}
+                    </div>
+                    <div className="text-[8.5px] text-sky-300 font-semibold">
+                      L3 Downlines: {singerDownlines.l3.length}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-1">
-                <div className="text-sm sm:text-base font-black text-slate-950 uppercase tracking-tight leading-snug">
-                  {isActive ? t.activeMember : t.freeMember}
+              {/* 5-BALANCE ACCOUNT CARDS (Same as User Member: Pending Balance, Held for Qualification, Available for Payout, Held for In-Flight Withdrawal, Recovery Due) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase">
+                    {t.pendingBalance}
+                  </div>
+                  <div className="text-xs sm:text-sm font-black font-mono text-slate-200">
+                    {formatLak(singerMemberBalances.pending)}
+                  </div>
                 </div>
-                <div className="text-xs font-semibold text-slate-900/90 mt-0.5">
-                  {t.buildYourMusicFuture}
-                </div>
-              </div>
-            </div>
 
-            {/* Right: White Card Insert with QR Code */}
-            <div className="flex flex-col items-center justify-center shrink-0">
-              <button
-                onClick={() => setActiveQrModal('MEMBER')}
-                className="bg-white p-2 rounded-xl shadow-md border border-amber-200/80 hover:scale-105 transition-transform flex flex-col items-center cursor-pointer group"
-                title="Tap to enlarge Member QR"
-              >
-                {/* Visual QR Code Matrix */}
-                <div className="w-16 h-16 bg-slate-950 rounded-lg p-1.5 grid grid-cols-4 gap-0.5 relative">
-                  {Array.from({ length: 16 }).map((_, i) => (
+                <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-1">
+                  <div className="text-[9px] font-bold text-amber-400 uppercase">
+                    {t.heldForQualification}
+                  </div>
+                  <div className="text-xs sm:text-sm font-black font-mono text-amber-300">
+                    {formatLak(singerMemberBalances.heldForQualification)}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-emerald-500/30 space-y-1">
+                  <div className="text-[9px] font-bold text-emerald-400 uppercase">
+                    {t.availableBalance}
+                  </div>
+                  <div className="text-xs sm:text-sm font-black font-mono text-emerald-300">
+                    {formatLak(singerWalletBalanceLak)}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase">
+                    {t.heldForWithdrawal}
+                  </div>
+                  <div className="text-xs sm:text-sm font-black font-mono text-slate-300">
+                    {formatLak(singerMemberBalances.heldForWithdrawal)}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase">
+                    {t.recoveryDue}
+                  </div>
+                  <div className="text-xs sm:text-sm font-black font-mono text-slate-300">
+                    {formatLak(singerMemberBalances.recoveryDue)}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigate('wallet')}
+                  className="p-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] flex flex-col items-center justify-center gap-0.5 cursor-pointer shadow"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>{t.requestWithdrawal}</span>
+                </button>
+              </div>
+
+              {/* Customer Booking Party Schedule List on Singer Dashboard (Warning Singer by Date & Time) */}
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center justify-between">
+                  <span>🔔 Singer Schedule Calendar Warning (Customer Booking Date &amp; Time)</span>
+                  <span>{homeSingerBookings.length} Bookings</span>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {homeSingerBookings.map((bk) => (
                     <div
-                      key={i}
-                      className={`rounded-xs ${
-                        i % 2 === 0 || i === 0 || i === 3 || i === 12 || i === 15
-                          ? 'bg-amber-400'
-                          : 'bg-slate-700'
-                      }`}
-                    />
+                      key={bk.id}
+                      className="p-2.5 rounded-xl bg-black/45 border border-white/15 flex flex-wrap items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-black text-white truncate">
+                          {bk.partyEventName} ({bk.bookingCode})
+                        </div>
+                        <div className="text-[10px] text-amber-300 font-mono">
+                          📅 Schedule Date: {bk.bookingDate} • ⏰ Time: {bk.bookingTimeSlot}
+                        </div>
+                        <div className="text-[10px] text-slate-300 truncate">
+                          Customer: {bk.customerName} (Member Free Active: {bk.customerMemberId || 'DMC-LA-00303'}) • {bk.eventLocation}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-mono font-black text-emerald-400">
+                          +{formatNumberWithCommas(bk.singerNetPayout90PercentLak)} LAK
+                        </div>
+                        <div className="text-[9px] text-slate-400">
+                          Package Party Set (-5% Saving for Loan)
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <DmcOfficialLogo size={22} rounded="xl" withGoldRing={false} className="shadow" />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* CUSTOMER BOOKING DASHBOARD DIRECTLY BELOW SEARCH BAR (WITH EXAMPLE 1 BOOKING DETAIL) */}
+        {activeHomeRole === 'CUSTOMER' && (
+          <div className="mt-1.5 rounded-3xl bg-gradient-to-b from-emerald-950 via-teal-950 to-slate-950 text-white p-3.5 border-2 border-emerald-400 shadow-xl space-y-3">
+            {/* Customer Booking Dashboard Header */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/15">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 text-[9px] font-black uppercase">
+                    Home App • Customer Booking Dashboard
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-mono font-black">
+                    {currentMember.autoAffiliateCode || `AFF-${currentMember.memberId}`}
+                  </span>
+                </div>
+                <h3 className="text-sm sm:text-base font-black text-white truncate mt-1">
+                  {currentMember.name} ({currentMember.memberId})
+                </h3>
+                <div className="text-[10px] text-emerald-200/90 font-mono truncate">
+                  Automatic Affiliate Member • Wallet • Withdraw • Affiliate Commission
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('dmc_active_home_role', 'CUSTOMER');
+                    } catch {
+                      // ignore
+                    }
+                    setShowUserControlModal(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer shadow"
+                  title="Edit User Customer Profile, Photo & Password"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Edit Customer Profile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSingerModalInitialTab('BOOKING_PARTY');
+                    setShowSingerModal(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black cursor-pointer shadow"
+                >
+                  + Book Singer Party Set
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveHomeRole('MEMBER');
+                    try {
+                      sessionStorage.setItem('dmc_active_home_role', 'MEMBER');
+                    } catch {}
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-[10px] font-bold cursor-pointer"
+                >
+                  Member View
+                </button>
+              </div>
+            </div>
+
+            {/* 3/ USER CUSTOMER OFFICIAL REFERRAL LINK & REFERRAL QR (dmcxayraxa.music) */}
+            {(() => {
+              const customerAffCode =
+                currentMember.autoAffiliateCode || `AFF-${currentMember.memberId}`;
+              const customerReferralUrl = `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
+                currentMember.memberId
+              )}&aff=${encodeURIComponent(customerAffCode)}`;
+              return (
+                <div className="p-3 rounded-2xl bg-slate-950/90 border-2 border-emerald-400/70 space-y-2 shadow-md">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="px-2 py-0.5 rounded bg-emerald-400 text-slate-950 text-[9px] font-black uppercase">
+                      3/ User Customer • Referral Link &amp; Referral QR
+                    </span>
+                    <span className="text-[10px] font-mono font-black text-amber-300">
+                      dmcxayraxa.music • {customerAffCode}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-black/60 border border-white/15 text-[10.5px] font-mono text-emerald-200 break-all">
+                    {customerReferralUrl}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveQrModal('MEMBER')}
+                      className="py-2 px-3 rounded-xl bg-white hover:bg-amber-50 text-slate-950 text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-[#0c4bb2] shrink-0" />
+                      <span>Customer Member QR</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveQrModal('REFERRAL')}
+                      className="py-2 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <QrCode className="w-3.5 h-3.5 shrink-0" />
+                      <span>Customer Referral QR</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(customerReferralUrl).catch(() => {});
+                        setRedemptionNotice(
+                          `Copied User Customer Referral Link: ${customerReferralUrl}`
+                        );
+                        setTimeout(() => setRedemptionNotice(null), 4000);
+                      }}
+                      className="col-span-2 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-200 text-slate-950 text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <Share2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Copy Customer Referral Link (dmcxayraxa.music)</span>
+                    </button>
                   </div>
                 </div>
+              );
+            })()}
 
-                {/* MEMBER QR text in royal blue */}
-                <span className="mt-1 text-[9px] font-black text-[#0c4bb2] tracking-wider uppercase max-w-[74px] truncate">
-                  {t.memberQr}
-                </span>
+            {/* EXAMPLE 1 CUSTOMER BOOKING PARTY SET DETAIL ("Show Detail") */}
+            {homeCustomerBookings[0] && (() => {
+              const exampleBk = homeCustomerBookings[0];
+              const partyPackageLak = exampleBk.brandSetPackagePriceLak + exampleBk.copyrightMusicPriceLak;
+              const affiliateCode =
+                currentMember.autoAffiliateCode ||
+                exampleBk.autoAffiliateCode ||
+                `AFF-${currentMember.memberId}`;
+              return (
+                <div className="rounded-2xl bg-slate-950/85 border-2 border-amber-400/90 p-3 shadow-lg space-y-2">
+                  <div className="flex items-center justify-between gap-2 border-b border-white/15 pb-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[9px] font-black uppercase">
+                        Customer Booking Detail #1
+                      </span>
+                      <span className="text-[10px] font-mono font-black text-emerald-300">
+                        {exampleBk.bookingCode}
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400 text-emerald-300 text-[9px] font-black uppercase">
+                      {exampleBk.status || 'CONFIRMED'}
+                    </span>
+                  </div>
+
+                  {/* Party Event Title & 18 Provinces in Laos Location Selector */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="font-black text-white">
+                      {exampleBk.partyEventName}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-black uppercase text-emerald-300">
+                        📍 Party / Event Location (18 Provinces):
+                      </span>
+                      <select
+                        value={exampleBk.eventLocation}
+                        onChange={(e) => {
+                          const newLoc = e.target.value;
+                          updateSingerPartyBooking(exampleBk.id, {
+                            eventLocation: newLoc,
+                          });
+                          setRedemptionNotice(
+                            `Updated Party / Event Location to ${newLoc}`
+                          );
+                          setTimeout(() => setRedemptionNotice(null), 4000);
+                        }}
+                        className="bg-slate-900 border border-amber-400/70 rounded-lg px-2 py-1 text-[10px] font-bold text-amber-200 cursor-pointer"
+                      >
+                        {![
+                          '1. Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)',
+                          '2. Phongsaly Province (ແຂວງຜົ້ງສາລີ)',
+                          '3. Luang Namtha Province (ແຂວງຫຼວງນໍ້າທາ)',
+                          '4. Oudomxay Province (ແຂວງອຸດົມໄຊ)',
+                          '5. Bokeo Province (ແຂວງບໍ່ແກ້ວ)',
+                          '6. Luang Prabang Province (ແຂວງຫຼວງພະບາງ)',
+                          '7. Houaphanh Province (ແຂວງຫົວພັນ)',
+                          '8. Xayaboury Province (ແຂວງໄຊຍະບູລີ)',
+                          '9. Xiangkhouang Province (ແຂວງຊຽງຂວາງ)',
+                          '10. Vientiane Province (ແຂວງວຽງຈັນ)',
+                          '11. Bolikhamxai Province (ແຂວງບໍລິຄໍາໄຊ)',
+                          '12. Khammouane Province (ແຂວງຄໍາມ່ວນ)',
+                          '13. Savannakhet Province (ແຂວງສະຫວັນນະເຂດ)',
+                          '14. Salavan Province (ແຂວງສາລະວັນ)',
+                          '15. Sekong Province (ແຂວງເຊກອງ)',
+                          '16. Champasak Province (ແຂວງຈໍາປາສັກ)',
+                          '17. Attapeu Province (ແຂວງອັດຕະປື)',
+                          '18. Xaisomboun Province (ແຂວງໄຊສົມບູນ)',
+                        ].includes(exampleBk.eventLocation) &&
+                          exampleBk.eventLocation && (
+                            <option value={exampleBk.eventLocation}>
+                              {exampleBk.eventLocation}
+                            </option>
+                          )}
+                        {[
+                          '1. Vientiane Capital (ນະຄອນຫຼວງວຽງຈັນ)',
+                          '2. Phongsaly Province (ແຂວງຜົ້ງສາລີ)',
+                          '3. Luang Namtha Province (ແຂວງຫຼວງນໍ້າທາ)',
+                          '4. Oudomxay Province (ແຂວງອຸດົມໄຊ)',
+                          '5. Bokeo Province (ແຂວງບໍ່ແກ້ວ)',
+                          '6. Luang Prabang Province (ແຂວງຫຼວງພະບາງ)',
+                          '7. Houaphanh Province (ແຂວງຫົວພັນ)',
+                          '8. Xayaboury Province (ແຂວງໄຊຍະບູລີ)',
+                          '9. Xiangkhouang Province (ແຂວງຊຽງຂວາງ)',
+                          '10. Vientiane Province (ແຂວງວຽງຈັນ)',
+                          '11. Bolikhamxai Province (ແຂວງບໍລິຄໍາໄຊ)',
+                          '12. Khammouane Province (ແຂວງຄໍາມ່ວນ)',
+                          '13. Savannakhet Province (ແຂວງສະຫວັນນະເຂດ)',
+                          '14. Salavan Province (ແຂວງສາລະວັນ)',
+                          '15. Sekong Province (ແຂວງເຊກອງ)',
+                          '16. Champasak Province (ແຂວງຈໍາປາສັກ)',
+                          '17. Attapeu Province (ແຂວງອັດຕະປື)',
+                          '18. Xaisomboun Province (ແຂວງໄຊສົມບູນ)',
+                        ].map((prov) => (
+                          <option key={prov} value={prov}>
+                            {prov}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Detailed Breakdown Grid matching Customer Booking Party Package Set fields */}
+                  <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-slate-400 uppercase font-bold text-[8px]">
+                        1. Select Singer
+                      </div>
+                      <div className="font-black text-white truncate mt-0.5">
+                        {exampleBk.singerStageName} ({exampleBk.singerCode})
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-slate-400 uppercase font-bold text-[8px]">
+                        2. Man or Woman
+                      </div>
+                      <div className="font-black text-amber-300 mt-0.5">
+                        {exampleBk.singerGender === 'WOMAN' ? 'WOMAN (Female Singer)' : 'MAN (Male Singer)'}
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-slate-400 uppercase font-bold text-[8px]">
+                        3. Start Singer Price
+                      </div>
+                      <div className="font-mono font-black text-emerald-300 mt-0.5">
+                        {formatNumberWithCommas(exampleBk.singerPriceLak)} LAK
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-slate-400 uppercase font-bold text-[8px]">
+                        4. Package Party Price
+                      </div>
+                      <div className="font-mono font-black text-sky-300 mt-0.5">
+                        {formatNumberWithCommas(partyPackageLak)} LAK
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-400/40 col-span-2 flex flex-wrap items-center justify-between gap-1">
+                      <div>
+                        <div className="text-amber-200 uppercase font-bold text-[8px]">
+                          5. Booking Date &amp; Time Calendar
+                        </div>
+                        <div className="font-mono font-black text-white text-[11px] mt-0.5">
+                          📅 {exampleBk.bookingDate} • ⏰ {exampleBk.bookingTimeSlot}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-amber-200 uppercase font-bold text-[8px]">
+                          Total Party Package Set
+                        </div>
+                        <div className="font-mono font-black text-amber-400 text-xs mt-0.5">
+                          {formatNumberWithCommas(exampleBk.totalPackagePriceLak)} LAK
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Automatic Member Affiliate Status Line */}
+                  <div className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/40 flex flex-wrap items-center justify-between gap-1 text-[10px]">
+                    <span className="font-bold text-emerald-200">
+                      ✓ Auto Member Affiliate: <span className="font-mono font-black text-white">{affiliateCode}</span>
+                    </span>
+                    <span className="font-mono font-black text-amber-300">
+                      Wallet • Withdraw • Affiliate Commission
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* CUSTOMER ACTIVE PACKAGE PAYMENT (1,600,000 LAK) & ADMINISTRATOR APPROVAL TO BECOME USER MEMBER ANY TIME */}
+            <div className="rounded-2xl bg-gradient-to-r from-amber-950/90 via-slate-950 to-emerald-950/90 border-2 border-amber-400 p-3 shadow-lg space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-2">
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[9px] font-black uppercase">
+                      Active Package • 1,600,000 LAK
+                    </span>
+                    {currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER' &&
+                    currentMember.activePackagePaymentStatus === 'APPROVED' ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 text-[9px] font-black uppercase">
+                        ✓ Approved User Member (Active Lifetime)
+                      </span>
+                    ) : currentMember.activePackagePaymentStatus === 'PENDING_ADMIN_APPROVAL' ? (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/30 border border-amber-400 text-amber-200 text-[9px] font-black uppercase">
+                        ⏳ Paid 1,600,000 LAK • Waiting Admin Approval
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-sky-500/25 border border-sky-400 text-sky-200 text-[9px] font-black uppercase">
+                        Customer (Free Member) • Pay Active Package Any Time
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs font-black text-white mt-1">
+                    Upgrade Customer to Official User Member (Pay Active Package Any Time • Admin Approved)
+                  </div>
+                  <div className="text-[10px] text-amber-200/90">
+                    When Customer pays the Active Package (1,600,000 LAK) any time, Administrator approves Customer to become an Active User Member &amp; unlocks Held Balance into Available for Payout!
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* Step 1: Customer Pay Active Package Any Time */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = submitCustomerActivePackagePayment(
+                      currentMember.memberId,
+                      {
+                        paymentMethod: 'LAO_QR',
+                        amountLak: 1600000,
+                      }
+                    );
+                    setRedemptionNotice(res.message);
+                    setTimeout(() => setRedemptionNotice(null), 6000);
+                  }}
+                  className="py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                >
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    {currentMember.activePackagePaymentStatus === 'PENDING_ADMIN_APPROVAL'
+                      ? '✓ Active Package Paid (1,600,000 LAK) — Resend to Admin'
+                      : '1. Pay Active Package (1,600,000 LAK) Any Time'}
+                  </span>
+                </button>
+
+                {/* Step 2: Administrator Approve Customer Become User Member Any Time */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = adminApproveCustomerToActiveMember(
+                      currentMember.memberId,
+                      'ADMINISTRATOR'
+                    );
+                    setRedemptionNotice(res.message);
+                    setTimeout(() => setRedemptionNotice(null), 7000);
+                  }}
+                  className="py-2 px-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-[11px] flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    {currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER' &&
+                    currentMember.activePackagePaymentStatus === 'APPROVED'
+                      ? '✓ Admin Approved User Member (Re-Verify & Credit)'
+                      : '2. Admin Approve Customer → Become User Member'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBannerProductForQr(null);
+                    setShowDirectPayQr(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/40 font-bold cursor-pointer"
+                >
+                  Scan Lao QR for Active Package (1,600,000 LAK)
+                </button>
+
+                {currentMember.membershipState === 'ACTIVE_LIFETIME_MEMBER' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveHomeRole('MEMBER');
+                      try {
+                        sessionStorage.setItem('dmc_active_home_role', 'MEMBER');
+                      } catch {}
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/50 font-black cursor-pointer"
+                  >
+                    ✓ Open Approved User Member Panel →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 5-BALANCE ACCOUNT CARDS (Same as User Member: Pending Balance, Held for Qualification, Available for Payout, Held for In-Flight Withdrawal, Recovery Due) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                <div className="text-[9px] font-bold text-slate-400 uppercase">
+                  {t.pendingBalance}
+                </div>
+                <div className="text-xs sm:text-sm font-black font-mono text-slate-200">
+                  {formatLak(balances.pending)}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-1">
+                <div className="text-[9px] font-bold text-amber-400 uppercase">
+                  {t.heldForQualification}
+                </div>
+                <div className="text-xs sm:text-sm font-black font-mono text-amber-300">
+                  {formatLak(balances.heldForQualification)}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-emerald-500/30 space-y-1">
+                <div className="text-[9px] font-bold text-emerald-400 uppercase">
+                  {t.availableBalance}
+                </div>
+                <div className="text-xs sm:text-sm font-black font-mono text-emerald-300">
+                  {formatLak(balances.available)}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                <div className="text-[9px] font-bold text-slate-400 uppercase">
+                  {t.heldForWithdrawal}
+                </div>
+                <div className="text-xs sm:text-sm font-black font-mono text-slate-300">
+                  {formatLak(balances.heldForWithdrawal)}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                <div className="text-[9px] font-bold text-slate-400 uppercase">
+                  {t.recoveryDue}
+                </div>
+                <div className="text-xs sm:text-sm font-black font-mono text-slate-300">
+                  {formatLak(balances.recoveryDue)}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onNavigate('wallet')}
+                className="p-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] flex flex-col items-center justify-center gap-0.5 cursor-pointer shadow"
+              >
+                <Wallet className="w-4 h-4" />
+                <span>{t.requestWithdrawal}</span>
               </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Redemption / Action Notice for Singer & Customer Panels */}
+        {activeHomeRole !== 'MEMBER' && redemptionNotice && (
+          <div className="mt-2.5 p-3 rounded-2xl bg-emerald-950/90 border border-emerald-400/60 text-emerald-200 text-xs flex items-center justify-between gap-2 shadow-lg">
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{redemptionNotice}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setRedemptionNotice(null)}
+              className="text-emerald-300 hover:text-white p-1 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ---------------- 3. WHITE CURVED BODY CONTAINER ---------------- */}
+      {/* ---------------- 3. WHITE CURVED BODY CONTAINER (SHOWN ONLY FOR 1/ USER MEMBER PANEL) ---------------- */}
+      {activeHomeRole === 'MEMBER' && (
       <div className="bg-white rounded-t-[32px] text-slate-800 p-4 -mt-4 shadow-2xl relative z-10 space-y-4">
         {/* Notification Alert Toast (if triggered) */}
         {showNotificationToast && (
@@ -1906,7 +2992,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               <Wallet className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div className="text-sm sm:text-base font-black text-slate-900 font-mono leading-tight truncate">
-              {formatNumberWithCommas(balances.available)}
+              {formatNumberWithCommas(
+                activeHomeRole === 'SINGER' && activeHomeSinger
+                  ? Math.max(balances.available, activeHomeSinger.walletAvailableLak)
+                  : balances.available
+              )}
             </div>
             <div className="text-[10px] font-semibold text-slate-500 leading-tight line-clamp-2">
               {t.tileWithdrawableBalance}
@@ -1933,7 +3023,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <div className="grid grid-cols-3 gap-2.5">
             {/* Button 1: Buy Music Package (Vibrant Red Gradient) */}
             <button
-              onClick={() => onNavigate('musichub')}
+              onClick={() => onNavigate('catalog')}
               className="bg-gradient-to-br from-[#e0192d] to-[#bd0d1e] shadow-md shadow-red-500/20 text-white rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
@@ -1965,7 +3055,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
             {/* Button 3: My Music (Vivid Emerald Green Gradient) */}
             <button
-              onClick={() => onNavigate('musichub')}
+              onClick={() => onNavigate('mymusic')}
               className="bg-gradient-to-br from-[#05b865] to-[#038e4c] shadow-md shadow-emerald-500/20 text-white rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
@@ -1980,12 +3070,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Row 2: 5 Colorful Cards (Academy, Music Hub, Staff, Promotions, Support) with Clean White Icons */}
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+          {/* Row 2: 6 Colorful Cards (Academy, Music Hub, Staff, Singer, Promotions, Support) with Clean White Icons */}
+          <div className="grid grid-cols-6 gap-1 sm:gap-2">
             {/* Button 4: Academy (Cyan Gradient with Clean White Graduation Cap Icon) */}
             <button
               onClick={() => onNavigate('academy')}
-              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.academy ? (
@@ -2001,7 +3091,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   </svg>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnAcademy}
               </span>
             </button>
@@ -2009,7 +3099,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Button 5: Music Hub (Electric Sky Blue Gradient with Clean White Headphones Icon — Placed between Academy and Staff) */}
             <button
               onClick={() => onNavigate('musichub')}
-              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.musicHub ? (
@@ -2022,7 +3112,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <Headphones className="w-5 h-5 text-white stroke-[2.2]" />
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnMusicHub}
               </span>
             </button>
@@ -2033,7 +3123,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 setStaffModalMode('LIST');
                 setShowStaffModal(true);
               }}
-              className="bg-gradient-to-br from-[#1d63dc] to-[#1545a8] shadow-md shadow-blue-600/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
+              className="bg-gradient-to-br from-[#1d63dc] to-[#1545a8] shadow-md shadow-blue-600/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
               title="DMC Staff & 8 Positions (Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time)"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
@@ -2058,8 +3148,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   </svg>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 Staff
+              </span>
+            </button>
+
+            {/* Button 6B (Placed Next to Staff Button): Click to Pop Up 5 Singers Selection & Booking */}
+            <button
+              onClick={() => {
+                setSingerModalInitialTab('BOOKING_PARTY');
+                setShowSingerModal(true);
+              }}
+              className="bg-gradient-to-br from-[#f59e0b] via-[#ea580c] to-[#b91c1c] shadow-md shadow-amber-500/25 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
+              title="Click to Pop Up & Select Singer (5 People)"
+            >
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden group-hover:bg-white/30 transition-colors">
+                {customHomeIcons.singer ? (
+                  <img
+                    src={customHomeIcons.singer}
+                    alt="DMC Singer"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Mic className="w-5 h-5 text-white stroke-[2.3]" />
+                )}
+              </div>
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+                Singer
               </span>
             </button>
 
@@ -2069,7 +3184,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 setPromotionModalMode('LIST');
                 setShowPromotionsModal(true);
               }}
-              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.promotions ? (
@@ -2085,7 +3200,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   </svg>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnPromotions}
               </span>
             </button>
@@ -2093,7 +3208,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             {/* Button 8: Support (Deep Purple Gradient) */}
             <button
               onClick={() => setShowSupportModal(true)}
-              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl py-2.5 px-1.5 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
                 {customHomeIcons.support ? (
@@ -2106,13 +3221,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <HelpCircle className="w-5 h-5 text-white stroke-[2.2]" />
                 )}
               </div>
-              <span className="text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
                 {t.btnSupport}
               </span>
             </button>
           </div>
         </div>
       </div>
+      )}
 
       {/* ---------------- 4. MODALS (AVATAR PICKER, QR, PROMOTIONS, SUPPORT) ---------------- */}
 
@@ -2180,6 +3296,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     type="button"
                     onClick={() => {
                       adminUpdateMember(currentMember.memberId, { avatarUrl: url });
+                      if (activeHomeSinger) {
+                        updateSingerProfile(activeHomeSinger.id, { avatarUrl: url });
+                      }
                       setCustomAvatarInput(url);
                       setRedemptionNotice(`Updated profile image for ${currentMember.name}!`);
                       setTimeout(() => setRedemptionNotice(null), 3500);
@@ -2213,6 +3332,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   onClick={() => {
                     if (customAvatarInput.trim()) {
                       adminUpdateMember(currentMember.memberId, { avatarUrl: customAvatarInput.trim() });
+                      if (activeHomeSinger) {
+                        updateSingerProfile(activeHomeSinger.id, { avatarUrl: customAvatarInput.trim() });
+                      }
                       setRedemptionNotice(`Updated profile image for ${currentMember.name}!`);
                       setTimeout(() => setRedemptionNotice(null), 3500);
                       setShowAvatarModal(false);
@@ -3658,14 +4780,48 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Member QR & Referral QR Modal */}
+      {/* Member QR & Referral QR Modal (Supports 1/ User Member, 2/ User Singer, 3/ User Customer on dmcxayraxa.music) */}
       <QrCodeModal
         isOpen={activeQrModal !== null}
         onClose={() => setActiveQrModal(null)}
         type={activeQrModal || 'MEMBER'}
-        memberId={currentMember.memberId}
-        memberName={currentMember.name}
-        referralCode={currentMember.memberId}
+        memberId={
+          activeHomeRole === 'SINGER' && activeHomeSinger
+            ? activeHomeSinger.memberId || currentMember.memberId
+            : currentMember.memberId
+        }
+        memberName={
+          activeHomeRole === 'SINGER' && activeHomeSinger
+            ? `${activeHomeSinger.stageName} (${activeHomeSinger.fullName})`
+            : currentMember.name
+        }
+        referralCode={
+          activeHomeRole === 'SINGER' && activeHomeSinger
+            ? activeHomeSinger.memberId || currentMember.memberId
+            : currentMember.memberId
+        }
+        roleLabel={
+          activeHomeRole === 'SINGER'
+            ? '2/ User Singer'
+            : activeHomeRole === 'CUSTOMER'
+            ? '3/ User Customer'
+            : '1/ User Member'
+        }
+        customReferralUrl={
+          activeHomeRole === 'SINGER' && activeHomeSinger
+            ? `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
+                activeHomeSinger.memberId || currentMember.memberId
+              )}&singer=${encodeURIComponent(
+                activeHomeSinger.singerCode
+              )}&aff=${encodeURIComponent(activeHomeSinger.affiliateCode)}`
+            : activeHomeRole === 'CUSTOMER'
+            ? `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
+                currentMember.memberId
+              )}&aff=${encodeURIComponent(
+                currentMember.autoAffiliateCode || `AFF-${currentMember.memberId}`
+              )}`
+            : `https://dmcxayraxa.music/register?ref=${encodeURIComponent(currentMember.memberId)}`
+        }
       />
 
       {/* Lao Bank QR Direct Activation Modal */}
@@ -4483,7 +5639,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStaffModal(false);
+                    setSingerModalInitialTab('APPLY');
+                    setShowSingerModal(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#b91c1c] hover:from-amber-500 hover:to-red-700 text-white text-[10px] font-black flex items-center gap-1 shadow cursor-pointer"
+                  title="Open 1/ Singer Job Application Register Form & 2/ Singer Profile Dashboard"
+                >
+                  <Mic className="w-3 h-3" />
+                  <span>Singer Job Apply</span>
+                </button>
                 {isAdmin && (
                   <>
                     <button
@@ -4511,7 +5680,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                             phone: defaultMem.phone,
                             email:
                               defaultMem.email ||
-                              `${defaultMem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                              `${defaultMem.memberId.toLowerCase()}@dmcxayraxa.music`,
                             branch:
                               existingStf?.branch ||
                               defaultMem.staffBranch ||
@@ -4807,7 +5976,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                                 phone: mem.phone,
                                 email:
                                   mem.email ||
-                                  `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                                  `${mem.memberId.toLowerCase()}@dmcxayraxa.music`,
                                 branch:
                                   existingStf?.branch ||
                                   mem.staffBranch ||
@@ -5123,7 +6292,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                             position: mem.staffPosition || existingStf?.position || prev.position,
                             phone: mem.phone,
                             email:
-                              mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.la`,
+                              mem.email || `${mem.memberId.toLowerCase()}@dmcxayraxa.music`,
                             branch:
                               existingStf?.branch ||
                               mem.staffBranch ||
@@ -5294,7 +6463,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       type="email"
                       value={staffForm.email}
                       onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                      placeholder="staff@dmcxayraxa.la"
+                      placeholder="staff@dmcxayraxa.music"
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
                     />
                   </div>
@@ -5507,6 +6676,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Singer Job Application Register Form & Singer Profile Dashboard Modal */}
+      <SingerApplicationDashboardModal
+        isOpen={showSingerModal}
+        onClose={() => setShowSingerModal(false)}
+        initialTab={singerModalInitialTab}
+        onNavigateTab={onNavigate}
+      />
     </div>
   );
 };

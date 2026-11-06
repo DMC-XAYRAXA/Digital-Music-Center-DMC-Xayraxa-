@@ -359,16 +359,16 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>{t.register} (New Account)</span>
                     </button>
 
-                    {/* 4. Profile & SMS */}
+                    {/* 4. Update My Profile / Password */}
                     <button
                       onClick={() => {
                         setShowLoginMenu(false);
-                        setAuthMode('RECOVERY');
-                        setShowAuthModal(true);
+                        setControlPanelTab('PROFILE');
+                        setShowControlPanel(true);
                       }}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-sky-300 hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer"
                     >
-                      <span>{t.profileAndSms} (+856)</span>
+                      <span>Update My Profile / Password</span>
                     </button>
 
                     {/* 5. My QR Code Bank Account */}
