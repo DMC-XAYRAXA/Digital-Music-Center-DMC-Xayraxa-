@@ -812,7 +812,7 @@ function buildMultiPagePdfFromJpegs(
     `trailer\n<< /Size ${totalObjects + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
   );
 
-  return new Blob(chunks, { type: 'application/pdf' });
+  return new Blob(chunks as unknown as BlobPart[], { type: 'application/pdf' });
 }
 
 async function renderA4PrintSheetJpeg(frontPng: string, backPng: string, titleText: string): Promise<string> {

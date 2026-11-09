@@ -18,6 +18,7 @@ import { AdminPortal } from './components/admin/AdminPortal';
 import { SpecSlidesViewer } from './components/common/SpecSlidesViewer';
 import { UserControlPanelModal } from './components/common/UserControlPanelModal';
 import { AuthPortalModal } from './components/common/AuthPortalModal';
+import { AutoLanguageDomTranslator } from './components/common/AutoLanguageDomTranslator';
 
 function AppContent() {
   const { isAdminMode, isLoggedOut } = useDmc();
@@ -33,15 +34,21 @@ function AppContent() {
   if (isLoggedOut) {
     return (
       <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center font-sans selection:bg-amber-500/30 selection:text-amber-900">
+        <AutoLanguageDomTranslator />
         <AuthPortalModal isOpen={true} initialMode="MEMBER" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
-      {/* Top Main Navigation Header (Hidden on mobile when on Home screen since HomeScreen has its own full mobile header) */}
-      <div className={!isAdminMode && activeTab === 'home' ? 'hidden md:block' : 'block'}>
+    <div
+      className={`min-h-screen flex flex-col font-sans selection:bg-amber-500/30 ${
+        isAdminMode ? 'bg-slate-950 text-slate-100 selection:text-amber-200' : 'bg-white text-slate-900 selection:text-amber-900'
+      }`}
+    >
+      <AutoLanguageDomTranslator />
+      {/* Top Main Navigation Header (Hidden on mobile when in mobile app view since each screen has its own Crimson App Header) */}
+      <div className={!isAdminMode && deviceFrame === 'mobile' ? 'hidden md:block' : 'block'}>
         <Header
           deviceFrame={deviceFrame}
           setDeviceFrame={setDeviceFrame}
@@ -58,7 +65,7 @@ function AppContent() {
       <main
         className={`flex-1 max-w-6xl w-full mx-auto ${
           !isAdminMode && deviceFrame === 'mobile'
-            ? 'px-0 py-0 sm:px-4 sm:py-6'
+            ? 'px-0 py-0 sm:px-4 sm:py-6 bg-white'
             : 'px-4 py-6'
         }`}
       >
@@ -66,18 +73,18 @@ function AppContent() {
           <AdminPortal />
         ) : deviceFrame === 'mobile' ? (
           /* Mobile View (Full screen on mobile devices, Phone Frame Mockup on Desktop) */
-          <div className="flex justify-center sm:py-2">
-            <div className="w-full sm:max-w-[440px] bg-[#69030e] border-0 sm:border-[8px] sm:border-slate-800 rounded-none sm:rounded-[3rem] shadow-none sm:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9)] sm:ring-1 sm:ring-slate-600/40 relative min-h-screen sm:min-h-[820px] overflow-hidden flex flex-col justify-between">
-              <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="flex justify-center sm:py-2 bg-white">
+            <div className="w-full sm:max-w-[440px] bg-white border-0 sm:border-[8px] sm:border-slate-800 rounded-none sm:rounded-[3rem] shadow-none sm:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.25)] sm:ring-1 sm:ring-slate-300 relative min-h-screen sm:min-h-[820px] overflow-hidden flex flex-col justify-between">
+              <div className="flex-1 overflow-y-auto no-scrollbar bg-white">
                 {activeTab === 'home' && <HomeScreen onNavigate={setActiveTab} />}
-                {activeTab === 'academy' && <div className="p-4"><AcademyScreen /></div>}
-                {activeTab === 'musichub' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} viewMode="HUB" /></div>}
-                {activeTab === 'wallet' && <div className="p-4"><WalletScreen onNavigate={setActiveTab} /></div>}
-                {activeTab === 'network' && <div className="p-4"><NetworkScreen onNavigate={setActiveTab} /></div>}
-                {activeTab === 'aidmc' && <div className="p-4"><AiDmcScreen /></div>}
-                {activeTab === 'membership' && <div className="p-4"><MembershipScreen onNavigate={setActiveTab} /></div>}
-                {activeTab === 'catalog' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} viewMode="PACKAGE" /></div>}
-                {activeTab === 'mymusic' && <div className="p-4"><CatalogScreen onNavigate={setActiveTab} viewMode="MY_MUSIC" /></div>}
+                {activeTab === 'academy' && <AcademyScreen onNavigate={setActiveTab} />}
+                {activeTab === 'musichub' && <CatalogScreen onNavigate={setActiveTab} viewMode="HUB" />}
+                {activeTab === 'wallet' && <WalletScreen onNavigate={setActiveTab} />}
+                {activeTab === 'network' && <NetworkScreen onNavigate={setActiveTab} />}
+                {activeTab === 'aidmc' && <div className="p-4 bg-white min-h-full"><AiDmcScreen /></div>}
+                {activeTab === 'membership' && <div className="p-4 bg-white min-h-full"><MembershipScreen onNavigate={setActiveTab} /></div>}
+                {activeTab === 'catalog' && <CatalogScreen onNavigate={setActiveTab} viewMode="PACKAGE" />}
+                {activeTab === 'mymusic' && <CatalogScreen onNavigate={setActiveTab} viewMode="MY_MUSIC" />}
               </div>
 
               {/* Bottom Nav docked cleanly */}
@@ -90,9 +97,9 @@ function AppContent() {
           </div>
         ) : (
           /* Full Responsive Screen View */
-          <div className="pb-24">
+          <div className="pb-24 bg-white">
             {activeTab === 'home' && <HomeScreen onNavigate={setActiveTab} />}
-            {activeTab === 'academy' && <AcademyScreen />}
+            {activeTab === 'academy' && <AcademyScreen onNavigate={setActiveTab} />}
             {activeTab === 'musichub' && <CatalogScreen onNavigate={setActiveTab} viewMode="HUB" />}
             {activeTab === 'wallet' && <WalletScreen onNavigate={setActiveTab} />}
             {activeTab === 'network' && <NetworkScreen onNavigate={setActiveTab} />}
@@ -124,9 +131,15 @@ function AppContent() {
       />
 
       {/* Footer / Authority Attribution */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 px-4 text-center text-[11px] text-slate-400">
+      <footer
+        className={`border-t py-4 px-4 text-center text-[11px] ${
+          isAdminMode
+            ? 'border-slate-900 bg-slate-950 text-slate-400'
+            : 'border-slate-200 bg-white text-slate-500'
+        }`}
+      >
         <p>Digital Music Center (DMC Xayraxa) • Rev 2.6 Consolidated Specification</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">
+        <p className="text-[10px] mt-0.5">
           Vientiane Capital, Lao PDR • Integer LAK Authoritative Double-Entry Ledger • 3-Level Unilevel
         </p>
       </footer>

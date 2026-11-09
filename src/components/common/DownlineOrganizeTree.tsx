@@ -300,7 +300,8 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
       }
 
       if (editIsStaff) {
-        adminUpgradeMemberToStaff(cleanNewId, editStaffPosition, {
+        adminUpgradeMemberToStaff(cleanNewId, {
+          position: editStaffPosition,
           staffCode: editStaffCode.trim() || `DMC-STF-${cleanNewId}`,
           branch: editStaffBranch.trim() || 'Dongdok Campus Studio Hub, Vientiane',
         });

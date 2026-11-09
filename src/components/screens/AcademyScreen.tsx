@@ -9,6 +9,7 @@ import { translations, formatLak } from '../../utils/i18n';
 import { DMC_STANDARD_PRICING } from '../../types/dmc';
 import { DmcPricingStructureCard } from '../common/DmcPricingStructureCard';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
+import { DmcOfficialLogo } from '../common/DmcLogo';
 import {
   GraduationCap,
   BookOpen,
@@ -26,13 +27,26 @@ import {
   Trash2,
   QrCode,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Calendar,
+  Globe,
+  MapPin,
+  Laptop,
+  Building2,
+  Home,
 } from 'lucide-react';
 import {
   CopyrightCertificateModal,
   downloadDmcCertificateImage,
 } from '../common/CopyrightCertificateModal';
 
-export const AcademyScreen: React.FC = () => {
+interface AcademyScreenProps {
+  onNavigate?: (tab: any) => void;
+}
+
+export const AcademyScreen: React.FC<AcademyScreenProps> = ({ onNavigate }) => {
   const { currentMember, language, getMemberSongs, isAdminAuthenticated, isAdminMode, adminAddOrder } = useDmc();
   const isAdmin = isAdminAuthenticated || isAdminMode;
   const t = translations[language];
@@ -40,6 +54,10 @@ export const AcademyScreen: React.FC = () => {
   const [autoDownload, setAutoDownload] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccessNotice, setDownloadSuccessNotice] = useState<string | null>(null);
+  const [academySearch, setAcademySearch] = useState('');
+  const [learningMode, setLearningMode] = useState<'ONLINE' | 'AT_CENTER' | 'HOME_TUTOR' | 'MINI_CENTER'>('AT_CENTER');
+  const [selectedProvince, setSelectedProvince] = useState('Vientiane Capital');
+  const [selectedBranch, setSelectedBranch] = useState('Vientiane Branch');
   const memberSongs = getMemberSongs(currentMember.memberId);
 
   const handleDirectDownload = async () => {
@@ -612,374 +630,323 @@ export const AcademyScreen: React.FC = () => {
     : null;
 
   return (
-    <div className="@container space-y-6 pb-12 animate-in fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-amber-400" />
-            <span>{t.academyTitle}</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">{t.academySubtitle}</p>
-        </div>
+    <div className="@container pb-12 animate-in fade-in bg-white min-h-full">
+      {/* =====================================================================
+          03 · ACADEMY — CRIMSON TOP APP BAR + SEARCH (Matches image_b670fd1b.png)
+         ===================================================================== */}
+      <div className="bg-gradient-to-b from-[#8f0c1c] to-[#7a0916] px-4 pt-3 pb-5 space-y-3 text-white">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('home')}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer shrink-0"
+                aria-label="Back to Home"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <DmcOfficialLogo size={36} rounded="full" withGoldRing={true} />
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold tracking-widest text-amber-200/90 uppercase leading-none">
+                DMC XAYRAXA
+              </div>
+              <h1 className="text-base font-black tracking-tight text-white truncate mt-0.5">
+                DMC Academy
+              </h1>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {isAdmin && (
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="px-2.5 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-bold flex items-center gap-1">
+              <Globe className="w-3 h-3 text-amber-300" />
+              <span className="uppercase">{language}</span>
+            </div>
             <button
               type="button"
               onClick={() => {
-                setCourseModalMode('CREATE');
-                setEditingCourseId(null);
-                setCourseForm({
-                  title: '',
-                  category: 'Music Production',
-                  duration: '45 mins • 6 Modules',
-                  instructor: 'Xay Raxa (DMC Founder)',
-                  progress: 0,
-                  description: '',
-                  marketPriceLak: DMC_STANDARD_PRICING.marketPriceLak,
-                  memberPriceLak: DMC_STANDARD_PRICING.memberPriceLak,
-                  memberDiscountLak: DMC_STANDARD_PRICING.memberDiscountLak,
-                  commissionPoolLak: DMC_STANDARD_PRICING.commissionPoolLak,
-                  l1Percent: DMC_STANDARD_PRICING.l1Percent,
-                  l2Percent: DMC_STANDARD_PRICING.l2Percent,
-                  l3Percent: DMC_STANDARD_PRICING.l3Percent,
-                });
-                setIsCourseModalOpen(true);
+                setActiveCourseId(displayCourses[0]?.id || 'c1');
+                setActiveModuleIndex(0);
               }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 text-xs font-bold shadow-sm transition-all cursor-pointer"
-              title="Administrator: Add New Academy Course"
+              className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="My Schedule"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Add Course</span>
+              <Calendar className="w-4 h-4 text-amber-200" />
+            </button>
+          </div>
+        </div>
+
+        {/* White Search Bar */}
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={academySearch}
+            onChange={(e) => setAcademySearch(e.target.value)}
+            placeholder="Search courses, teachers, branches..."
+            className="w-full bg-white text-slate-900 placeholder:text-slate-400 text-xs font-medium rounded-full pl-9 pr-8 py-2.5 shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+          {academySearch && (
+            <button
+              type="button"
+              onClick={() => setAcademySearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
-
-          {/* Main "Certification Pathway" Pill Button */}
-          <button
-            onClick={() => {
-              setAutoDownload(false);
-              setIsCertOpen(true);
-            }}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
-            title="View Official DMC Copyright Certificate"
-          >
-            <Award className="w-4 h-4 text-amber-400" />
-            <span>{t.certificationPathway}</span>
-          </button>
-
-          {/* Direct 1-Click "Download Certificate" Button */}
-          <button
-            onClick={handleDirectDownload}
-            disabled={isDownloading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60"
-            title="Download Official DMC Copyright Certificate (PNG)"
-          >
-            {isDownloading ? (
-              <>
-                <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                <span>Downloading...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5" />
-                <span>{t.downloadCertificate}</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
 
-      {/* Download Success Toast Notice */}
-      {downloadSuccessNotice && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="font-semibold">{downloadSuccessNotice}</span>
+      {/* =====================================================================
+          03 · ACADEMY — WHITE ROUNDED SHEET BODY (Matches image_b670fd1b.png)
+         ===================================================================== */}
+      <div className="bg-white rounded-t-[28px] -mt-2 px-3.5 pt-4 pb-8 min-h-[calc(100vh-140px)] space-y-4 text-slate-900 shadow-[0_-8px_25px_rgba(0,0,0,0.18)]">
+        {/* 4 Learning Mode Icon Tabs (Online, At Center, Home Tutor, Mini Center) */}
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { id: 'ONLINE' as const, label: 'Online', icon: Laptop },
+            { id: 'AT_CENTER' as const, label: 'At Center', icon: Building2 },
+            { id: 'HOME_TUTOR' as const, label: 'Home Tutor', icon: Home },
+            { id: 'MINI_CENTER' as const, label: 'Mini Center', icon: Users },
+          ].map((mode) => {
+            const Icon = mode.icon;
+            const isModeActive = learningMode === mode.id;
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setLearningMode(mode.id)}
+                className={`rounded-xl py-2.5 px-1.5 flex flex-col items-center justify-center gap-1 border text-center transition-all cursor-pointer ${
+                  isModeActive
+                    ? 'bg-[#850818] border-[#850818] text-white shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isModeActive ? 'text-white' : 'text-slate-600'}`} />
+                <span className="text-[10px] font-bold leading-tight">{mode.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Find Your Class Card (Province & Branch Selectors) */}
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-900">
+            <MapPin className="w-3.5 h-3.5 text-[#850818]" />
+            <span>Find your class</span>
           </div>
-          <button
-            onClick={() => {
-              setAutoDownload(false);
-              setIsCertOpen(true);
-            }}
-            className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[11px] font-bold underline cursor-pointer"
-          >
-            {t.certificationPathway}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">
+                Province
+              </label>
+              <select
+                value={selectedProvince}
+                onChange={(e) => setSelectedProvince(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#850818]"
+              >
+                <option value="Vientiane Capital">Vientiane Capital</option>
+                <option value="Luang Prabang">Luang Prabang</option>
+                <option value="Champasak / Pakse">Champasak / Pakse</option>
+                <option value="Savannakhet">Savannakhet</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">
+                Branch
+              </label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#850818]"
+              >
+                <option value="Vientiane Branch">Vientiane Branch</option>
+                <option value="Dongdok Studio Branch">Dongdok Studio Branch</option>
+                <option value="Sikhai Music Center">Sikhai Music Center</option>
+                <option value="Luang Prabang Hub">Luang Prabang Hub</option>
+              </select>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Featured Lesson Banner */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col @2xl:flex-row items-start @2xl:items-center justify-between gap-4 shadow-lg">
-        <div className="space-y-1.5 max-w-xl">
-          <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500 text-slate-950">
-            {t.currentModuleInProgress}
-          </span>
-          <h3 className="text-base font-bold text-white">{t.featuredLessonTitle}</h3>
-          <p className="text-xs text-slate-300 leading-relaxed">{t.featuredLessonDesc}</p>
-        </div>
-        <button
-          onClick={() => {
-            setActiveModuleIndex(0);
-            setActiveCourseId('c1');
-          }}
-          className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 transition-colors shrink-0 shadow cursor-pointer"
-        >
-          <PlayCircle className="w-4 h-4" />
-          <span>{t.resumeLessonBtn}</span>
-        </button>
-      </div>
-
-      {/* Official DMC Music Course Pricing Structure */}
-      <DmcPricingStructureCard
-        title="DMC Music Course Pricing – Official Member Discount & Commission Pool"
-        onSavePricing={(payload) => {
-          const nextOverrides = { ...courseOverrides };
-          localizedCourses.forEach((lc) => {
-            nextOverrides[lc.id] = {
-              ...(nextOverrides[lc.id] || {}),
-              marketPriceLak: payload.marketPriceLak,
-              memberPriceLak: payload.memberPriceLak,
-              memberDiscountLak: payload.memberDiscountLak,
-              commissionPoolLak: payload.commissionPoolLak,
-              l1Percent: payload.l1Percent,
-              l2Percent: payload.l2Percent,
-              l3Percent: payload.l3Percent,
-            };
-          });
-          setCourseOverrides(nextOverrides);
-          localStorage.setItem('dmc_rev26_academy_overrides_v2', JSON.stringify(nextOverrides));
-
-          const nextCustom = customCourses.map((cc) => ({
-            ...cc,
-            marketPriceLak: payload.marketPriceLak,
-            memberPriceLak: payload.memberPriceLak,
-            memberDiscountLak: payload.memberDiscountLak,
-            commissionPoolLak: payload.commissionPoolLak,
-            l1Percent: payload.l1Percent,
-            l2Percent: payload.l2Percent,
-            l3Percent: payload.l3Percent,
-          }));
-          setCustomCourses(nextCustom);
-          localStorage.setItem('dmc_rev26_academy_custom_v2', JSON.stringify(nextCustom));
-          setDownloadSuccessNotice(
-            `Updated DMC Music Course Pricing: Market ${formatLak(
-              payload.marketPriceLak
-            )} • Member ${formatLak(payload.memberPriceLak)} • Discount ${formatLak(
-              payload.memberDiscountLak
-            )} • Pool ${formatLak(payload.commissionPoolLak)}`
-          );
-          setTimeout(() => setDownloadSuccessNotice(null), 5000);
-        }}
-      />
-
-      {/* Course List (All Academy Learning Lessons) */}
-      <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
-        {displayCourses.map((c) => {
-          const Icon = c.icon;
-          return (
-            <div
-              key={c.id}
-              className="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition-all flex flex-col justify-between space-y-4 shadow-lg"
+        {/* Continue Learning Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-slate-900">Continue learning</h3>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCourseId(displayCourses[0]?.id || 'c1');
+                setActiveModuleIndex(0);
+              }}
+              className="text-[11px] font-bold text-[#850818] hover:underline flex items-center gap-0.5 cursor-pointer"
             >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
-                      {c.category}
-                    </span>
-                    {isAdmin && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCourseModalMode('EDIT');
-                            setEditingCourseId(c.id);
-                            setCourseForm({
-                              title: c.title,
-                              category: c.category,
-                              duration: c.duration,
-                              instructor: c.instructor,
-                              progress: c.progress,
-                              description: c.description,
-                              marketPriceLak: c.marketPriceLak,
-                              memberPriceLak: c.memberPriceLak,
-                              memberDiscountLak: c.memberDiscountLak,
-                              commissionPoolLak: c.commissionPoolLak,
-                              l1Percent: c.l1Percent,
-                              l2Percent: c.l2Percent,
-                              l3Percent: c.l3Percent,
-                            });
-                            setIsCourseModalOpen(true);
-                          }}
-                          className="px-2 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                          title="Administrator: Edit / Update Course"
-                        >
-                          <Pencil className="w-2.5 h-2.5" />
-                          <span>Edit</span>
-                        </button>
-                        {displayCourses.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCourse(c.id)}
-                            className="p-1 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 cursor-pointer"
-                            title="Administrator: Delete Course"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+              <span>My courses</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-                <div>
-                  <h4 className="font-bold text-sm text-white">{c.title}</h4>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">{c.description}</p>
-                </div>
-
-                <div className="text-[11px] text-slate-400 flex items-center gap-3 flex-wrap">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{c.duration}</span>
-                  </span>
-                  <span>•</span>
-                  <span>
-                    {t.instructorLabel}: {c.instructor}
-                  </span>
-                </div>
-
-                {/* DMC Music Course Pricing & Commission Breakdown */}
-                <DmcPricingStructureCard
-                  marketPriceLak={c.marketPriceLak}
-                  memberPriceLak={c.memberPriceLak}
-                  memberDiscountLak={c.memberDiscountLak}
-                  commissionPoolLak={c.commissionPoolLak}
-                  l1Percent={c.l1Percent}
-                  l2Percent={c.l2Percent}
-                  l3Percent={c.l3Percent}
-                  compact={true}
-                  onSavePricing={(payload) => {
-                    if (c.id.startsWith('custom-')) {
-                      const nextCustom = customCourses.map((item) =>
-                        item.id === c.id
-                          ? {
-                              ...item,
-                              marketPriceLak: payload.marketPriceLak,
-                              memberPriceLak: payload.memberPriceLak,
-                              memberDiscountLak: payload.memberDiscountLak,
-                              commissionPoolLak: payload.commissionPoolLak,
-                              l1Percent: payload.l1Percent,
-                              l2Percent: payload.l2Percent,
-                              l3Percent: payload.l3Percent,
-                            }
-                          : item
-                      );
-                      setCustomCourses(nextCustom);
-                      localStorage.setItem('dmc_rev26_academy_custom_v2', JSON.stringify(nextCustom));
-                    } else {
-                      const nextOverrides = {
-                        ...courseOverrides,
-                        [c.id]: {
-                          ...(courseOverrides[c.id] || {}),
-                          marketPriceLak: payload.marketPriceLak,
-                          memberPriceLak: payload.memberPriceLak,
-                          memberDiscountLak: payload.memberDiscountLak,
-                          commissionPoolLak: payload.commissionPoolLak,
-                          l1Percent: payload.l1Percent,
-                          l2Percent: payload.l2Percent,
-                          l3Percent: payload.l3Percent,
-                        },
-                      };
-                      setCourseOverrides(nextOverrides);
-                      localStorage.setItem(
-                        'dmc_rev26_academy_overrides_v2',
-                        JSON.stringify(nextOverrides)
-                      );
-                    }
-                    setDownloadSuccessNotice(`Updated course "${c.title}" pricing numbers!`);
-                    setTimeout(() => setDownloadSuccessNotice(null), 4000);
-                  }}
-                />
-              </div>
-
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>{t.progressLabel}</span>
-                  <span className="font-mono text-amber-300 font-bold">{c.progress}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
-                  <div
-                    className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                    style={{ width: `${c.progress}%` }}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <button
-                    onClick={() => {
-                      setActiveModuleIndex(0);
-                      setActiveCourseId(c.id);
-                    }}
-                    className="flex-1 min-w-[140px] py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>
-                      {c.progress === 100
-                        ? t.reviewCourseMaterial
-                        : c.progress > 0
-                        ? t.continueWatching
-                        : t.startCourse}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedCourseForQr({
-                        id: c.id,
-                        title: c.title,
-                        memberPriceLak: c.memberPriceLak,
-                        commissionPoolLak: c.commissionPoolLak,
-                      })
-                    }
-                    className="px-3.5 py-2.5 rounded-xl bg-[#df1c2d] hover:bg-red-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer whitespace-nowrap shrink-0"
-                    title="Enroll at DMC Member Price via Lao Bank QR"
-                  >
-                    <QrCode className="w-3.5 h-3.5 shrink-0" />
-                    <span>Buy QR</span>
-                  </button>
-
-                  {c.id === 'c3' && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => {
-                          setAutoDownload(false);
-                          setIsCertOpen(true);
-                        }}
-                        className="px-2.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                        title="View Official Certificate"
-                      >
-                        <Award className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={handleDirectDownload}
-                        disabled={isDownloading}
-                        className="px-2.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer disabled:opacity-60"
-                        title="Download Certificate PNG"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
+          <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-xs flex items-center gap-3">
+            <div
+              onClick={() => {
+                setActiveCourseId(displayCourses[0]?.id || 'c1');
+                setActiveModuleIndex(0);
+              }}
+              className="relative w-28 h-24 rounded-xl overflow-hidden bg-slate-900 shrink-0 cursor-pointer group"
+            >
+              <img
+                src="https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=600&q=80"
+                alt="Acoustic Guitar"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-black/65 border border-white/80 flex items-center justify-center text-white">
+                  <PlayCircle className="w-5 h-5" />
                 </div>
               </div>
             </div>
-          );
-        })}
+
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div>
+                <div className="text-xs font-black text-slate-900 truncate">
+                  Acoustic Guitar
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  Chords & Rhythm • 4 of 10 lessons completed
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-[#059669]" style={{ width: '45%' }} />
+                </div>
+                <span className="text-[10px] font-black text-[#059669] font-mono">45%</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCourseId(displayCourses[0]?.id || 'c1');
+                  setActiveModuleIndex(0);
+                }}
+                className="w-full py-1.5 rounded-lg bg-[#850818] hover:bg-red-900 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-colors cursor-pointer"
+              >
+                <span>Resume lesson</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Recommended Course Card (Guitar Foundations) */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-black text-slate-900">Recommended course</h3>
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+            <div className="relative h-32 sm:h-36 w-full bg-slate-900 overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80"
+                alt="Guitar Foundations"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+              <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-black/70 border border-amber-400/50 text-amber-300 font-bold text-[9px] uppercase tracking-wider">
+                DMC XAYRAXA MUSIC ACADEMY
+              </span>
+            </div>
+
+            <div className="p-3 flex items-end justify-between gap-2">
+              <div className="space-y-0.5">
+                <div className="text-sm font-black text-slate-900">Guitar Foundations</div>
+                <div className="text-[11px] text-slate-500 font-medium">
+                  Choose a teacher, date & time ({selectedBranch})
+                </div>
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] text-slate-400 line-through font-mono">
+                    Public: {formatLak(DMC_STANDARD_PRICING.marketPriceLak)}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[8px] uppercase">
+                    ♛ MEMBER PRICE
+                  </span>
+                </div>
+                <div className="text-base font-black text-[#850818] font-mono">
+                  {formatLak(DMC_STANDARD_PRICING.memberPriceLak)}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const first = displayCourses[0];
+                  if (first) {
+                    setSelectedCourseForQr({
+                      id: first.id,
+                      title: first.title,
+                      memberPriceLak: first.memberPriceLak ?? DMC_STANDARD_PRICING.memberPriceLak,
+                      commissionPoolLak:
+                        first.commissionPoolLak ?? DMC_STANDARD_PRICING.commissionPoolLak,
+                    });
+                  }
+                }}
+                className="px-3.5 py-2 rounded-xl bg-[#850818] hover:bg-red-900 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-colors cursor-pointer shrink-0"
+              >
+                <span>View course & book</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Rows: My Schedule & Bookings + Progress & Certificates */}
+        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCourseId(displayCourses[0]?.id || 'c1');
+              setActiveModuleIndex(0);
+            }}
+            className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-100/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-red-50 text-[#850818] flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">My Schedule & Bookings</div>
+                <div className="text-[10px] text-slate-500">
+                  {learningMode === 'AT_CENTER' ? 'At Center' : learningMode} • {selectedBranch}
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAutoDownload(false);
+              setIsCertOpen(true);
+            }}
+            className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-100/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                <Award className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">Progress & Certificates</div>
+                <div className="text-[10px] text-slate-500">
+                  Official DMC Academy & Copyright Certificate
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </button>
+        </div>
       </div>
 
+      <div>
       {/* Interactive Course Lesson Player Modal when User Selects a Course to Learn */}
       {selectedLearningCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
@@ -1490,6 +1457,7 @@ export const AcademyScreen: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

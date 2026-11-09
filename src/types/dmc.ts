@@ -112,11 +112,18 @@ export interface Member {
   language: Language;
   membershipState: MembershipState;
   sponsorId: string | null; // Direct canonical parent (L1)
+  isOriginAccount?: boolean;
   createdAt: string;
+  joinedAt?: string;
   activatedAt?: string;
   activationMethod?: ActivationMethod;
   consents: UserConsent;
+  termsVersionAccepted?: string;
+  autoRedeemConsent?: boolean;
+  memberQrToken?: string;
+  referralQrToken?: string;
   kycStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED';
+  bankVerified?: boolean;
   bankAccount?: BankAccountInfo;
   bankAccounts?: BankAccountInfo[];
   preferredCarrierId?: LaoShippingCarrierId;
@@ -740,6 +747,7 @@ export interface DmcSingerProfile {
   memberId?: string; // Linked DMC Member ID
   registrationType?: 'GENERAL_PUBLIC' | 'EXISTING_MEMBER';
   gender?: 'MAN' | 'WOMAN';
+  password?: string;
   fullName: string;
   stageName: string;
   phone: string;
@@ -941,6 +949,7 @@ export interface DmcSingerPartyBooking {
   customerMemberId?: string; // e.g. DMC-LA-00303 or newly auto-enrolled Member ID
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   partyEventName: string;
   eventLocation: string;
   bookingDate: string; // YYYY-MM-DD from Calendar

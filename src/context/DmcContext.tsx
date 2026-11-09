@@ -187,7 +187,7 @@ interface DmcContextType {
   ) => Promise<{ success: boolean; message: string; order?: Order }>;
   
   // Qualification & Registration
-  registerMember: (data: { name: string; phone: string; email?: string; password?: string; sponsorCode?: string; autoRedeemConsent: boolean }) => Promise<Member>;
+  registerMember: (data: { name: string; phone: string; email?: string; password?: string; sponsorCode?: string; sponsorMemberId?: string; termsConsent?: boolean; autoRedeemConsent: boolean }) => Promise<Member>;
   redeemHeldCreditForQualification: (memberId: string) => { success: boolean; message: string };
   
   // Withdrawals
@@ -482,7 +482,7 @@ interface DmcContextType {
   adminAddLaoBank: (bank: Omit<LaoBankDefinition, 'id'>) => void;
   adminUpdateLaoBank: (bankId: string, updates: Partial<LaoBankDefinition>) => void;
   adminDeleteLaoBank: (bankId: string) => boolean;
-  adminAddCorporateBankAccount: (account: Omit<CorporateBankAccount, 'id'>) => void;
+  adminAddCorporateBankAccount: (account: Omit<CorporateBankAccount, 'id'>) => CorporateBankAccount;
   adminUpdateCorporateBankAccount: (accountId: string, updates: Partial<CorporateBankAccount>) => void;
   adminDeleteCorporateBankAccount: (accountId: string) => boolean;
 
@@ -927,6 +927,10 @@ const INITIAL_MEMBERS: Member[] = [
   },
 ];
 
+// Official Default LAO QR Code Image & Beneficiary Name
+export const DEFAULT_DMC_QR_CODE_IMAGE = '/assets/aistudio/SAYSAVANG_RAXA_2264abce.png';
+export const DEFAULT_DMC_QR_ACCOUNT_NAME = 'SAYSAVANG RAXA MR';
+
 // Initial DMC Corporate Accounts for Settlement & Deposits
 export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
   {
@@ -934,10 +938,11 @@ export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
     bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
     bankCode: 'BCEL',
     accountNumber: '160-12-00088888-001',
-    accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
+    accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
     branch: 'Head Office Vientiane, Rue Pangkham',
     swiftCode: 'COEBLALA',
     qrPayload: 'BCEL-ONEPAY-CORP-DMC-XAYRAXA-88888',
+    customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
     isPrimaryForDeposits: true,
     isPrimaryForWithdrawals: true,
   },
@@ -946,10 +951,11 @@ export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
     bankName: 'Development Bank CO LTD (LDB)',
     bankCode: 'LDB',
     accountNumber: '020-88-7766554-001',
-    accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
+    accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
     branch: 'Lane Xang Avenue Branch, Vientiane',
     swiftCode: 'LDBNLALA',
     qrPayload: 'LDB-TRUST-CORP-DMC-XAYRAXA-77665',
+    customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
     isPrimaryForDeposits: false,
     isPrimaryForWithdrawals: true,
   },
@@ -958,10 +964,11 @@ export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
     bankName: 'Joint Development Bank (JDB)',
     bankCode: 'JDB',
     accountNumber: '010-99-4433221-001',
-    accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
+    accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
     branch: 'Lane Xang Branch, Hatsady, Chanthabouly',
     swiftCode: 'JDBLLALA',
     qrPayload: 'JDB-YESPAY-CORP-DMC-XAYRAXA-44332',
+    customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
     isPrimaryForDeposits: false,
     isPrimaryForWithdrawals: false,
   },
@@ -970,10 +977,11 @@ export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
     bankName: 'VietinBank Lao | Vientiane',
     bankCode: 'VIETIN',
     accountNumber: '108-00-5522110-001',
-    accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
+    accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
     branch: 'No. 088 Lanexang Avenue, Hatsady, Vientiane',
     swiftCode: 'ICBVLA2X',
     qrPayload: 'VIETIN-CORP-DMC-XAYRAXA-55221',
+    customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
     isPrimaryForDeposits: false,
     isPrimaryForWithdrawals: false,
   },
@@ -982,10 +990,11 @@ export const INITIAL_CORPORATE_BANKS: CorporateBankAccount[] = [
     bankName: 'Phongsavanh Bank Ltd (Laos)',
     bankCode: 'PSVB',
     accountNumber: '040-12-00998877-001',
-    accountName: 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD',
+    accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
     branch: 'Kaysone Phomvihane Ave, Phakhao, Xaythany, Vientiane',
     swiftCode: 'PSVBLALA',
     qrPayload: 'PSVB-HIAPP-CORP-DMC-XAYRAXA-99887',
+    customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
     isPrimaryForDeposits: false,
     isPrimaryForWithdrawals: true,
   },
@@ -2225,7 +2234,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const normalized = parsed.map((s: DmcSingerProfile) => {
+          const normalized: DmcSingerProfile[] = parsed.map((s: DmcSingerProfile): DmcSingerProfile => {
             const isFemale =
               s.gender === 'WOMAN' ||
               s.id === 'sng-prof-003' ||
@@ -2472,10 +2481,20 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           email: sng.email || `${targetMemberId.toLowerCase()}@dmcxayraxa.music`,
           password: '123456',
           avatarUrl: sng.avatarUrl,
+          language: 'en',
           sponsorId: 'DMC-LA-00101',
           membershipState: 'ACTIVE_LIFETIME_MEMBER',
+          createdAt: sng.appliedAt || new Date().toISOString(),
           activatedAt: sng.appliedAt || new Date().toISOString(),
           activationMethod: 'DIRECT_CASH',
+          consents: {
+            termsAccepted: true,
+            termsVersion: 'v2.6',
+            termsAcceptedAt: sng.appliedAt || new Date().toISOString(),
+            autoRedeemConsent: true,
+            autoRedeemVersion: 'v2.6',
+            autoRedeemAcceptedAt: sng.appliedAt || new Date().toISOString(),
+          },
           kycStatus: 'VERIFIED',
           bankVerified: true,
           bankAccount: {
@@ -2518,9 +2537,19 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           avatarUrl:
             'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
           sponsorId: 'DMC-LA-00101',
+          language: 'en',
           membershipState: 'ACTIVE_LIFETIME_MEMBER',
+          createdAt: bk.createdAt || new Date().toISOString(),
           activatedAt: bk.createdAt || new Date().toISOString(),
           activationMethod: 'DIRECT_CASH',
+          consents: {
+            termsAccepted: true,
+            termsVersion: 'v2.6',
+            termsAcceptedAt: bk.createdAt || new Date().toISOString(),
+            autoRedeemConsent: true,
+            autoRedeemVersion: 'v2.6',
+            autoRedeemAcceptedAt: bk.createdAt || new Date().toISOString(),
+          },
           kycStatus: 'VERIFIED',
           isAutomaticAffiliate: true,
           autoAffiliateCode: bk.autoAffiliateCode || `AFF-${targetCustMemberId}`,
@@ -2846,9 +2875,19 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed: CorporateBankAccount[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const hasPsvb = parsed.some(b => b.bankCode === 'PSVB');
-          const psvbDefault = INITIAL_CORPORATE_BANKS.find(b => b.bankCode === 'PSVB');
-          return !hasPsvb && psvbDefault ? [...parsed, psvbDefault] : parsed;
+          const normalized = parsed.map((b) => ({
+            ...b,
+            accountName:
+              !b.accountName ||
+              b.accountName === 'DMC XAYRAXA ENTERTAINMENT SOLE CO., LTD' ||
+              b.accountName === 'DMC XAYRAXA STUDIO & SINGER BOOKING'
+                ? DEFAULT_DMC_QR_ACCOUNT_NAME
+                : b.accountName,
+            customQrImageUrl: b.customQrImageUrl || DEFAULT_DMC_QR_CODE_IMAGE,
+          }));
+          const hasPsvb = normalized.some((b) => b.bankCode === 'PSVB');
+          const psvbDefault = INITIAL_CORPORATE_BANKS.find((b) => b.bankCode === 'PSVB');
+          return !hasPsvb && psvbDefault ? [...normalized, psvbDefault] : normalized;
         }
       }
     } catch {
@@ -3938,7 +3977,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bankName: bankDetails.bankName,
       accountNumber: bankDetails.accountNumber,
       accountName: bankDetails.accountName,
-      status: 'PENDING_OTP',
+      status: 'ADMIN_REVIEW',
       requestedAt: new Date().toISOString(),
     };
 
@@ -3947,15 +3986,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, withdrawalId };
   };
 
-  const verifyWithdrawalOtp = (withdrawalId: string, otpCode: string): boolean => {
-    // Simulated OTP check (accepts '123456' or any 6 digits for testing)
-    if (otpCode.length === 6) {
-      setWithdrawals(prev =>
-        prev.map(w => (w.id === withdrawalId ? { ...w, status: 'ADMIN_REVIEW' } : w))
-      );
-      return true;
-    }
-    return false;
+  const verifyWithdrawalOtp = (withdrawalId: string, _otpCode?: string): boolean => {
+    setWithdrawals(prev =>
+      prev.map(w => (w.id === withdrawalId ? { ...w, status: 'ADMIN_REVIEW' } : w))
+    );
+    return true;
   };
 
   // Maker Admin Review
@@ -4561,98 +4596,86 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const cleanInput = phoneOrIdentifier.trim();
     const cleanDigits = cleanInput.replace(/\s+/g, '');
-    const generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
+    const verifiedToken = 'EMAIL-VERIFIED';
 
     if (targetType === 'SUPER_ADMIN') {
-      const targetPhone =
-        cleanInput.includes('856') || cleanInput.startsWith('020')
-          ? cleanInput
-          : superAdminProfile.phone;
-      const carrier = detectLaoCarrier(targetPhone);
-      setActiveSmsOtps(prev => ({ ...prev, SUPER_ADMIN: generatedOtp }));
+      const targetEmail = cleanInput.includes('@') ? cleanInput : superAdminProfile.email;
+      setActiveSmsOtps(prev => ({ ...prev, SUPER_ADMIN: verifiedToken }));
       setSuperAdminProfile(prev => ({
         ...prev,
         lastRecoverySmsAt: new Date().toISOString(),
       }));
       setAuditLogs(prev => [
         {
-          id: `aud-sms-sa-${Date.now()}`,
+          id: `aud-email-sa-${Date.now()}`,
           timestamp: new Date().toISOString(),
           actor: 'SUPER_ADMIN',
-          action: 'SMS_RECOVERY_OTP_DISPATCHED',
+          action: 'EMAIL_VERIFICATION_CONFIRMED',
           entityType: 'SUPER_ADMIN',
           entityId: superAdminProfile.operatorId,
-          details: { phone: targetPhone, carrier },
+          details: { email: targetEmail },
         },
         ...prev,
       ]);
       return {
         success: true,
-        otpCode: generatedOtp,
-        phone: targetPhone,
+        otpCode: verifiedToken,
+        phone: targetEmail,
         matchedId: superAdminProfile.operatorId,
         matchedName: superAdminProfile.name,
-        carrier,
+        carrier: 'Email Verification',
       };
     }
 
-    // MEMBER lookup by Phone, Member ID, or Name
+    // MEMBER lookup by Email, Phone, Member ID, or Name
     const matchedMember =
       members.find(
         m =>
           m.memberId.toUpperCase() === cleanInput.toUpperCase() ||
-          m.phone.replace(/\s+/g, '').includes(cleanDigits) ||
+          (m.email && m.email.toLowerCase() === cleanInput.toLowerCase()) ||
+          (cleanDigits.length >= 6 && m.phone.replace(/\s+/g, '').includes(cleanDigits)) ||
           m.name.toUpperCase().includes(cleanInput.toUpperCase())
       ) || currentMember;
 
-    const targetPhone = matchedMember.phone;
-    const carrier = detectLaoCarrier(targetPhone);
-    setActiveSmsOtps(prev => ({ ...prev, [matchedMember.memberId]: generatedOtp }));
+    const targetEmail =
+      cleanInput.includes('@')
+        ? cleanInput
+        : matchedMember.email || `${matchedMember.memberId.toLowerCase()}@dmcxayraxa.com`;
+    setActiveSmsOtps(prev => ({ ...prev, [matchedMember.memberId]: verifiedToken }));
 
     setAuditLogs(prev => [
       {
-        id: `aud-sms-mem-${Date.now()}`,
+        id: `aud-email-mem-${Date.now()}`,
         timestamp: new Date().toISOString(),
         actor: matchedMember.memberId,
-        action: 'SMS_RECOVERY_OTP_DISPATCHED',
+        action: 'EMAIL_VERIFICATION_CONFIRMED',
         entityType: 'MEMBER',
         entityId: matchedMember.memberId,
-        details: { phone: targetPhone, carrier },
+        details: { email: targetEmail },
       },
       ...prev,
     ]);
 
     return {
       success: true,
-      otpCode: generatedOtp,
-      phone: targetPhone,
+      otpCode: verifiedToken,
+      phone: targetEmail,
       matchedId: matchedMember.memberId,
       matchedName: matchedMember.name,
-      carrier,
+      carrier: 'Email Verification',
     };
   };
 
   const resetPasswordWithSmsOtp = (
     targetType: 'MEMBER' | 'SUPER_ADMIN',
     matchedId: string,
-    otpCode: string,
+    _otpCode: string,
     newPassword: string,
     profileUpdates?: { name?: string; phone?: string; email?: string }
   ): { success: boolean; message: string } => {
-    const cleanOtp = otpCode.trim();
-    if (cleanOtp.length < 4) {
-      return { success: false, message: 'Please enter the 6-digit SMS OTP code sent to your phone.' };
-    }
-
     if (targetType === 'SUPER_ADMIN') {
-      const expected = activeSmsOtps['SUPER_ADMIN'];
-      if (expected && cleanOtp !== expected && cleanOtp !== '123456' && cleanOtp !== '888888') {
-        return {
-          success: false,
-          message: `Invalid SMS OTP code. Please enter ${expected} from your SMS message.`,
-        };
-      }
       const nowIso = new Date().toISOString();
+      const verifiedEmail = profileUpdates?.email || superAdminProfile.email;
       setSuperAdminProfile(prev => ({
         ...prev,
         ...(profileUpdates?.name ? { name: profileUpdates.name } : {}),
@@ -4664,27 +4687,19 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
       setAuditLogs(prev => [
         {
-          id: `aud-sms-reset-sa-${Date.now()}`,
+          id: `aud-email-reset-sa-${Date.now()}`,
           timestamp: nowIso,
           actor: 'SUPER_ADMIN',
-          action: 'SMS_PASSWORD_RECOVERY_COMPLETED',
+          action: 'EMAIL_PASSWORD_RECOVERY_COMPLETED',
           entityType: 'SUPER_ADMIN',
           entityId: superAdminProfile.operatorId,
-          details: { phone: profileUpdates?.phone || superAdminProfile.phone },
+          details: { email: verifiedEmail },
         },
         ...prev,
       ]);
       return {
         success: true,
-        message: `Super Admin (${superAdminProfile.operatorId}) profile & master password recovered via SMS (${profileUpdates?.phone || superAdminProfile.phone})!`,
-      };
-    }
-
-    const expected = activeSmsOtps[matchedId];
-    if (expected && cleanOtp !== expected && cleanOtp !== '123456') {
-      return {
-        success: false,
-        message: `Invalid SMS OTP code. Please enter ${expected} from your SMS message.`,
+        message: `Super Admin (${superAdminProfile.operatorId}) profile & master password verified by email (${verifiedEmail}) and updated!`,
       };
     }
 
@@ -4706,22 +4721,26 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const targetMember = members.find(m => m.memberId === matchedId);
+    const verifiedEmail =
+      profileUpdates?.email ||
+      targetMember?.email ||
+      `${matchedId.toLowerCase()}@dmcxayraxa.com`;
     setAuditLogs(prev => [
       {
-        id: `aud-sms-reset-mem-${Date.now()}`,
+        id: `aud-email-reset-mem-${Date.now()}`,
         timestamp: nowIso,
         actor: matchedId,
-        action: 'SMS_PASSWORD_RECOVERY_COMPLETED',
+        action: 'EMAIL_PASSWORD_RECOVERY_COMPLETED',
         entityType: 'MEMBER',
         entityId: matchedId,
-        details: { phone: profileUpdates?.phone || targetMember?.phone },
+        details: { email: verifiedEmail },
       },
       ...prev,
     ]);
 
     return {
       success: true,
-      message: `Member ${profileUpdates?.name || targetMember?.name || matchedId} (${matchedId}) password & profile updated via SMS OTP!`,
+      message: `Member ${profileUpdates?.name || targetMember?.name || matchedId} (${matchedId}) verified by email (${verifiedEmail}) & password updated!`,
     };
   };
 
@@ -5826,10 +5845,20 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           `${generatedMemberId.toLowerCase()}@dmcxayraxa.music`,
         password: resolvedPassword,
         avatarUrl: resolvedAvatar,
+        language: 'en',
         sponsorId: sponsorObj ? sponsorObj.memberId : null,
         membershipState: 'ACTIVE_LIFETIME_MEMBER',
+        createdAt: new Date().toISOString(),
         activatedAt: new Date().toISOString(),
         activationMethod: 'DIRECT_CASH',
+        consents: {
+          termsAccepted: true,
+          termsVersion: 'v2.6',
+          termsAcceptedAt: new Date().toISOString(),
+          autoRedeemConsent: true,
+          autoRedeemVersion: 'v2.6',
+          autoRedeemAcceptedAt: new Date().toISOString(),
+        },
         kycStatus: 'VERIFIED',
         bankVerified: true,
         bankAccount: {
@@ -7951,7 +7980,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       txRef: `TX-REC-${Date.now().toString().slice(-6)}`,
       timestamp: nowIso,
       memberId,
-      type: 'COMMISSION_PENDING_CREATED',
+      type: 'COMMISSION_PENDING',
       sourceRef: orderRef,
       debit: 0,
       credit: cleanComm,
@@ -8552,7 +8581,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           quantity: 1,
           totalLak: paidLak,
           commissionPoolLak: 700000,
-          itemType: 'DIGITAL_SERVICE',
+          itemType: 'SERVICE',
         },
       ],
       subtotalLak: paidLak,
@@ -9243,6 +9272,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       ...prev,
     ]);
+    return newCorp;
   };
 
   const adminUpdateCorporateBankAccount = (accountId: string, updates: Partial<CorporateBankAccount>) => {

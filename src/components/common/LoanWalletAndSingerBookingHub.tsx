@@ -1,5 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useDmc } from '../../context/DmcContext';
+import {
+  useDmc,
+  DEFAULT_DMC_QR_CODE_IMAGE,
+  DEFAULT_DMC_QR_ACCOUNT_NAME,
+} from '../../context/DmcContext';
 import { formatLak, formatNumberWithCommas } from '../../utils/i18n';
 import {
   SingerPriceTier,
@@ -50,6 +54,10 @@ import {
   Upload,
   FileText,
   Image as ImageIcon,
+  Clock,
+  Lock,
+  Building2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface LoanWalletAndSingerBookingHubProps {
@@ -91,6 +99,11 @@ export const LoanWalletAndSingerBookingHub: React.FC<
     deleteSingerProfile,
     laoBanks,
     corporateBankAccounts,
+    adminAddCorporateBankAccount,
+    adminUpdateCorporateBankAccount,
+    adminDeleteCorporateBankAccount,
+    isAdminMode,
+    isAdminAuthenticated,
     setIsAdminMode,
     setIsAdminAuthenticated,
     loanWalletBalanceLak,
@@ -1412,19 +1425,176 @@ export const LoanWalletAndSingerBookingHub: React.FC<
     string | null
   >(null);
 
+  const isAdmin = Boolean(isAdminMode || isAdminAuthenticated);
+
+  // Administrator Add / Edit / Delete / Update QR Code Bank State inside Booking QR Modal
+  const [selectedBookingQrBankId, setSelectedBookingQrBankId] =
+    useState<string>('');
+  const [bookingQrBankEditorMode, setBookingQrBankEditorMode] = useState<
+    'NONE' | 'ADD' | 'EDIT'
+  >('NONE');
+  const [bookingQrBankForm, setBookingQrBankForm] = useState<{
+    bankCode: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    branch: string;
+    customQrImageUrl: string;
+  }>({
+    bankCode: 'BCEL',
+    bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+    accountNumber: '160-12-00088888-001',
+    accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
+    branch: 'Head Office Vientiane, Rue Pangkham',
+    customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
+  });
+
   const activeCorporateBank = useMemo(() => {
-    return (
+    const matched = selectedBookingQrBankId
+      ? corporateBankAccounts?.find((b) => b.id === selectedBookingQrBankId)
+      : undefined;
+    const base = matched ||
       corporateBankAccounts?.[0] || {
-        id: 'corp-bcel-default',
-        bankId: 'BCEL',
-        bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC (BCEL One)',
-        accountNumber: '160-12-00998877-001',
-        accountName: 'DMC XAYRAXA STUDIO & SINGER BOOKING',
-        currency: 'LAK',
-        isPrimary: true,
+        id: 'corp-bcel-01',
+        bankCode: 'BCEL',
+        bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+        accountNumber: '160-12-00088888-001',
+        accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
+        branch: 'Head Office Vientiane, Rue Pangkham',
+        swiftCode: 'COEBLALA',
+        qrPayload: 'BCEL-ONEPAY-CORP-DMC-XAYRAXA-88888',
+        customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
+        isPrimaryForDeposits: true,
+        isPrimaryForWithdrawals: true,
+      };
+    return {
+      ...base,
+      accountName: base.accountName || DEFAULT_DMC_QR_ACCOUNT_NAME,
+      customQrImageUrl: base.customQrImageUrl || DEFAULT_DMC_QR_CODE_IMAGE,
+    };
+  }, [corporateBankAccounts, selectedBookingQrBankId]);
+
+  const openAddBookingQrBank = () => {
+    setBookingQrBankForm({
+      bankCode: 'BCEL',
+      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: '160-12-00088888-001',
+      accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
+      branch: 'Head Office Vientiane, Rue Pangkham',
+      customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
+    });
+    setBookingQrBankEditorMode('ADD');
+  };
+
+  const openEditBookingQrBank = () => {
+    setBookingQrBankForm({
+      bankCode: activeCorporateBank.bankCode || 'BCEL',
+      bankName:
+        activeCorporateBank.bankName ||
+        'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+      accountNumber: activeCorporateBank.accountNumber || '160-12-00088888-001',
+      accountName:
+        activeCorporateBank.accountName || DEFAULT_DMC_QR_ACCOUNT_NAME,
+      branch: activeCorporateBank.branch || 'Head Office Vientiane, Rue Pangkham',
+      customQrImageUrl:
+        activeCorporateBank.customQrImageUrl || DEFAULT_DMC_QR_CODE_IMAGE,
+    });
+    setBookingQrBankEditorMode('EDIT');
+  };
+
+  const handleBookingQrBankImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    applyDirectlyToActiveBank = false
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        const dataUrl = reader.result;
+        setBookingQrBankForm((prev) => ({
+          ...prev,
+          customQrImageUrl: dataUrl,
+        }));
+        if (applyDirectlyToActiveBank && isAdmin) {
+          adminUpdateCorporateBankAccount(activeCorporateBank.id, {
+            customQrImageUrl: dataUrl,
+          });
+          showBanner(
+            `Administrator updated QR Code image for ${activeCorporateBank.bankCode} (${activeCorporateBank.accountName}).`
+          );
+        }
       }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveBookingQrBankAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    const cleanCode = bookingQrBankForm.bankCode.trim().toUpperCase() || 'BCEL';
+    const cleanName =
+      bookingQrBankForm.bankName.trim() ||
+      'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC';
+    const cleanAccNo =
+      bookingQrBankForm.accountNumber.trim() || '160-12-00088888-001';
+    const cleanAccName =
+      bookingQrBankForm.accountName.trim() || DEFAULT_DMC_QR_ACCOUNT_NAME;
+    const cleanBranch =
+      bookingQrBankForm.branch.trim() || 'Head Office Vientiane, Lao PDR';
+    const cleanQrUrl =
+      bookingQrBankForm.customQrImageUrl.trim() || DEFAULT_DMC_QR_CODE_IMAGE;
+
+    if (bookingQrBankEditorMode === 'ADD') {
+      const created = adminAddCorporateBankAccount({
+        bankCode: cleanCode,
+        bankName: cleanName,
+        accountNumber: cleanAccNo,
+        accountName: cleanAccName,
+        branch: cleanBranch,
+        swiftCode: `${cleanCode}LALA`,
+        qrPayload: `${cleanCode}-QR-${cleanAccNo}`,
+        customQrImageUrl: cleanQrUrl,
+        isPrimaryForDeposits: false,
+        isPrimaryForWithdrawals: true,
+      });
+      setSelectedBookingQrBankId(created.id);
+      showBanner(
+        `Administrator added new QR Code Bank: ${cleanCode} — ${cleanAccName} (${cleanAccNo})!`
+      );
+    } else if (bookingQrBankEditorMode === 'EDIT') {
+      adminUpdateCorporateBankAccount(activeCorporateBank.id, {
+        bankCode: cleanCode,
+        bankName: cleanName,
+        accountNumber: cleanAccNo,
+        accountName: cleanAccName,
+        branch: cleanBranch,
+        customQrImageUrl: cleanQrUrl,
+      });
+      showBanner(
+        `Administrator updated QR Code Bank: ${cleanCode} — ${cleanAccName} (${cleanAccNo})!`
+      );
+    }
+    setBookingQrBankEditorMode('NONE');
+  };
+
+  const handleDeleteBookingQrBankAdmin = (bankId: string) => {
+    if (!isAdmin) return;
+    if ((corporateBankAccounts?.length || 0) <= 1) {
+      showBanner('At least 1 QR Code Bank Account must remain active.', 'ERROR');
+      return;
+    }
+    const target = corporateBankAccounts.find((b) => b.id === bankId);
+    adminDeleteCorporateBankAccount(bankId);
+    const remaining = corporateBankAccounts.filter((b) => b.id !== bankId);
+    if (remaining[0]) {
+      setSelectedBookingQrBankId(remaining[0].id);
+    }
+    setBookingQrBankEditorMode('NONE');
+    showBanner(
+      `Administrator deleted QR Code Bank: ${target?.bankCode || ''} (${target?.accountNumber || bankId}).`
     );
-  }, [corporateBankAccounts]);
+  };
 
   const generateSampleBillSlipDataUrl = () => {
     const refCode =
@@ -1756,7 +1926,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
           (w) =>
             w.status === 'ADMIN_REVIEW' ||
             w.status === 'APPROVED' ||
-            w.status === 'OTP_PENDING'
+            w.status === 'PENDING_OTP'
         )
         .reduce((sum, w) => sum + w.amountLak, 0),
     [customerAffiliateWithdrawals]
@@ -1768,7 +1938,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
         (w) =>
           w.status === 'ADMIN_REVIEW' ||
           w.status === 'APPROVED' ||
-          w.status === 'OTP_PENDING'
+          w.status === 'PENDING_OTP'
       ),
     [withdrawals]
   );
@@ -3506,149 +3676,8 @@ export const LoanWalletAndSingerBookingHub: React.FC<
             </div>
           </div>
 
-          {/* Body: Withdraw Form / Pricing Config + Ledger */}
+          {/* Body: Pricing Config + Ledger */}
           <div className="p-4 sm:p-5 space-y-5">
-
-            {loanActionTab === 'WITHDRAW' && (
-              <form
-                onSubmit={handleWithdrawSubmit}
-                className="p-4 rounded-2xl bg-rose-50/70 border-2 border-rose-200 space-y-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-rose-200">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-xl bg-rose-600 text-white">
-                      <ArrowUpCircle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h5 className="text-xs sm:text-sm font-black text-rose-950">
-                        Withdraw from DMC Party Wallet Balance (Administrator)
-                      </h5>
-                      <p className="text-[10px] text-rose-700">
-                        DMC Party Wallet Balance:{' '}
-                        <strong className="font-mono">
-                          {formatLak(loanWalletBalanceLak)}
-                        </strong>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1">
-                    {[500000, 1000000, 3000000, 5000000].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setWithdrawAmountLak(amt)}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-black font-mono cursor-pointer border ${
-                          withdrawAmountLak === amt
-                            ? 'bg-rose-700 text-white border-rose-800'
-                            : 'bg-white text-rose-800 border-rose-300 hover:bg-rose-100'
-                        }`}
-                      >
-                        {formatNumberWithCommas(amt)}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setWithdrawSource('LOAN_WALLET_BALANCE');
-                        setWithdrawAmountLak(loanWalletBalanceLak);
-                        setWithdrawNote(
-                          'Administrator DMC Party Wallet Balance Withdrawal / Disbursement'
-                        );
-                      }}
-                      className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-500 text-slate-950 cursor-pointer"
-                    >
-                      MAX ({formatNumberWithCommas(loanWalletBalanceLak)})
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-rose-900 mb-1">
-                      Withdraw Amount (LAK) *
-                    </label>
-                    <input
-                      type="number"
-                      min={1000}
-                      max={Math.max(
-                        loanWalletBalanceLak,
-                        loanWalletSummary.total10PercentSingerCuts
-                      )}
-                      step="any"
-                      required
-                      value={withdrawAmountLak || ''}
-                      onChange={(e) =>
-                        setWithdrawAmountLak(Number(e.target.value) || 0)
-                      }
-                      className="w-full bg-white border-2 border-rose-400 rounded-xl px-3 py-2 text-sm font-mono font-black text-rose-950"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Destination Bank
-                    </label>
-                    <select
-                      value={withdrawBankName}
-                      onChange={(e) => setWithdrawBankName(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900"
-                    >
-                      {laoBanks.map((b) => (
-                        <option key={b.id} value={b.name}>
-                          {b.shortName} — {b.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Beneficiary Account Number
-                    </label>
-                    <input
-                      type="text"
-                      value={withdrawAccountNumber}
-                      onChange={(e) => setWithdrawAccountNumber(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs items-end">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Beneficiary Account Name
-                    </label>
-                    <input
-                      type="text"
-                      value={withdrawAccountName}
-                      onChange={(e) =>
-                        setWithdrawAccountName(e.target.value.toUpperCase())
-                      }
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold uppercase text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Withdrawal / Loan Purpose Note
-                    </label>
-                    <input
-                      type="text"
-                      value={withdrawNote}
-                      onChange={(e) => setWithdrawNote(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
-                  >
-                    <ArrowUpCircle className="w-4 h-4" />
-                    <span>
-                      Confirm Withdraw (-{formatNumberWithCommas(withdrawAmountLak)} LAK)
-                    </span>
-                  </button>
-                </div>
-              </form>
-            )}
 
             {loanActionTab === 'PRICING_CONFIG' && (
               <div className="p-4 rounded-2xl bg-sky-50/80 border-2 border-sky-200 space-y-3 text-xs">
@@ -5577,8 +5606,8 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                         {m.name} ({m.memberId} • {m.phone}) —{' '}
                         {m.isAutomaticAffiliate
                           ? `Automatic Affiliate (${m.autoAffiliateCode})`
-                          : m.membershipState === 'REGISTERED_UNPAID'
-                          ? 'General Member (Unpaid → Auto-Upgrades to Affiliate)'
+                          : m.membershipState === 'FREE_MEMBER'
+                          ? 'General Member (Free → Auto-Upgrades to Affiliate)'
                           : 'General Member'}
                       </option>
                     ))}
@@ -7190,7 +7219,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                               activeCustomerAffiliateMember?.name,
                               'Customer / Singer Free Member Active Network Activation'
                             );
-                            showBanner('SUCCESS', res.message);
+                            showBanner(res.message, 'SUCCESS');
                           }}
                           className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-md cursor-pointer shrink-0"
                         >
@@ -7208,8 +7237,8 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                           </div>
                           <div className="font-black text-white mt-0.5">
                             Upline L1:{' '}
-                            {chain.l1
-                              ? `${chain.l1.name} (${chain.l1.memberId})`
+                            {chain?.l1
+                              ? `${chain.l1?.name} (${chain.l1?.memberId})`
                               : 'DMC Root (DMC-LA-00001)'}
                           </div>
                           <div className="text-[11px] text-emerald-200 mt-0.5">
@@ -7223,8 +7252,8 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                           </div>
                           <div className="font-black text-white mt-0.5">
                             Upline L2:{' '}
-                            {chain.l2
-                              ? `${chain.l2.name} (${chain.l2.memberId})`
+                            {chain?.l2
+                              ? `${chain.l2?.name} (${chain.l2?.memberId})`
                               : 'DMC Tier-2 Sponsor'}
                           </div>
                           <div className="text-[11px] text-amber-200 mt-0.5">
@@ -7238,8 +7267,8 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                           </div>
                           <div className="font-black text-white mt-0.5">
                             Upline L3:{' '}
-                            {chain.l3
-                              ? `${chain.l3.name} (${chain.l3.memberId})`
+                            {chain?.l3
+                              ? `${chain.l3?.name} (${chain.l3?.memberId})`
                               : 'DMC Tier-3 Sponsor'}
                           </div>
                           <div className="text-[11px] text-sky-200 mt-0.5">
@@ -7492,7 +7521,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                           const isWaitingAdmin =
                             w.status === 'ADMIN_REVIEW' ||
                             w.status === 'APPROVED' ||
-                            w.status === 'OTP_PENDING';
+                            w.status === 'PENDING_OTP';
                           return (
                             <div
                               key={w.id}
@@ -7763,7 +7792,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                         >
                           {products.map((prod) => (
                             <option key={prod.sku} value={prod.sku}>
-                              {prod.title} — {formatLak(prod.priceLak)}
+                              {prod.titleEn} — {formatLak(prod.priceLak)}
                             </option>
                           ))}
                         </select>
@@ -7787,7 +7816,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
                           type="button"
                           onClick={() => {
                             const prodTitle =
-                              selectedRecommendProduct?.title ||
+                              selectedRecommendProduct?.titleEn ||
                               'DMC System Product';
                             const prodPrice =
                               selectedRecommendProduct?.priceLak || 4200000;
@@ -8313,44 +8342,389 @@ export const LoanWalletAndSingerBookingHub: React.FC<
 
             {/* Modal Body */}
             <div className="p-4 sm:p-5 space-y-4 max-h-[82vh] overflow-y-auto">
-              {/* Payment Method Header: BCEL One QR Code */}
-              <div className="w-full py-2.5 px-3 rounded-xl border-2 bg-[#df1c2d] border-amber-300 text-white shadow-md text-xs font-black flex items-center justify-center gap-2">
-                <QrCode className="w-4 h-4 text-amber-300" />
-                <span>BCEL One QR Code</span>
+              {/* Payment Method Header + Multi-Bank QR Selector */}
+              <div className="space-y-2">
+                <div className="w-full py-2.5 px-3 rounded-xl border-2 bg-[#df1c2d] border-amber-300 text-white shadow-md text-xs font-black flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-amber-300" />
+                    <span>
+                      {activeCorporateBank.bankCode || 'BCEL'} One QR Code —{' '}
+                      {activeCorporateBank.accountName}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-black/35 border border-amber-300/60 text-[10px] text-amber-300 font-mono">
+                    {activeCorporateBank.accountNumber}
+                  </span>
+                </div>
+
+                {/* Bank Selector Pills */}
+                {corporateBankAccounts && corporateBankAccounts.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {corporateBankAccounts.map((bank) => {
+                      const isSel = bank.id === activeCorporateBank.id;
+                      return (
+                        <button
+                          key={bank.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBookingQrBankId(bank.id);
+                            if (bookingQrBankEditorMode === 'EDIT') {
+                              setBookingQrBankForm({
+                                bankCode: bank.bankCode || 'BCEL',
+                                bankName: bank.bankName,
+                                accountNumber: bank.accountNumber,
+                                accountName:
+                                  bank.accountName ||
+                                  DEFAULT_DMC_QR_ACCOUNT_NAME,
+                                branch:
+                                  bank.branch ||
+                                  'Head Office Vientiane, Lao PDR',
+                                customQrImageUrl:
+                                  bank.customQrImageUrl ||
+                                  DEFAULT_DMC_QR_CODE_IMAGE,
+                              });
+                            }
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black border transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isSel
+                              ? 'bg-amber-400 text-slate-950 border-white shadow-md'
+                              : 'bg-black/40 text-slate-200 border-white/20 hover:bg-white/10'
+                          }`}
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>{bank.bankCode} QR</span>
+                          <span className="opacity-75 font-mono text-[9px]">
+                            ({bank.accountName})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ADMINISTRATOR ONLY: Add, Edit, Delete, Update QR Code Bank Toolbar */}
+                {isAdmin && (
+                  <div className="p-2.5 rounded-2xl bg-slate-950/85 border border-amber-400/60 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-amber-300">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Admin QR Code Bank Manager:</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={openAddBookingQrBank}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 cursor-pointer ${
+                          bookingQrBankEditorMode === 'ADD'
+                            ? 'bg-emerald-400 text-slate-950'
+                            : 'bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-400/60 text-emerald-200'
+                        }`}
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ Add QR Bank</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openEditBookingQrBank}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 cursor-pointer ${
+                          bookingQrBankEditorMode === 'EDIT'
+                            ? 'bg-amber-400 text-slate-950'
+                            : 'bg-amber-500/25 hover:bg-amber-500/40 border border-amber-400/60 text-amber-200'
+                        }`}
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit / Update QR</span>
+                      </button>
+                      <label className="px-2.5 py-1 rounded-lg bg-sky-500/25 hover:bg-sky-500/40 border border-sky-400/60 text-sky-200 text-[10px] font-black flex items-center gap-1 cursor-pointer">
+                        <Upload className="w-3 h-3" />
+                        <span>Upload QR</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) =>
+                            handleBookingQrBankImageUpload(e, true)
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          adminUpdateCorporateBankAccount(
+                            activeCorporateBank.id,
+                            {
+                              customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
+                              accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
+                            }
+                          );
+                          setBookingQrBankForm((prev) => ({
+                            ...prev,
+                            customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
+                            accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
+                          }));
+                          showBanner(
+                            `Restored Default LAO QR Code (${DEFAULT_DMC_QR_ACCOUNT_NAME}) for ${activeCorporateBank.bankCode}!`
+                          );
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/60 text-purple-200 text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                        title="Reset to Default SAYSAVANG RAXA MR QR Code"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Default QR (SAYSAVANG RAXA MR)</span>
+                      </button>
+                      {corporateBankAccounts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDeleteBookingQrBankAdmin(
+                              activeCorporateBank.id
+                            )
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-red-500/25 hover:bg-red-500/40 border border-red-400/60 text-red-200 text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ADMINISTRATOR INLINE ADD / EDIT / UPDATE / DELETE QR BANK FORM */}
+                {isAdmin && bookingQrBankEditorMode !== 'NONE' && (
+                  <form
+                    onSubmit={handleSaveBookingQrBankAdmin}
+                    className="p-3.5 rounded-2xl bg-slate-950/95 border-2 border-amber-400 space-y-3 text-xs"
+                  >
+                    <div className="flex items-center justify-between border-b border-white/15 pb-2">
+                      <div className="flex items-center gap-2">
+                        <QrCode className="w-4 h-4 text-amber-300" />
+                        <span className="font-black text-amber-300 uppercase">
+                          {bookingQrBankEditorMode === 'ADD'
+                            ? 'Administrator: Add New QR Code Bank'
+                            : `Administrator: Edit / Update QR Code Bank (${activeCorporateBank.bankCode})`}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBookingQrBankEditorMode('NONE')}
+                        className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold cursor-pointer"
+                      >
+                        Close ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                      {/* QR Preview + Upload / Default QR Buttons */}
+                      <div className="sm:col-span-4 flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-white text-slate-950 border-2 border-amber-400">
+                        <img
+                          src={
+                            bookingQrBankForm.customQrImageUrl ||
+                            DEFAULT_DMC_QR_CODE_IMAGE
+                          }
+                          alt="QR Preview"
+                          className="w-28 h-28 object-contain rounded"
+                        />
+                        <div className="text-[10px] font-black text-slate-900 truncate max-w-full">
+                          {bookingQrBankForm.accountName ||
+                            DEFAULT_DMC_QR_ACCOUNT_NAME}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-1 w-full">
+                          <label className="px-2 py-1 rounded bg-[#df1c2d] hover:bg-red-700 text-white text-[9px] font-black flex items-center gap-1 cursor-pointer">
+                            <Upload className="w-2.5 h-2.5" />
+                            <span>Upload QR</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) =>
+                                handleBookingQrBankImageUpload(e, false)
+                              }
+                              className="hidden"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setBookingQrBankForm((prev) => ({
+                                ...prev,
+                                customQrImageUrl: DEFAULT_DMC_QR_CODE_IMAGE,
+                                accountName: DEFAULT_DMC_QR_ACCOUNT_NAME,
+                              }))
+                            }
+                            className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-amber-300 text-[9px] font-black cursor-pointer"
+                          >
+                            Use Default QR
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bank Details Inputs */}
+                      <div className="sm:col-span-8 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-200 mb-0.5">
+                              Bank Code *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={bookingQrBankForm.bankCode}
+                              onChange={(e) =>
+                                setBookingQrBankForm((prev) => ({
+                                  ...prev,
+                                  bankCode: e.target.value.toUpperCase(),
+                                }))
+                              }
+                              placeholder="BCEL"
+                              className="w-full bg-slate-900 border border-white/25 rounded-lg px-2.5 py-1.5 text-xs font-mono font-black text-white uppercase"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[10px] font-bold text-amber-200 mb-0.5">
+                              Full Bank Name *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={bookingQrBankForm.bankName}
+                              onChange={(e) =>
+                                setBookingQrBankForm((prev) => ({
+                                  ...prev,
+                                  bankName: e.target.value,
+                                }))
+                              }
+                              placeholder="BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC"
+                              className="w-full bg-slate-900 border border-white/25 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-200 mb-0.5">
+                              Account Number *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={bookingQrBankForm.accountNumber}
+                              onChange={(e) =>
+                                setBookingQrBankForm((prev) => ({
+                                  ...prev,
+                                  accountNumber: e.target.value,
+                                }))
+                              }
+                              placeholder="160-12-00088888-001"
+                              className="w-full bg-slate-900 border border-white/25 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-amber-300"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-200 mb-0.5">
+                              Account Holder Name *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={bookingQrBankForm.accountName}
+                              onChange={(e) =>
+                                setBookingQrBankForm((prev) => ({
+                                  ...prev,
+                                  accountName: e.target.value,
+                                }))
+                              }
+                              placeholder="SAYSAVANG RAXA MR"
+                              className="w-full bg-slate-900 border border-white/25 rounded-lg px-2.5 py-1.5 text-xs font-black text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-amber-200 mb-0.5">
+                            QR Code Image URL or Uploaded Data URL
+                          </label>
+                          <input
+                            type="text"
+                            value={bookingQrBankForm.customQrImageUrl}
+                            onChange={(e) =>
+                              setBookingQrBankForm((prev) => ({
+                                ...prev,
+                                customQrImageUrl: e.target.value,
+                              }))
+                            }
+                            placeholder={DEFAULT_DMC_QR_CODE_IMAGE}
+                            className="w-full bg-slate-900 border border-white/25 rounded-lg px-2.5 py-1 text-[10px] font-mono text-slate-300"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/15">
+                      {bookingQrBankEditorMode === 'EDIT' &&
+                        corporateBankAccounts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteBookingQrBankAdmin(
+                                activeCorporateBank.id
+                              )
+                            }
+                            className="px-3 py-1.5 rounded-xl bg-red-500/25 hover:bg-red-500/40 border border-red-400/60 text-red-200 font-black text-xs flex items-center gap-1 cursor-pointer mr-auto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete This QR Bank</span>
+                          </button>
+                        )}
+                      <button
+                        type="button"
+                        onClick={() => setBookingQrBankEditorMode('NONE')}
+                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-emerald-400 hover:from-amber-300 hover:to-emerald-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>
+                          {bookingQrBankEditorMode === 'ADD'
+                            ? 'Save New QR Code Bank'
+                            : 'Update QR Code Bank'}
+                        </span>
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
 
               {/* QR Code Card + Booking Summary Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-                {/* Left: Scannable QR Code Display */}
+                {/* Left: Scannable QR Code Display (Default: SAYSAVANG RAXA MR LAO QR) */}
                 <div className="sm:col-span-5 flex flex-col items-center">
-                  <div className="p-3.5 rounded-2xl bg-white text-slate-950 border-4 border-amber-400 shadow-xl flex flex-col items-center w-full max-w-[230px]">
+                  <div className="p-3.5 rounded-2xl bg-white text-slate-950 border-4 border-amber-400 shadow-xl flex flex-col items-center w-full max-w-[240px]">
                     <div className="w-full flex items-center justify-between px-1 pb-2 mb-2 border-b border-slate-200">
                       <span className="text-[10px] font-black uppercase text-[#df1c2d]">
-                        BCEL ONE PAY QR
+                        {activeCorporateBank.bankCode || 'BCEL'} ONE PAY QR
                       </span>
                       <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
                         LAK
                       </span>
                     </div>
 
-                    {selectedSinger.bankAccount?.customQrImageUrl ? (
-                      <img
-                        src={selectedSinger.bankAccount.customQrImageUrl}
-                        alt="Booking Payment QR Code"
-                        className="w-44 h-44 object-contain rounded-lg border border-slate-200"
-                      />
-                    ) : (
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                          `DMC-BOOKING|SINGER:${selectedSinger.singerCode}|STAGE:${selectedSinger.stageName}|START:${livePricingSummary.sPrice}|PARTY:${livePricingSummary.bPrice + livePricingSummary.cPrice}|TOTAL:${livePricingSummary.totalLak}|DATE:${selectedBookingDate}|ACC:${activeCorporateBank.accountNumber}`
-                        )}`}
-                        alt="BCEL One / Lao QR Code"
-                        className="w-44 h-44 object-contain rounded-lg border border-slate-200"
-                      />
-                    )}
+                    <img
+                      src={
+                        activeCorporateBank.customQrImageUrl ||
+                        DEFAULT_DMC_QR_CODE_IMAGE
+                      }
+                      alt={`${activeCorporateBank.accountName} QR Code`}
+                      className="w-48 h-48 object-contain rounded-lg border border-slate-200 bg-white"
+                    />
 
-                    <div className="mt-2 text-center">
-                      <div className="text-[10px] font-bold text-slate-500 uppercase">
+                    <div className="mt-2 text-center w-full">
+                      <div className="text-[11px] font-black text-slate-900 uppercase tracking-wide truncate">
+                        {activeCorporateBank.accountName ||
+                          DEFAULT_DMC_QR_ACCOUNT_NAME}
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
                         Scan to Pay Total Amount
                       </div>
                       <div className="text-sm font-black font-mono text-[#df1c2d]">
@@ -8403,33 +8777,45 @@ export const LoanWalletAndSingerBookingHub: React.FC<
 
                   {/* Receiving Bank Account Details */}
                   <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-400/50 space-y-1.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
                       <span className="text-[10px] font-black uppercase text-emerald-300">
                         Official Receiving Bank Account
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard
-                            ?.writeText(activeCorporateBank.accountNumber)
-                            .catch(() => {});
-                          setCopiedQrAccount(true);
-                          setTimeout(() => setCopiedQrAccount(false), 2500);
-                        }}
-                        className="px-2 py-0.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer"
-                      >
-                        {copiedQrAccount ? (
-                          <>
-                            <Check className="w-3 h-3" />
-                            <span>Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span>Copy Account</span>
-                          </>
+                      <div className="flex items-center gap-1">
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={openEditBookingQrBank}
+                            className="px-2 py-0.5 rounded bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                            <span>Edit Bank</span>
+                          </button>
                         )}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard
+                              ?.writeText(activeCorporateBank.accountNumber)
+                              .catch(() => {});
+                            setCopiedQrAccount(true);
+                            setTimeout(() => setCopiedQrAccount(false), 2500);
+                          }}
+                          className="px-2 py-0.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedQrAccount ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Copy Account</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="text-[11px] font-bold text-white">
                       {activeCorporateBank.bankName}

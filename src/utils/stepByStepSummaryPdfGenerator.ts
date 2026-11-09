@@ -904,7 +904,7 @@ function renderPage3(
 export function renderStepByStepPagesAsDataUrls(
   data: StepByStepSummaryData,
   theme: PdfThemeStyle = 'EXECUTIVE_LIGHT',
-  languageVersion: PdfLanguageVersion = 'LO'
+  languageVersion: PdfLanguageVersion | 'BOTH' = 'LO'
 ): string[] {
   if (languageVersion === 'BOTH') {
     return [
@@ -1050,7 +1050,7 @@ export async function downloadStepByStepSummaryPdf(
     `trailer\n<< /Size ${totalObjects + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
   );
 
-  const blob = new Blob(chunks, { type: 'application/pdf' });
+  const blob = new Blob(chunks as unknown as BlobPart[], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

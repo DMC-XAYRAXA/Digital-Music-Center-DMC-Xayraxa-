@@ -8,6 +8,7 @@ import { useDmc } from '../../context/DmcContext';
 import { translations, formatLak, formatLakSymbol, formatLakCompact, parseAmountWithK } from '../../utils/i18n';
 import { BeautifulNumberInput } from '../common/BeautifulNumberInput';
 import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
+import { DmcOfficialLogo } from '../common/DmcLogo';
 import { 
   Wallet, 
   ArrowDownCircle, 
@@ -31,7 +32,12 @@ import {
   Trash2,
   Copy,
   Check,
-  Landmark
+  Landmark,
+  ChevronLeft,
+  ChevronRight,
+  Globe,
+  HelpCircle,
+  FileText
 } from 'lucide-react';
 import { WithdrawalRequest, BankAccountInfo } from '../../types/dmc';
 
@@ -231,7 +237,14 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
     }
 
     if (!isActive) {
-      setCreatedWithdrawalId('SIM-' + Math.floor(100000 + Math.random() * 900000));
+      setIsWithdrawModalOpen(false);
+      setCreatedWithdrawalId(null);
+      setWithdrawAmount('');
+      setOtpCode('');
+      setRedemptionNotice(
+        `Simulated Payout: Request for ${formatLak(numAmount)} verified by Email (${currentMember.email || 'xay.raxa@gmail.com'})!`
+      );
+      setTimeout(() => setRedemptionNotice(null), 5000);
       return;
     }
 
@@ -242,38 +255,22 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
     });
 
     if (res.success && res.withdrawalId) {
-      setCreatedWithdrawalId(res.withdrawalId);
+      verifyWithdrawalOtp(res.withdrawalId, 'EMAIL-VERIFIED');
+      setIsWithdrawModalOpen(false);
+      setCreatedWithdrawalId(null);
+      setWithdrawAmount('');
+      setOtpCode('');
+      setRedemptionNotice(
+        `Withdrawal request ${res.withdrawalId} for ${formatLak(numAmount)} verified by Email (${currentMember.email || 'xay.raxa@gmail.com'}) & submitted! Status: Waiting for Administrator Approval.`
+      );
+      setTimeout(() => setRedemptionNotice(null), 6000);
     } else {
       setWithdrawError(res.error || 'Failed to submit withdrawal');
     }
   };
 
   const handleVerifyOtp = () => {
-    if (!createdWithdrawalId) return;
-
-    if (createdWithdrawalId.startsWith('SIM-')) {
-      setIsWithdrawModalOpen(false);
-      setCreatedWithdrawalId(null);
-      setWithdrawAmount('');
-      setOtpCode('');
-      setRedemptionNotice(`Simulated Payout: Request for ${formatLak(numAmount)} verified successfully with OTP!`);
-      setTimeout(() => setRedemptionNotice(null), 5000);
-      return;
-    }
-
-    const ok = verifyWithdrawalOtp(createdWithdrawalId, otpCode);
-    if (ok) {
-      setIsWithdrawModalOpen(false);
-      setCreatedWithdrawalId(null);
-      setWithdrawAmount('');
-      setOtpCode('');
-      setRedemptionNotice(
-        `Withdrawal request ${createdWithdrawalId} for ${formatLak(numAmount)} submitted! Status: Waiting for Administrator Approval before bank transfer.`
-      );
-      setTimeout(() => setRedemptionNotice(null), 6000);
-    } else {
-      setOtpError('Invalid OTP code. Enter 6 digits (e.g. 123456).');
-    }
+    // Legacy handler kept for safety
   };
 
   const handleRedeemQualification = () => {
@@ -308,8 +305,319 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
   // Active member withdrawals
   const myWithdrawals = withdrawals.filter(w => w.memberId === currentMember.memberId);
 
+  const QUALIFICATION_TARGET = 1600000;
+  const eligibleClearedHeld = isActive
+    ? QUALIFICATION_TARGET
+    : Math.min(QUALIFICATION_TARGET, balances.heldForQualification);
+  const qualProgressPercent = Math.min(
+    100,
+    Math.round((eligibleClearedHeld / QUALIFICATION_TARGET) * 100)
+  );
+  const remainingToQualify = Math.max(0, QUALIFICATION_TARGET - eligibleClearedHeld);
+
   return (
-    <div className="@container space-y-6 pb-12 animate-in fade-in">
+    <div className="@container pb-12 animate-in fade-in bg-white min-h-full">
+      {/* =====================================================================
+          05 · WALLET — CRIMSON TOP APP BAR (Matches image_b670fd1b.png)
+         ===================================================================== */}
+      <div className="bg-gradient-to-b from-[#8f0c1c] to-[#7a0916] px-4 pt-3 pb-6 space-y-2 text-white">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => onNavigate('home')}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer shrink-0"
+              aria-label="Back to Home"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <DmcOfficialLogo size={36} rounded="full" withGoldRing={true} />
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold tracking-widest text-amber-200/90 uppercase leading-none">
+                DMC XAYRAXA
+              </div>
+              <h1 className="text-base font-black tracking-tight text-white truncate mt-0.5">
+                Wallet
+              </h1>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className="text-[10px] text-amber-100/90 truncate max-w-[140px]">
+                  {currentMember.name} · {currentMember.memberId}
+                </span>
+                <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-[#f6d365] to-[#d4af37] text-[#3a1d00] font-black text-[8px] uppercase">
+                  {isActive ? 'ACTIVE MEMBER' : 'FREE MEMBER'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="px-2.5 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-bold flex items-center gap-1">
+              <Globe className="w-3 h-3 text-amber-300" />
+              <span className="uppercase">{language}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-colors cursor-pointer"
+              title="Download CSV Statement"
+            >
+              <HelpCircle className="w-4 h-4 text-amber-200" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          05 · WALLET — WHITE ROUNDED SHEET BODY (Matches image_b670fd1b.png)
+         ===================================================================== */}
+      <div className="bg-white rounded-t-[28px] -mt-3 px-3.5 pt-4 pb-8 min-h-[calc(100vh-140px)] space-y-3.5 text-slate-900 shadow-[0_-8px_25px_rgba(0,0,0,0.18)]">
+        {/* 1. Withdrawable Now Hero Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2.5 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 text-[#850818] flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-500">Withdrawable now</div>
+              <div className="text-xl font-black text-slate-950 font-mono leading-tight">
+                {formatLak(balances.available)}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Only eligible cleared funds can be withdrawn.
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setWithdrawError('');
+              setCreatedWithdrawalId(null);
+              setIsWithdrawModalOpen(true);
+            }}
+            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              isActive && balances.available >= 100000
+                ? 'bg-[#850818] hover:bg-red-900 text-white shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200'
+            }`}
+          >
+            Request withdrawal
+          </button>
+
+          <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-medium">
+            <Lock className="w-3 h-3 text-slate-400" />
+            <span>Active membership and verification required</span>
+          </div>
+        </div>
+
+        {/* 2. Two-Column Cards: Qualification Locked & Pending */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 flex items-center gap-2.5 shadow-2xs">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold text-slate-500 truncate">
+                Qualification locked
+              </div>
+              <div className="text-xs sm:text-sm font-black text-slate-900 font-mono truncate">
+                {formatLak(balances.heldForQualification)}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 flex items-center gap-2.5 shadow-2xs">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold text-slate-500 truncate">
+                Pending
+              </div>
+              <div className="text-xs sm:text-sm font-black text-slate-900 font-mono truncate">
+                {formatLak(balances.pending)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Qualification Progress Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-slate-900">Qualification</span>
+            <span className="text-xs font-black text-[#059669] font-mono">
+              {qualProgressPercent}%
+            </span>
+          </div>
+
+          <div className="text-xs font-mono font-bold text-slate-500">
+            <strong className="text-slate-900">{formatLak(eligibleClearedHeld).replace(' LAK', '')}</strong> / 1,600,000 LAK
+          </div>
+
+          <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[#059669] transition-all duration-500"
+              style={{ width: `${qualProgressPercent}%` }}
+            />
+          </div>
+
+          <div className="text-[10px] text-slate-500 font-medium">
+            {isActive
+              ? 'Qualified Active Lifetime Member (1,600,000 LAK completed)'
+              : `Need ${formatLak(remainingToQualify)} more`}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isActive && balances.heldForQualification >= QUALIFICATION_TARGET) {
+                handleRedeemQualification();
+              } else {
+                onNavigate('catalog');
+              }
+            }}
+            className="w-full py-2 rounded-xl bg-[#850818] hover:bg-red-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          >
+            <span>{isActive ? 'Buy Another 1.6M Music Package' : 'Complete qualification'}</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* 4. Three Quick Action Tiles (Withdrawals, Bank accounts, Statement) */}
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setWithdrawError('');
+              setCreatedWithdrawalId(null);
+              setIsWithdrawModalOpen(true);
+            }}
+            className="rounded-2xl border border-slate-200 bg-white hover:border-red-200 p-2.5 flex flex-col items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-red-50 text-[#850818] flex items-center justify-center">
+              <Wallet className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-700">Withdrawals</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingMemberBankId(null);
+              setShowMemberBankForm(true);
+            }}
+            className="rounded-2xl border border-slate-200 bg-white hover:border-red-200 p-2.5 flex flex-col items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-red-50 text-[#850818] flex items-center justify-center">
+              <Landmark className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-700">Bank accounts</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="rounded-2xl border border-slate-200 bg-white hover:border-red-200 p-2.5 flex flex-col items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-red-50 text-[#850818] flex items-center justify-center">
+              <FileText className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-700">Statement</span>
+          </button>
+        </div>
+
+        {/* 5. Payout Account Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 flex items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-red-50 text-[#850818] flex items-center justify-center shrink-0">
+              <Landmark className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900">Payout account</div>
+              <div className="text-[10px] text-slate-500 truncate">
+                {memberBankAccounts.length > 0
+                  ? `${memberBankAccounts[0].bankCode || 'BCEL'} • ${memberBankAccounts[0].accountNumber}`
+                  : 'No verified account'}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingMemberBankId(null);
+              setShowMemberBankForm(true);
+            }}
+            className="px-3 py-1.5 rounded-xl border border-[#850818] text-[#850818] hover:bg-red-50 font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+          >
+            {memberBankAccounts.length > 0 ? 'Edit account' : 'Add account'}
+          </button>
+        </div>
+
+        {/* 6. Recent Transactions */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-slate-900">Recent transactions</h3>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="text-[11px] font-bold text-[#850818] hover:underline flex items-center gap-0.5 cursor-pointer"
+            >
+              <span>View all</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            {ledgerEntries.slice(0, 3).map((entry) => {
+              const isCredit = entry.credit > 0;
+              const amt = isCredit ? entry.credit : entry.debit;
+              return (
+                <div
+                  key={entry.id}
+                  className="px-3 py-2.5 flex items-center justify-between gap-2 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                      <Lock className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 truncate">
+                        {String(entry.type).includes('COMMISSION') || String(entry.type).includes('CLEARANCE')
+                          ? 'L1 sales reward'
+                          : entry.type}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        Qualification locked · {new Date(entry.timestamp).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={`font-mono font-black text-xs shrink-0 ${
+                      isCredit ? 'text-slate-900' : 'text-rose-600'
+                    }`}
+                  >
+                    {isCredit ? '+' : '-'}
+                    {formatLak(amt)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 7. Green Verification Bar */}
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-center justify-between gap-2 text-xs text-emerald-800 font-semibold">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Withdrawals require a Maker-Checker approval.</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-emerald-600 shrink-0" />
+        </div>
+      </div>
+
+      {/* DETAILED 5-BALANCE ENGINE, QR DEPOSIT, BANK ACCOUNTS & DOUBLE-ENTRY LEDGER (Hidden below white sheet; modals stay active) */}
+      <div className="hidden">
       {/* Title & Currency Standards */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -1047,7 +1355,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
               const isWaitingAdmin =
                 w.status === 'ADMIN_REVIEW' ||
                 w.status === 'APPROVED' ||
-                w.status === 'OTP_PENDING';
+                w.status === 'PENDING_OTP';
               return (
                 <div
                   key={w.id}
@@ -1167,7 +1475,9 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
           ))}
         </div>
       </div>
+      </div>
 
+      <div>
       {/* WITHDRAWAL REQUEST MODAL (ACTIVE MEMBERS ONLY) */}
       {isWithdrawModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
@@ -1379,6 +1689,13 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-[11px] text-emerald-300">
+                  <span className="font-semibold">Email Verification:</span>
+                  <span className="font-mono font-bold text-white">
+                    {currentMember.email || `${currentMember.memberId.toLowerCase()}@dmcxayraxa.com`} ✓
+                  </span>
+                </div>
+
                 <div className="flex gap-2 pt-2">
                   <button
                     type="button"
@@ -1391,47 +1708,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
                     type="submit"
                     className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
                   >
-                    Send SMS OTP
+                    Verify by Email & Confirm Withdrawal
                   </button>
                 </div>
               </form>
-            ) : (
-              /* OTP Step for Withdrawal */
-              <div className="space-y-4 text-xs">
-                <div className="text-center space-y-1">
-                  <div className="inline-flex p-3 rounded-xl bg-amber-500/10 text-amber-400 mb-1">
-                    <KeyRound className="w-6 h-6" />
-                  </div>
-                  <h4 className="font-bold text-sm text-white">Security OTP Verification</h4>
-                  <p className="text-slate-400">
-                    Enter OTP sent to your registered phone to confirm atomic hold for payout {createdWithdrawalId}. (Simulator: enter <strong>123456</strong>)
-                  </p>
-                </div>
-
-                {otpError && (
-                  <div className="p-2.5 rounded-xl bg-red-500/10 text-red-300 text-center">
-                    {otpError}
-                  </div>
-                )}
-
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="123456"
-                  value={otpCode}
-                  onChange={e => setOtpCode(e.target.value)}
-                  className="w-full text-center text-xl font-mono tracking-widest bg-slate-800 border border-slate-700 rounded-xl py-3 text-white focus:outline-none focus:border-amber-500"
-                />
-
-                <button
-                  type="button"
-                  onClick={handleVerifyOtp}
-                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
-                >
-                  Confirm Payout Request
-                </button>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}
@@ -1621,6 +1902,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

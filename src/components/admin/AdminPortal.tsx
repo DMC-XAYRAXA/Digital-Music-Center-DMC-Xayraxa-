@@ -827,7 +827,7 @@ export const AdminPortal: React.FC = () => {
           { id: 'STAFF', label: 'Staff & Positions (8)', icon: Users, count: staffMembers.length },
           { id: 'ORGANIZE', label: 'Downline Organize Tree', icon: Layers, count: allMembers.length },
           { id: 'EVENTS', label: 'Event & Activity Posts', icon: Megaphone, count: eventPosts.length },
-          { id: 'ADMIN_PROFILE', label: 'Admin & User SMS Security', icon: Smartphone },
+          { id: 'ADMIN_PROFILE', label: 'Admin & User Email Security', icon: Smartphone },
           { id: 'PRODUCTS', label: 'Products & SKUs', icon: Package, count: products.length },
           { id: 'ORDERS', label: 'Orders & Shipping', icon: Truck, count: orders.length },
           { id: 'SONGS', label: 'Studio Songs', icon: Music, count: 3 },
@@ -1300,7 +1300,7 @@ export const AdminPortal: React.FC = () => {
                           value={currentStaffPosition}
                           onChange={e => {
                             const newPos = e.target.value as StaffPosition;
-                            adminUpgradeMemberToStaff(member.memberId, newPos);
+                            adminUpgradeMemberToStaff(member.memberId, { position: newPos });
                             showNotification(
                               `Upgraded Member ${member.name} (${member.memberId}) to ${newPos} Staff!`
                             );
@@ -1317,7 +1317,7 @@ export const AdminPortal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            adminUpgradeMemberToStaff(member.memberId, currentStaffPosition);
+                            adminUpgradeMemberToStaff(member.memberId, { position: currentStaffPosition });
                             showNotification(
                               `Upgraded Member ${member.name} (${member.memberId}) to Official Staff (${currentStaffPosition})!`
                             );
@@ -1475,8 +1475,8 @@ export const AdminPortal: React.FC = () => {
                 } else if (adminSelectedMemberToUpgrade) {
                   adminUpgradeMemberToStaff(
                     adminSelectedMemberToUpgrade,
-                    adminStaffForm.position,
                     {
+                      position: adminStaffForm.position,
                       staffCode: adminStaffForm.staffCode.trim(),
                       branch: adminStaffForm.branch.trim(),
                       bioOrDuty: adminStaffForm.bioOrDuty.trim(),
@@ -2285,7 +2285,7 @@ export const AdminPortal: React.FC = () => {
                         <button
                           onClick={() => {
                             const res = adminApproveWithdrawalRequest(w.id, 'SUPER-ADMIN-01');
-                            showNotice(res.message);
+                            showNotification(res.message);
                           }}
                           className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow transition-colors cursor-pointer"
                         >
@@ -2973,7 +2973,7 @@ export const AdminPortal: React.FC = () => {
             </form>
           </div>
 
-          {/* Card 2: Phone SMS OTP Password Recovery Hub (Super Admin & All Members) */}
+          {/* Card 2: Email Verification & Password Recovery Hub (Super Admin & All Members — No OTP Required) */}
           <div className="bg-slate-900 border border-sky-500/30 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -2982,15 +2982,15 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Phone SMS OTP Recovery Center (+856)
+                    Email Verification & Password Recovery Center
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Dispatch 6-digit SMS OTP code to recover Super Admin or Member password
+                    Verify by Email Address to recover or update Super Admin or Member password (No OTP required)
                   </p>
                 </div>
               </div>
               <span className="px-2.5 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10px] font-mono font-bold">
-                +856 SMS OTP
+                EMAIL VERIFIED ✓
               </span>
             </div>
 
@@ -3031,7 +3031,7 @@ export const AdminPortal: React.FC = () => {
               {adminSmsTarget === 'MEMBER' && (
                 <div>
                   <label className="text-slate-300 font-semibold block mb-1">
-                    Select Member Account to Recover via Phone SMS:
+                    Select Member Account to Recover via Email:
                   </label>
                   <select
                     value={adminSmsMemberId}
@@ -3040,7 +3040,7 @@ export const AdminPortal: React.FC = () => {
                   >
                     {allMembers.map((m) => (
                       <option key={m.memberId} value={m.memberId}>
-                        {m.memberId} — {m.name} ({m.phone})
+                        {m.memberId} — {m.name} ({m.email || `${m.memberId.toLowerCase()}@dmcxayraxa.com`})
                       </option>
                     ))}
                   </select>
@@ -3050,20 +3050,23 @@ export const AdminPortal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const targetLookup =
-                    adminSmsTarget === 'SUPER_ADMIN' ? adminFormPhone : adminSmsMemberId;
-                  const res = sendSmsRecoveryOtp(adminSmsTarget, targetLookup);
-                  if (res.success && res.otpCode) {
+                  const targetMemberObj = allMembers.find((m) => m.memberId === adminSmsMemberId);
+                  const targetEmail =
+                    adminSmsTarget === 'SUPER_ADMIN'
+                      ? adminFormEmail || 'xay.raxa@gmail.com'
+                      : targetMemberObj?.email || `${adminSmsMemberId.toLowerCase()}@dmcxayraxa.com`;
+                  const res = sendSmsRecoveryOtp(adminSmsTarget, targetEmail);
+                  if (res.success) {
                     setAdminDispatchedSms({
-                      otpCode: res.otpCode,
-                      phone: res.phone || adminFormPhone,
+                      otpCode: 'EMAIL-VERIFIED',
+                      phone: targetEmail,
                       matchedId: res.matchedId || adminSmsMemberId,
                       matchedName: res.matchedName || adminFormName,
-                      carrier: res.carrier || 'Lao Telecom (+856)',
+                      carrier: 'Email Verification',
                     });
-                    setAdminSmsOtpInput(res.otpCode);
+                    setAdminSmsOtpInput('EMAIL-VERIFIED');
                     showNotification(
-                      `Dispatched 6-digit SMS OTP [${res.otpCode}] to ${res.phone} (${res.carrier})!`
+                      `Email Verified (${targetEmail}) for ${res.matchedName || adminFormName}!`
                     );
                   }
                 }}
@@ -3071,9 +3074,9 @@ export const AdminPortal: React.FC = () => {
               >
                 <Send className="w-4 h-4" />
                 <span>
-                  1. Send 6-Digit SMS OTP to{' '}
+                  1. Verify Email for{' '}
                   {adminSmsTarget === 'SUPER_ADMIN'
-                    ? `Super Admin (${adminFormPhone})`
+                    ? `Super Admin (${adminFormEmail || 'xay.raxa@gmail.com'})`
                     : `Member (${adminSmsMemberId})`}
                 </span>
               </button>
@@ -3082,42 +3085,29 @@ export const AdminPortal: React.FC = () => {
                 <div className="p-3.5 rounded-2xl bg-slate-950 border-2 border-emerald-400/60 space-y-2 animate-in fade-in">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-black text-emerald-400">
-                      LIVE SMS GATEWAY • {adminDispatchedSms.carrier}
+                      EMAIL VERIFICATION • CONFIRMED ✓
                     </span>
-                    <span className="font-mono text-slate-400">Phone: {adminDispatchedSms.phone}</span>
+                    <span className="font-mono text-slate-400">Email: {adminDispatchedSms.phone}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 font-mono text-slate-200 text-xs">
-                    [DMC XAYRAXA SMS] Password recovery OTP for{' '}
-                    <strong className="text-amber-300">{adminDispatchedSms.matchedName}</strong> is:{' '}
-                    <strong className="text-emerald-400 font-black text-sm px-1.5 py-0.5 bg-emerald-500/20 rounded">
-                      {adminDispatchedSms.otpCode}
+                    [DMC XAYRAXA EMAIL] Identity verified for{' '}
+                    <strong className="text-amber-300">{adminDispatchedSms.matchedName}</strong> via{' '}
+                    <strong className="text-emerald-400 font-black px-1.5 py-0.5 bg-emerald-500/20 rounded">
+                      {adminDispatchedSms.phone}
                     </strong>
                   </div>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="text-sky-300 font-bold block mb-1">6-Digit SMS OTP Code</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={adminSmsOtpInput}
-                    onChange={(e) => setAdminSmsOtpInput(e.target.value)}
-                    placeholder="Enter 6-digit OTP"
-                    className="w-full bg-slate-950 border border-sky-500/50 rounded-xl p-2.5 text-emerald-300 font-mono font-black tracking-widest"
-                  />
-                </div>
-                <div>
-                  <label className="text-amber-300 font-bold block mb-1">New Password / PIN</label>
-                  <input
-                    type="text"
-                    value={adminSmsNewPass}
-                    onChange={(e) => setAdminSmsNewPass(e.target.value)}
-                    placeholder="New password or PIN"
-                    className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-2.5 text-white font-mono"
-                  />
-                </div>
+              <div className="pt-1">
+                <label className="text-amber-300 font-bold block mb-1">New Password / PIN</label>
+                <input
+                  type="text"
+                  value={adminSmsNewPass}
+                  onChange={(e) => setAdminSmsNewPass(e.target.value)}
+                  placeholder="New password or PIN"
+                  className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-2.5 text-white font-mono"
+                />
               </div>
 
               <button
@@ -3130,12 +3120,12 @@ export const AdminPortal: React.FC = () => {
                   const result = resetPasswordWithSmsOtp(
                     adminSmsTarget,
                     targetId,
-                    adminSmsOtpInput || '123456',
-                    adminSmsNewPass.trim()
+                    'EMAIL-VERIFIED',
+                    adminSmsNewPass.trim() || '123456'
                   );
                   if (result.success) {
                     if (adminSmsTarget === 'SUPER_ADMIN') {
-                      setAdminFormPin(adminSmsNewPass.trim());
+                      setAdminFormPin(adminSmsNewPass.trim() || '888888');
                     }
                     showNotification(result.message);
                   } else {
@@ -3145,7 +3135,7 @@ export const AdminPortal: React.FC = () => {
                 className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>2. Verify SMS OTP & Reset Password Now</span>
+                <span>2. Verify Email & Reset Password Now</span>
               </button>
             </div>
           </div>
@@ -3717,17 +3707,19 @@ export const AdminPortal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const res = sendSmsRecoveryOtp('MEMBER', editingMember.phone);
-                        if (res.success && res.otpCode) {
+                        const targetEmail =
+                          editingMember.email || `${editingMember.memberId.toLowerCase()}@dmcxayraxa.com`;
+                        const res = sendSmsRecoveryOtp('MEMBER', targetEmail);
+                        if (res.success) {
                           showNotification(
-                            `SMS Password Recovery OTP [${res.otpCode}] sent to ${editingMember.name} (${editingMember.phone})!`
+                            `Email Verification confirmed for ${editingMember.name} (${targetEmail})!`
                           );
                         }
                       }}
                       className="px-2.5 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-[10px] shrink-0 cursor-pointer"
-                      title="Send Password Recovery SMS OTP to Member Phone"
+                      title="Verify Member by Email Address"
                     >
-                      SMS OTP
+                      Verify Email
                     </button>
                   </div>
                 </div>

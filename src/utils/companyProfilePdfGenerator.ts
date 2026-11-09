@@ -11,7 +11,7 @@
 import { drawDmcOfficialLogoOnCanvas } from '../components/common/DmcLogo';
 
 export type PdfThemeStyle = 'EXECUTIVE_LIGHT' | 'LUXURY_DARK';
-export type PdfLanguageVersion = 'LO' | 'EN';
+export type PdfLanguageVersion = 'LO' | 'EN' | 'BOTH';
 
 export interface CompanyProfileData {
   documentNumber: string;
@@ -1834,7 +1834,7 @@ export function buildMultiPagePdfBlobFromCanvases(canvases: HTMLCanvasElement[])
 
   pushStr(`trailer\n<< /Size ${totalObjects} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
 
-  return new Blob(chunks, { type: 'application/pdf' });
+  return new Blob(chunks as unknown as BlobPart[], { type: 'application/pdf' });
 }
 
 /**

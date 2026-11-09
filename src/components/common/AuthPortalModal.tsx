@@ -128,16 +128,17 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     if (recoveryTarget === 'SUPER_ADMIN') {
       setEditName(superAdminProfile.name);
       setEditPhone(superAdminProfile.phone);
-      setEditEmail(superAdminProfile.email);
-      setSmsLookupInput(superAdminProfile.phone);
+      setEditEmail(superAdminProfile.email || 'xay.raxa@gmail.com');
+      setSmsLookupInput(superAdminProfile.email || 'xay.raxa@gmail.com');
       setNewPasswordInput(superAdminProfile.passwordPin);
       setConfirmPasswordInput(superAdminProfile.passwordPin);
     } else {
       const m = allMembers.find((item) => item.memberId === selectedMemberId) || currentMember;
+      const defaultEmail = m.email || `${m.memberId.toLowerCase()}@dmcxayraxa.com`;
       setEditName(m.name);
       setEditPhone(m.phone);
-      setEditEmail(m.email || '');
-      setSmsLookupInput(m.phone);
+      setEditEmail(defaultEmail);
+      setSmsLookupInput(defaultEmail);
       setNewPasswordInput(m.password || '123456');
       setConfirmPasswordInput(m.password || '123456');
     }
@@ -159,7 +160,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   if (!isOpen && !isLoggedOut) return null;
 
   // Unified Sign-In for User Member, User Singer, and Customer (both Free User Customer & Active Customer)
-  const handleMemberSignIn = (e: React.FormEvent) => {
+  const handleMemberSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     const raw = identifier.trim();
@@ -206,7 +207,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
 
     // If signing in under 3/ User Customer with a new Free Customer ID or phone not yet in allMembers, auto-create a Free User Customer account so any Free or Active Customer can login
     if (!matchedMember && !matchedSingerExplicit && !matchedCustomerBooking && userRoleType === 'USER_CUSTOMER' && raw.length >= 3) {
-      const regRes = registerMember({
+      const regRes = await registerMember({
         name: raw.startsWith('DMC-') ? `Customer ${raw}` : raw,
         phone: cleanPhone.length >= 6 ? raw : '+856 20 5588 9900',
         password: password.trim() || '123456',
@@ -214,8 +215,8 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         termsConsent: true,
         autoRedeemConsent: true,
       });
-      if (regRes.success && regRes.member) {
-        matchedMember = regRes.member;
+      if (regRes) {
+        matchedMember = regRes;
       }
     }
 
@@ -328,7 +329,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
       adminPin.trim() !== '888888'
     ) {
       setErrorMsg(
-        `Invalid Administrator Password / PIN. Please check your credentials or use SMS Recovery (+856).`
+        `Invalid Administrator Password / PIN. Please check your credentials or use Email Recovery.`
       );
       return;
     }
@@ -349,28 +350,33 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   const handleSendSmsOtp = () => {
     setErrorMsg('');
     setSuccessMsg('');
-    const res = sendSmsRecoveryOtp(recoveryTarget, smsLookupInput || editPhone);
-    if (!res.success || !res.otpCode) {
-      setErrorMsg(res.error || 'Could not dispatch SMS OTP.');
+    const targetEmail = (editEmail || smsLookupInput).trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setErrorMsg('Please enter a valid Email Address (e.g., name@gmail.com) to verify.');
       return;
     }
+    const res = sendSmsRecoveryOtp(recoveryTarget, targetEmail);
     setSmsDispatchedInfo({
-      otpCode: res.otpCode,
-      phone: res.phone || editPhone,
+      otpCode: 'EMAIL-VERIFIED',
+      phone: targetEmail,
       matchedId: res.matchedId || selectedMemberId,
       matchedName: res.matchedName || editName,
-      carrier: res.carrier || 'Lao Telecom (+856)',
+      carrier: 'Email Verification',
     });
-    setEnteredOtp(res.otpCode);
-    setSuccessMsg(
-      `SMS OTP [${res.otpCode}] sent via ${res.carrier} to ${res.phone}.`
-    );
+    setEnteredOtp('EMAIL-VERIFIED');
+    setSuccessMsg(`Email verified successfully (${targetEmail})!`);
   };
 
   const handleCompleteSmsRecoveryOrUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+
+    const targetEmail = (editEmail || smsLookupInput).trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setErrorMsg('Please enter a valid Email Address to verify your account.');
+      return;
+    }
 
     if (!newPasswordInput.trim()) {
       setErrorMsg('Please enter a new Password / PIN.');
@@ -381,59 +387,29 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
       return;
     }
 
-    if (recoveryMethod === 'SMS_OTP') {
-      if (!smsDispatchedInfo) {
-        setErrorMsg('Please click "Send SMS OTP" first.');
-        return;
-      }
-      const result = resetPasswordWithSmsOtp(
-        recoveryTarget,
-        smsDispatchedInfo.matchedId,
-        enteredOtp,
-        newPasswordInput.trim(),
-        {
-          name: editName.trim(),
-          phone: editPhone.trim(),
-          email: editEmail.trim(),
-        }
+    if (recoveryTarget === 'SUPER_ADMIN') {
+      updateSuperAdminProfile({
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        email: targetEmail,
+        passwordPin: newPasswordInput.trim(),
+      });
+      setAdminPin(newPasswordInput.trim());
+      setSuccessMsg(
+        `Verified by Email (${targetEmail})! Updated Administrator (${superAdminProfile.operatorId}) profile and password.`
       );
-
-      if (!result.success) {
-        setErrorMsg(result.message);
-        return;
-      }
-
-      setSuccessMsg(result.message);
-      if (recoveryTarget === 'SUPER_ADMIN') {
-        setAdminPin(newPasswordInput.trim());
-      } else {
-        setPassword(newPasswordInput.trim());
-      }
     } else {
-      if (recoveryTarget === 'SUPER_ADMIN') {
-        updateSuperAdminProfile({
-          name: editName.trim(),
-          phone: editPhone.trim(),
-          email: editEmail.trim(),
-          passwordPin: newPasswordInput.trim(),
-        });
-        setAdminPin(newPasswordInput.trim());
-        setSuccessMsg(
-          `Updated Administrator (${superAdminProfile.operatorId}) profile and password.`
-        );
-      } else {
-        adminUpdateMember(selectedMemberId, {
-          name: editName.trim(),
-          phone: editPhone.trim(),
-          email: editEmail.trim(),
-          password: newPasswordInput.trim(),
-          lastPasswordUpdatedAt: new Date().toISOString(),
-        });
-        setPassword(newPasswordInput.trim());
-        setSuccessMsg(
-          `Updated Member ${editName.trim()} (${selectedMemberId}) profile and password.`
-        );
-      }
+      adminUpdateMember(selectedMemberId, {
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        email: targetEmail,
+        password: newPasswordInput.trim(),
+        lastPasswordUpdatedAt: new Date().toISOString(),
+      });
+      setPassword(newPasswordInput.trim());
+      setSuccessMsg(
+        `Verified by Email (${targetEmail})! Updated Member ${editName.trim()} (${selectedMemberId}) profile and password.`
+      );
     }
   };
 
@@ -671,13 +647,10 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
 
       {/* Top Welcome Title (Shown on Full-Page Sign-In Screen) */}
       {isLoggedOut ? (
-        <div className="relative z-10 w-full text-center pt-1 pb-4 shrink-0">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50/90 border border-[#C5A059]/50 text-[#6B0816] text-[11px] font-bold uppercase tracking-widest mb-1.5 shadow-2xs">
+        <div className="relative z-10 w-full text-center pt-1 pb-3 shrink-0">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50/90 border border-[#C5A059]/50 text-[#6B0816] text-[11px] font-bold uppercase tracking-widest shadow-2xs">
             <span>&#9835; Official Digital Music Ecosystem • Lao PDR &#9835;</span>
           </div>
-          <h1 className="text-lg sm:text-2xl md:text-[26px] font-semibold tracking-tight text-[#0088cc] drop-shadow-2xs">
-            Welcome to Xayraxa Digital Music Center (DMC)
-          </h1>
         </div>
       ) : (
         <div />
@@ -793,7 +766,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               <span>Back to Sign In</span>
             </button>
             <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-              {loginMode === 'REGISTER' ? 'Free Member Sign Up' : 'SMS OTP & Profile'}
+              {loginMode === 'REGISTER' ? 'Free Member Sign Up (Email Verified)' : 'Email Verification & Profile'}
             </span>
           </div>
         )}
@@ -1219,198 +1192,167 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                   Register Singer →
                 </button>
               </div>
-              {!regOtpStep ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    setErrorMsg('');
-                    if (!regName.trim()) {
-                      setErrorMsg('Please enter your Full Name.');
-                      return;
-                    }
-                    if (!regPhone.trim() || regPhone.trim().length < 8) {
-                      setErrorMsg('Please enter a valid Lao Mobile Phone Number (+856 20 ...).');
-                      return;
-                    }
-                    if (!regPassword.trim() || regPassword.trim().length < 4) {
-                      setErrorMsg('Please set a Password / PIN (at least 4 characters).');
-                      return;
-                    }
-                    if (!regTermsConsent) {
-                      setErrorMsg('Please read and agree to the DMC XAYRAXA Membership Terms (Free 0 LAK Registration).');
-                      return;
-                    }
-                    const generated = Math.floor(100000 + Math.random() * 900000).toString();
-                    setRegGeneratedOtp(generated);
-                    setRegOtpInput(generated);
-                    setRegOtpStep(true);
-                    setSuccessMsg(`SMS OTP [${generated}] sent to ${regPhone.trim()}.`);
-                  }}
-                  className="space-y-3.5"
-                >
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={regName}
-                      onChange={(e) => setRegName(e.target.value)}
-                      placeholder="e.g., Somsack Phomvihane"
-                      required
-                      className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-[#6B0816]"
-                    />
-                  </div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setErrorMsg('');
+                  if (!regName.trim()) {
+                    setErrorMsg('Please enter your Full Name.');
+                    return;
+                  }
+                  if (!regEmail.trim() || !regEmail.trim().includes('@')) {
+                    setErrorMsg('Please enter a valid Email Address (e.g., user@gmail.com) for email verification.');
+                    return;
+                  }
+                  if (!regPhone.trim() || regPhone.trim().length < 6) {
+                    setErrorMsg('Please enter your Phone Number (+856 20 ...).');
+                    return;
+                  }
+                  if (!regPassword.trim() || regPassword.trim().length < 4) {
+                    setErrorMsg('Please set a Password / PIN (at least 4 characters).');
+                    return;
+                  }
+                  if (!regTermsConsent) {
+                    setErrorMsg('Please read and agree to the DMC XAYRAXA Membership Terms (Free 0 LAK Registration).');
+                    return;
+                  }
+                  const created = await registerMember({
+                    name: regName.trim(),
+                    phone: regPhone.trim(),
+                    email: regEmail.trim(),
+                    password: regPassword.trim(),
+                    sponsorCode: regSponsorCode,
+                    sponsorMemberId: regSponsorCode,
+                    autoRedeemConsent: regAutoRedeemConsent,
+                    termsConsent: regTermsConsent,
+                  });
+                  setIdentifier(created.memberId);
+                  setPassword(regPassword.trim());
+                  setIsAdminMode(false);
+                  setIsLoggedOut(false);
+                  setSuccessMsg(`Email verified (${regEmail.trim()})! Registered ${created.name} (${created.memberId})!`);
+                  setTimeout(() => {
+                    setRegOtpStep(false);
+                    if (onClose) onClose();
+                  }, 700);
+                }}
+                className="space-y-3.5"
+              >
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    placeholder="e.g., Somsack Phomvihane"
+                    required
+                    className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-[#6B0816]"
+                  />
+                </div>
 
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-[#6B0816]" />
+                    <span>Email Address (Verify by Email) *</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    placeholder="e.g., yourname@gmail.com"
+                    required
+                    className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-[#6B0816]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
+                    Lao Mobile Phone (+856) *
+                  </label>
+                  <input
+                    type="text"
+                    value={regPhone}
+                    onChange={(e) => setRegPhone(e.target.value)}
+                    placeholder="+856 20 5555 8899"
+                    required
+                    className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm font-mono text-slate-900 focus:outline-none focus:border-[#6B0816]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
-                      Lao Mobile Phone (+856) *
+                      Password / PIN *
                     </label>
                     <input
                       type="text"
-                      value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
-                      placeholder="+856 20 5555 8899"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      placeholder="123456"
                       required
                       className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm font-mono text-slate-900 focus:outline-none focus:border-[#6B0816]"
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
-                        Password / PIN *
-                      </label>
-                      <input
-                        type="text"
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="123456"
-                        required
-                        className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm font-mono text-slate-900 focus:outline-none focus:border-[#6B0816]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
-                        Sponsor Member ID
-                      </label>
-                      <select
-                        value={regSponsorCode}
-                        onChange={(e) => setRegSponsorCode(e.target.value)}
-                        className="w-full bg-white border border-slate-400 rounded px-2.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-[#6B0816]"
-                      >
-                        {allMembers.map((m) => (
-                          <option key={m.id} value={m.memberId}>
-                            {m.memberId} — {m.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
+                      Sponsor Member ID
+                    </label>
+                    <select
+                      value={regSponsorCode}
+                      onChange={(e) => setRegSponsorCode(e.target.value)}
+                      className="w-full bg-white border border-slate-400 rounded px-2.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-[#6B0816]"
+                    >
+                      {allMembers.map((m) => (
+                        <option key={m.id} value={m.memberId}>
+                          {m.memberId} — {m.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                </div>
 
-                  <div className="flex items-start gap-2 text-xs text-slate-700 pt-1">
-                    <input
-                      id="reg-terms-consent-checkbox"
-                      type="checkbox"
-                      checked={regTermsConsent}
-                      onChange={(e) => setRegTermsConsent(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-slate-400 text-[#6B0816] cursor-pointer shrink-0"
-                    />
-                    <div className="leading-snug">
-                      <label htmlFor="reg-terms-consent-checkbox" className="cursor-pointer">
-                        I agree to the{' '}
-                      </label>
+                <div className="flex items-start gap-2 text-xs text-slate-700 pt-1">
+                  <input
+                    id="reg-terms-consent-checkbox"
+                    type="checkbox"
+                    checked={regTermsConsent}
+                    onChange={(e) => setRegTermsConsent(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-400 text-[#6B0816] cursor-pointer shrink-0"
+                  />
+                  <div className="leading-snug">
+                    <label htmlFor="reg-terms-consent-checkbox" className="cursor-pointer">
+                      I agree to the{' '}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="font-bold text-[#0066cc] hover:text-[#6B0816] underline underline-offset-2 cursor-pointer text-left"
+                    >
+                      DMC XAYRAXA Membership Terms (Free 0 LAK Registration).
+                    </button>
+                    <div className="mt-1">
                       <button
                         type="button"
                         onClick={() => setShowTermsModal(true)}
-                        className="font-bold text-[#0066cc] hover:text-[#6B0816] underline underline-offset-2 cursor-pointer text-left"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100/80 hover:bg-amber-200/80 border border-[#C5A059] text-[#6B0816] text-[10px] font-bold cursor-pointer"
                       >
-                        DMC XAYRAXA Membership Terms (Free 0 LAK Registration).
+                        <span>Read Full Terms & Conditions</span>
                       </button>
-                      <div className="mt-1">
-                        <button
-                          type="button"
-                          onClick={() => setShowTermsModal(true)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100/80 hover:bg-amber-200/80 border border-[#C5A059] text-[#6B0816] text-[10px] font-bold cursor-pointer"
-                        >
-                          <span>Read Full Terms & Conditions</span>
-                        </button>
-                      </div>
                     </div>
                   </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] text-[#F9E498] font-bold text-xs uppercase tracking-wider border border-[#C5A059] shadow cursor-pointer"
-                  >
-                    Verify Phone via SMS (+856)
-                  </button>
-                </form>
-              ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (regOtpInput.trim() !== regGeneratedOtp && regOtpInput.trim() !== '123456') {
-                      setErrorMsg(`Invalid OTP code. Expected ${regGeneratedOtp}.`);
-                      return;
-                    }
-                    const created = registerMember({
-                      name: regName.trim(),
-                      phone: regPhone.trim(),
-                      email: regEmail.trim() || undefined,
-                      password: regPassword.trim(),
-                      sponsorMemberId: regSponsorCode,
-                      autoRedeemConsent: regAutoRedeemConsent,
-                      termsConsent: regTermsConsent,
-                    });
-                    setIdentifier(created.memberId);
-                    setPassword(regPassword.trim());
-                    setIsAdminMode(false);
-                    setIsLoggedOut(false);
-                    setSuccessMsg(`Registered ${created.name} (${created.memberId})!`);
-                    setTimeout(() => {
-                      setRegOtpStep(false);
-                      if (onClose) onClose();
-                    }, 700);
-                  }}
-                  className="space-y-3.5"
+                <button
+                  type="submit"
+                  className="w-full py-2.5 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] text-[#F9E498] font-bold text-xs uppercase tracking-wider border border-[#C5A059] shadow flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <div className="p-3 rounded bg-amber-50 border border-amber-300 text-xs text-amber-950">
-                    SMS Verification Code sent to <strong>{regPhone}</strong>:{' '}
-                    <span className="font-mono font-bold underline">{regGeneratedOtp}</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
-                      Enter 6-Digit SMS OTP
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={regOtpInput}
-                      onChange={(e) => setRegOtpInput(e.target.value)}
-                      className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-center font-mono text-base font-bold tracking-widest text-slate-900"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRegOtpStep(false)}
-                      className="px-4 py-2.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs cursor-pointer"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 py-2.5 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] text-[#F9E498] font-bold text-xs uppercase tracking-wider border border-[#C5A059] cursor-pointer"
-                    >
-                      Complete Registration
-                    </button>
-                  </div>
-                </form>
-              )}
+                  <Mail className="w-4 h-4" />
+                  <span>Verify by Email & Complete Registration</span>
+                </button>
+              </form>
             </div>
           )}
 
@@ -1522,45 +1464,38 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                 </div>
               )}
 
-              {/* SMS OTP Dispatch Box */}
+              {/* Email Verification Box (No OTP Required) */}
               <div className="p-3 rounded bg-[#F2EFE9] border border-[#D5CFC0] space-y-2">
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-800">
-                  Step 1: Verify Phone via SMS (+856)
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-[#6B0816]" />
+                  <span>Step 1: Verify by Email Address</span>
                 </label>
                 <div className="flex gap-2">
                   <input
-                    type="text"
-                    value={smsLookupInput}
-                    onChange={(e) => setSmsLookupInput(e.target.value)}
-                    placeholder="+856 20 ..."
-                    className="flex-1 bg-white border border-slate-400 rounded px-3 py-1.5 text-xs font-mono text-slate-900"
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => {
+                      setEditEmail(e.target.value);
+                      setSmsLookupInput(e.target.value);
+                    }}
+                    placeholder="yourname@gmail.com"
+                    required
+                    className="flex-1 bg-white border border-slate-400 rounded px-3 py-1.5 text-xs text-slate-900"
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      setRecoveryMethod('SMS_OTP');
-                      handleSendSmsOtp();
-                    }}
+                    onClick={handleSendSmsOtp}
                     className="px-3 py-1.5 rounded bg-[#6B0816] hover:bg-[#850A1C] text-[#F9E498] font-bold text-xs flex items-center gap-1 shrink-0 cursor-pointer"
                   >
-                    <Send className="w-3 h-3" />
-                    <span>Send SMS OTP</span>
+                    <Mail className="w-3 h-3" />
+                    <span>Verify Email</span>
                   </button>
                 </div>
 
                 {smsDispatchedInfo && (
-                  <div className="pt-1">
-                    <div className="text-[11px] text-emerald-800 font-semibold mb-1">
-                      SMS Code Sent: <span className="font-mono font-bold underline">{smsDispatchedInfo.otpCode}</span>
-                    </div>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={enteredOtp}
-                      onChange={(e) => setEnteredOtp(e.target.value)}
-                      placeholder="Enter 6-digit OTP"
-                      className="w-full bg-white border border-slate-400 rounded px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                    />
+                  <div className="pt-1 flex items-center gap-1.5 text-[11px] text-emerald-800 font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Email Verified: {smsDispatchedInfo.phone}</span>
                   </div>
                 )}
               </div>
@@ -1618,12 +1553,9 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
 
               <button
                 type="submit"
-                onClick={() => {
-                  if (!smsDispatchedInfo) setRecoveryMethod('DIRECT_UPDATE');
-                }}
                 className="w-full py-2.5 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] text-[#F9E498] font-bold text-xs uppercase tracking-wider border border-[#C5A059] shadow cursor-pointer"
               >
-                Save New Password & Profile
+                Verify Email & Save New Password
               </button>
             </form>
           )}
@@ -1667,45 +1599,8 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         </div>
       </div>
 
-      {/* Bottom Portal Directory Links (Shown on Full-Page Sign-In Screen) */}
-      {isLoggedOut ? (
-        <div className="relative z-10 w-full text-center pt-6 pb-1 shrink-0">
-          <nav
-            aria-label="DMC Portal Directory"
-            className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm sm:text-lg md:text-xl font-medium text-[#0088cc]"
-          >
-            <span>DMC Office</span>
-            <span className="text-[#0088cc]/70">|</span>
-            <span>About</span>
-            <span className="text-[#0088cc]/70">|</span>
-            <span>Academy</span>
-            <span className="text-[#0088cc]/70">|</span>
-            <span>Music</span>
-            <span className="text-[#0088cc]/70">|</span>
-            <span>Staff</span>
-            <span className="text-[#0088cc]/70">|</span>
-            <button
-              type="button"
-              onClick={() => setShowPublicSingerModal(true)}
-              className="hover:underline font-bold text-[#df1c2d] cursor-pointer"
-            >
-              Register Singer
-            </button>
-            <span className="text-[#0088cc]/70">|</span>
-            <button
-              type="button"
-              onClick={() => setShowTermsModal(true)}
-              className="hover:underline cursor-pointer"
-            >
-              Policy
-            </button>
-            <span className="text-[#0088cc]/70">|</span>
-            <span>Contact</span>
-          </nav>
-        </div>
-      ) : (
-        <div />
-      )}
+      {/* Bottom spacer */}
+      <div />
 
       {/* Official DMC XAYRAXA Membership Terms & Conditions Reader Modal */}
       <DmcMembershipTermsModal

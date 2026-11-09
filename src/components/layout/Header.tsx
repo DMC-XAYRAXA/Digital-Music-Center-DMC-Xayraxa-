@@ -132,10 +132,10 @@ export const Header: React.FC<HeaderProps> = ({
     const matchedShipping = shippingCarriers.filter((c) => {
       if (!q) return true;
       return (
-        c.nameEn.toLowerCase().includes(q) ||
-        c.nameLo.toLowerCase().includes(q) ||
-        c.shortName.toLowerCase().includes(q) ||
-        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        c.nameLao.toLowerCase().includes(q) ||
+        c.badge.toLowerCase().includes(q) ||
+        c.trackingPrefix.toLowerCase().includes(q) ||
         String(c.baseFeeLak).includes(q)
       );
     });
@@ -438,32 +438,28 @@ export const Header: React.FC<HeaderProps> = ({
                 />
                 <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="px-3 py-2 border-b border-slate-800 text-xs font-semibold text-slate-400 flex justify-between items-center">
-                    <span>{t.switchPersona}</span>
+                    <span>Signed-In Member</span>
                     <button
                       onClick={() => {
                         setShowPersonaMenu(false);
                         setShowControlPanel(true);
                       }}
-                      className="text-[10px] text-amber-400 hover:underline"
+                      className="text-[10px] text-amber-400 hover:underline cursor-pointer"
                     >
                       Full Panel
                     </button>
                   </div>
                   <div className="max-h-72 overflow-y-auto space-y-1 pt-1">
-                    {allMembers.map((m) => {
-                      const isSelected = m.memberId === currentMember.memberId;
+                    {[currentMember].map((m) => {
+                      const isSelected = true;
                       return (
                         <button
                           key={m.memberId}
                           onClick={() => {
-                            setCurrentMemberId(m.memberId);
-                            if (m.memberId !== 'DMC-LA-00001') {
-                              setIsAdminMode(false);
-                              setIsAdminAuthenticated(false);
-                            }
                             setShowPersonaMenu(false);
+                            setShowControlPanel(true);
                           }}
-                          className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                          className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
                             isSelected
                               ? 'bg-amber-500/15 border border-amber-500/30 text-amber-200'
                               : 'hover:bg-slate-800 text-slate-300'

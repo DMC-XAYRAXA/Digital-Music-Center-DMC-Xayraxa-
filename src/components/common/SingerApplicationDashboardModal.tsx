@@ -294,8 +294,24 @@ export const SingerApplicationDashboardModal: React.FC<
     setNoticeBanner({ text, type });
     setTimeout(() => setNoticeBanner(null), 5500);
   };
-  const setBannerMessage = (text: string) => showNotice(text, 'SUCCESS');
-  const setDashboardNotice = (text: string) => showNotice(text, 'SUCCESS');
+  const setBannerMessage = (
+    input: string | { type?: string; text: string }
+  ) => {
+    if (typeof input === 'string') {
+      showNotice(input, 'SUCCESS');
+    } else {
+      showNotice(input.text, input.type?.toUpperCase() === 'ERROR' ? 'ERROR' : 'SUCCESS');
+    }
+  };
+  const setDashboardNotice = (
+    input: string | { type?: string; text: string }
+  ) => {
+    if (typeof input === 'string') {
+      showNotice(input, 'SUCCESS');
+    } else {
+      showNotice(input.text, input.type?.toUpperCase() === 'ERROR' ? 'ERROR' : 'SUCCESS');
+    }
+  };
 
   // ---------------- 1/ SINGER JOB APPLICATION REGISTER FORM STATE ----------------
   // Default to GENERAL_PUBLIC so General People can Register Singer immediately!
@@ -913,11 +929,7 @@ export const SingerApplicationDashboardModal: React.FC<
               <button
                 type="button"
                 onClick={() => setActiveTab('BOOKING_PARTY')}
-                className={`py-2 px-2 rounded-xl text-[10px] sm:text-xs font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeTab === 'BOOKING_PARTY'
-                    ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 shadow-md'
-                    : 'text-white/90 hover:bg-white/10'
-                }`}
+                className="py-2 px-2 rounded-xl text-[10px] sm:text-xs font-black flex items-center justify-center gap-1 transition-all cursor-pointer text-white/90 hover:bg-white/10"
               >
                 <Calendar className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">3/ Booking Party Set</span>

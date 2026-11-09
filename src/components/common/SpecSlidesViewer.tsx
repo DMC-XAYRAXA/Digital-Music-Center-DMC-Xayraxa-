@@ -406,7 +406,7 @@ function downloadCanvasesAsPdf(canvases: HTMLCanvasElement[], filename: string) 
   );
 
   // Combine into Blob and trigger download
-  const blob = new Blob(chunks, { type: 'application/pdf' });
+  const blob = new Blob(chunks as unknown as BlobPart[], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

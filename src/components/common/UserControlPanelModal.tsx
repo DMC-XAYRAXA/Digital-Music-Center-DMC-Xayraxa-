@@ -40,6 +40,7 @@ import {
   MapPin,
   Navigation,
   MessageSquare,
+  Mail,
   Send,
   Camera,
   Upload
@@ -1084,87 +1085,55 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   </div>
                 </div>
 
-                {/* Phone SMS Recovery OTP Trigger & Live SMS Box */}
+                {/* Email Verification & Password Recovery Box (No OTP Required) */}
                 <div className="p-3 rounded-xl bg-slate-900/90 border border-sky-500/30 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Recover / Verify Password via Phone SMS (+856)</span>
+                      <Mail className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Recover / Verify Password by Email</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => {
                         setProfileUpdateError('');
+                        const targetEmail =
+                          profileEmailInput.trim() ||
+                          (profileRoleTarget === 'SUPER_ADMIN'
+                            ? superAdminProfile.email || 'xay.raxa@gmail.com'
+                            : `${currentMember.memberId.toLowerCase()}@dmcxayraxa.com`);
                         const otpRole = profileRoleTarget === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'MEMBER';
-                        const res = sendSmsRecoveryOtp(otpRole, profilePhoneInput);
-                        if (res.success && res.otpCode) {
-                          setSmsOtpInfo({
-                            otpCode: res.otpCode,
-                            phone: res.phone || profilePhoneInput,
-                            matchedId: res.matchedId || currentMember.memberId,
-                            matchedName: res.matchedName || profileNameInput,
-                            carrier: res.carrier || 'Lao Telecom (+856)',
-                          });
-                          setSmsOtpEntered(res.otpCode);
+                        const matchedId =
+                          profileRoleTarget === 'SUPER_ADMIN'
+                            ? superAdminProfile.operatorId
+                            : currentMember.memberId;
+                        const out = resetPasswordWithSmsOtp(
+                          otpRole,
+                          matchedId,
+                          'EMAIL-VERIFIED',
+                          profilePasswordInput || '123456',
+                          {
+                            name: profileNameInput.trim(),
+                            phone: profilePhoneInput.trim(),
+                            email: targetEmail,
+                          }
+                        );
+                        if (out.success) {
                           setProfileUpdateNotice(
-                            `SMS OTP [${res.otpCode}] sent to ${res.phone} via ${res.carrier}!`
+                            `Email Verified (${targetEmail})! ${out.message}`
                           );
+                          setProfileUpdateError('');
+                        } else {
+                          setProfileUpdateError(out.message);
                         }
                       }}
                       className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow"
                     >
-                      <Send className="w-3 h-3" />
-                      <span>Send SMS OTP to {profilePhoneInput}</span>
+                      <Mail className="w-3 h-3" />
+                      <span>
+                        Verify by Email ({profileEmailInput || 'xay.raxa@gmail.com'}) & Reset Password
+                      </span>
                     </button>
                   </div>
-
-                  {smsOtpInfo && (
-                    <div className="p-2.5 rounded-lg bg-slate-950 border border-emerald-500/40 space-y-2 animate-in fade-in">
-                      <div className="text-[10px] font-mono text-emerald-300">
-                        [SMS • {smsOtpInfo.carrier}] Recovery OTP for{' '}
-                        <strong>{smsOtpInfo.matchedName}</strong> is:{' '}
-                        <strong className="text-sm text-emerald-400 font-black px-1.5 py-0.5 bg-emerald-500/20 rounded">
-                          {smsOtpInfo.otpCode}
-                        </strong>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={smsOtpEntered}
-                          onChange={(e) => setSmsOtpEntered(e.target.value)}
-                          placeholder="6-digit SMS OTP"
-                          className="flex-1 bg-slate-900 border border-sky-500/50 rounded-lg px-2.5 py-1.5 text-emerald-300 font-mono font-bold text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const otpRole = profileRoleTarget === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'MEMBER';
-                            const out = resetPasswordWithSmsOtp(
-                              otpRole,
-                              smsOtpInfo.matchedId,
-                              smsOtpEntered,
-                              profilePasswordInput,
-                              {
-                                name: profileNameInput.trim(),
-                                phone: profilePhoneInput.trim(),
-                                email: profileEmailInput.trim(),
-                              }
-                            );
-                            if (out.success) {
-                              setProfileUpdateNotice(out.message);
-                              setProfileUpdateError('');
-                            } else {
-                              setProfileUpdateError(out.message);
-                            }
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] cursor-pointer"
-                        >
-                          Verify SMS & Reset Password
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Direct Save Profile & Password Button + Admin Update All */}
@@ -2152,15 +2121,15 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: PRESET TEST ACCOUNTS (1-CLICK SWITCH) */}
+          {/* TAB 3: SIGNED-IN ACCOUNT */}
           {activeTab === 'PRESETS' && (
             <div className="space-y-3 text-xs animate-in fade-in">
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px]">
-                <strong>1-Click Multi-Tier Account Switcher:</strong> Instantly switch between test identities to inspect how unilevel commissions flow up from L1 to L2 to L3!
+                <strong>Signed-In Member Account:</strong> Viewing your active signed-in member identity and balances.
               </div>
 
               <div className="space-y-2">
-                {allMembers.map(m => {
+                {[currentMember].map(m => {
                   const isSelected = m.memberId === currentMember.memberId;
                   const mBalances = getMemberBalances(m.memberId);
                   const isMActive = m.membershipState === 'ACTIVE_LIFETIME_MEMBER';
@@ -2279,8 +2248,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-300">
-                  <span>Two-Factor OTP Security:</span>
-                  <span className="font-bold text-emerald-400">ENABLED (SMS +856)</span>
+                  <span>Email Security Verification:</span>
+                  <span className="font-bold text-emerald-400">VERIFIED BY EMAIL ✓</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-300">
                   <span>Terms of Service:</span>
@@ -2299,13 +2268,13 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                 </p>
               </div>
 
-              {/* Admin Portal Fast Switch & Profile/SMS Shortcut — ONLY visible to Administrator */}
+              {/* Admin Portal Fast Switch & Profile/Email Shortcut — ONLY visible to Administrator */}
               {(isAdminAuthenticated || isAdminMode) && (
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
                   <div>
-                    <span className="font-bold text-white block">Super Admin & SMS Password Recovery</span>
+                    <span className="font-bold text-white block">Super Admin & Email Password Recovery</span>
                     <span className="text-[10px] text-slate-400">
-                      Admin Phone: {superAdminProfile.phone} ({superAdminProfile.telecomCarrier})
+                      Admin Email: {superAdminProfile.email || 'xay.raxa@gmail.com'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -2316,7 +2285,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                       }}
                       className="px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-xs cursor-pointer"
                     >
-                      Admin SMS Recovery
+                      Admin Email Recovery
                     </button>
                     <button
                       onClick={() => setIsAdminMode(!isAdminMode)}

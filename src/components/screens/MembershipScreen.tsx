@@ -103,7 +103,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
     }
   };
 
-  const handleStartRegistration = (e: React.FormEvent) => {
+  const handleStartRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -111,8 +111,12 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
       setErrorMessage('Please enter your full legal name.');
       return;
     }
+    if (!formData.email.trim() || !formData.email.trim().includes('@')) {
+      setErrorMessage('Please enter a valid email address for email verification.');
+      return;
+    }
     if (!formData.phone.trim()) {
-      setErrorMessage('Please enter a valid mobile phone number for OTP.');
+      setErrorMessage('Please enter a valid mobile phone number.');
       return;
     }
     if (!formData.termsConsent) {
@@ -120,24 +124,11 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
       return;
     }
 
-    // Generate 6-digit SMS OTP and auto-fill for instant demo testing
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedSmsOtp(code);
-    setOtpCode(code);
-    setOtpStep(true);
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otpCode.length < 4) {
-      setErrorMessage('Please enter the 6-digit OTP code sent to your phone.');
-      return;
-    }
-
     try {
       const newMember = await registerMember({
         name: formData.name,
         phone: formData.phone,
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password || '123456',
         sponsorCode: formData.sponsorCode,
         autoRedeemConsent: formData.autoRedeemConsent,
@@ -145,7 +136,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
 
       setOtpStep(false);
       setRegistrationSuccess(
-        `Registration successful! Signed in as ${newMember.name} (${newMember.memberId}) with 0 LAK signup fee.`
+        `Email verified (${formData.email.trim()})! Registration successful! Signed in as ${newMember.name} (${newMember.memberId}) with 0 LAK signup fee.`
       );
       setFormData({
         name: '',
@@ -160,6 +151,10 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
     } catch (err: any) {
       setErrorMessage(err.message || 'Registration failed');
     }
+  };
+
+  const handleVerifyOtp = async () => {
+    // Legacy handler kept for safety
   };
 
   const referralUrl = `https://dmcxayraxa.music/register?ref=${currentMember.memberId}`;
@@ -282,18 +277,19 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
             </div>
 
             <div className="grid grid-cols-1 @2xl:grid-cols-3 gap-3.5">
-              {/* Email */}
+              {/* Email (Required for Verification) */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{t.optionalEmail}</span>
+                <label className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Email Address (Verify by Email) *</span>
                 </label>
                 <input
                   type="email"
+                  required
                   placeholder="bounmee@gmail.com"
                   value={formData.email}
                   onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-800/90 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -372,54 +368,10 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
               type="submit"
               className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg cursor-pointer"
             >
-              {t.registerButton}
+              Verify by Email & Register Member →
             </button>
           </form>
-        ) : (
-          /* Step 2: Live SMS OTP Verification */
-          <div className="p-4 rounded-xl bg-slate-950 border-2 border-emerald-500/50 space-y-4 max-w-lg mx-auto">
-            <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-xs font-mono text-emerald-200 space-y-1">
-              <div className="font-black text-emerald-400">
-                [INCOMING LAO SMS • +856 GATEWAY] To: {formData.phone}
-              </div>
-              <div>
-                Welcome <strong>{formData.name}</strong>! Your DMC Xayraxa 6-digit registration OTP code is:{' '}
-                <strong className="text-base font-black text-amber-300 px-2 py-0.5 bg-black/40 rounded">
-                  {generatedSmsOtp}
-                </strong>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 block text-center">
-                6-Digit SMS Verification Code (Auto-Filled)
-              </label>
-              <input
-                type="text"
-                maxLength={6}
-                value={otpCode}
-                onChange={e => setOtpCode(e.target.value)}
-                placeholder="123456"
-                className="w-full text-center text-xl font-mono font-black tracking-widest bg-slate-900 border border-amber-500/50 rounded-xl py-2.5 text-emerald-300 focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setOtpStep(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer"
-              >
-                Back / Edit Info
-              </button>
-              <button
-                onClick={handleVerifyOtp}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-colors cursor-pointer shadow-lg"
-              >
-                Verify SMS & Complete Registration →
-              </button>
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* CURRENT ACTIVE MEMBER INVITATION ASSETS */}
@@ -661,18 +613,19 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
             </div>
 
             <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
-              {/* Email */}
+              {/* Email (Required for Verification) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{t.optionalEmail}</span>
+                <label className="text-xs font-medium text-amber-300 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Email Address (Verify by Email) *</span>
                 </label>
                 <input
                   type="email"
+                  required
                   placeholder="bounmee@gmail.com"
                   value={formData.email}
                   onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-800/80 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -752,49 +705,10 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
               type="submit"
               className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg"
             >
-              Request SMS OTP & Continue
+              Verify by Email & Complete Registration
             </button>
           </form>
-        ) : (
-          /* Step 2: Simulated OTP Verification */
-          <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 space-y-4 max-w-md mx-auto">
-            <div className="text-center space-y-1">
-              <div className="inline-flex p-3 rounded-xl bg-amber-500/10 text-amber-400 mb-1">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h4 className="font-bold text-sm text-white">Enter 6-Digit SMS Verification Code</h4>
-              <p className="text-xs text-slate-400">
-                We sent a security code to <strong>{formData.phone}</strong> (Simulator: enter <strong>123456</strong>)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <input
-                type="text"
-                maxLength={6}
-                value={otpCode}
-                onChange={e => setOtpCode(e.target.value)}
-                placeholder="123456"
-                className="w-full text-center text-xl font-mono tracking-widest bg-slate-900 border border-slate-700 rounded-xl py-3 text-white focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setOtpStep(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300"
-              >
-                Back / Edit Info
-              </button>
-              <button
-                onClick={handleVerifyOtp}
-                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors"
-              >
-                Verify & Register
-              </button>
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
 
       <QrCodeModal

@@ -221,10 +221,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     const matchedShipping = shippingCarriers.filter((c) => {
       if (!q) return true;
       return (
-        c.nameEn.toLowerCase().includes(q) ||
-        c.nameLo.toLowerCase().includes(q) ||
-        c.shortName.toLowerCase().includes(q) ||
-        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        c.nameLao.toLowerCase().includes(q) ||
+        c.badge.toLowerCase().includes(q) ||
+        c.trackingPrefix.toLowerCase().includes(q) ||
         String(c.baseFeeLak).includes(q)
       );
     });
@@ -1554,10 +1554,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                             >
                               <div className="min-w-0">
                                 <div className="text-xs font-bold text-white group-hover:text-amber-300 truncate">
-                                  {car.nameEn} ({car.nameLo})
+                                  {car.name} ({car.nameLao})
                                 </div>
                                 <div className="text-[10px] font-mono text-slate-400">
-                                  {car.code} • {car.estimatedDays}
+                                  {car.trackingPrefix} • {car.estimatedDays}
                                 </div>
                               </div>
                               <span className="text-[11px] font-mono font-black text-amber-400 shrink-0">
@@ -1724,9 +1724,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             </>
           )}
         </div>
+      </div>
 
+      {/* ---------------- 2. WHITE ROUNDED SHEET BODY (Starts right below Search Bar, matching 01 · HOME) ---------------- */}
+      <div className="bg-white rounded-t-[28px] text-slate-800 px-3.5 pt-4 pb-8 -mt-4 shadow-[0_-8px_25px_rgba(0,0,0,0.15)] relative z-10 space-y-3.5 min-h-[calc(100vh-140px)]">
         {/* ====================================================================
-            ROLE-BASED TOP HERO AREA (BELOW SEARCH BAR):
+            ROLE-BASED TOP HERO AREA (ON WHITE BACKGROUND BELOW SEARCH BAR):
             - MEMBER: 2A Headline Event + 2B Event Slideshow + 2. Gold DMC Card
             - SINGER: Home App • Singer Dashboard Card
             - CUSTOMER: Home App • Customer Booking Dashboard Card (with Example 1 Booking Detail)
@@ -1734,7 +1737,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         {(activeHomeRole === 'MEMBER' || activeHomeRole === 'SINGER' || activeHomeRole === 'CUSTOMER') && (
           <>
             {/* 2A/ HEAD LINE EVENT AND ACTIVITY SLIDE SHOW (Administrator Only Post) */}
-            <div className="mt-1 mb-2.5 rounded-lg bg-white text-[#850818] px-2.5 py-1.5 shadow-md border border-amber-300/80 flex items-center justify-between gap-2">
+            <div className="rounded-lg bg-slate-50 text-[#850818] px-2.5 py-1.5 shadow-xs border border-slate-200 flex items-center justify-between gap-2">
               <div
                 onClick={() => {
                   if (currentEvent) {
@@ -2870,25 +2873,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
         {/* Redemption / Action Notice for Singer & Customer Panels */}
         {activeHomeRole !== 'MEMBER' && redemptionNotice && (
-          <div className="mt-2.5 p-3 rounded-2xl bg-emerald-950/90 border border-emerald-400/60 text-emerald-200 text-xs flex items-center justify-between gap-2 shadow-lg">
+          <div className="mt-2.5 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2 shadow-xs">
             <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{redemptionNotice}</span>
             </span>
             <button
               type="button"
               onClick={() => setRedemptionNotice(null)}
-              className="text-emerald-300 hover:text-white p-1 cursor-pointer"
+              className="text-emerald-600 hover:text-emerald-900 p-1 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
-      </div>
 
-      {/* ---------------- 3. WHITE CURVED BODY CONTAINER (SHOWN ONLY FOR 1/ USER MEMBER PANEL) ---------------- */}
+      {/* ---------------- 3. MEMBER QUALIFICATION, KPI TILES & QUICK ACTIONS (INSIDE WHITE SHEET) ---------------- */}
       {activeHomeRole === 'MEMBER' && (
-      <div className="bg-white rounded-t-[32px] text-slate-800 p-4 -mt-4 shadow-2xl relative z-10 space-y-4">
+      <div className="space-y-4 pt-1">
         {/* Notification Alert Toast (if triggered) */}
         {showNotificationToast && (
           <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between gap-2 shadow-sm animate-in fade-in">
@@ -2913,25 +2915,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Section 1: Qualification Progress */}
+        {/* Section 1: Qualification Progress (01 · HOME Design Specification) */}
         <div className="space-y-1.5 pt-1">
-          <h3 className="text-sm font-bold text-indigo-950 tracking-tight">
-            {t.qualificationProgress}
-          </h3>
-
-          <div className="flex items-center justify-between text-sm font-bold text-indigo-950 font-mono">
-            <span>
-              {formatNumberWithCommas(eligibleClearedHeld)} / {formatNumberWithCommas(QUALIFICATION_TARGET)} LAK
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">
+              {t.qualificationProgress}
+            </h3>
+            <span className="text-base font-black text-emerald-600 font-mono">
+              {progressPercent}%
             </span>
-            <span>{progressPercent}%</span>
+          </div>
+
+          <div className="flex items-baseline gap-1 text-sm font-bold text-slate-500 font-mono">
+            <span className="text-base font-black text-[#850818]">
+              {formatNumberWithCommas(eligibleClearedHeld)}
+            </span>
+            <span>/ {formatNumberWithCommas(QUALIFICATION_TARGET)} LAK</span>
           </div>
 
           {/* Progress Bar Track: Soft Gray with Vibrant Emerald Green Fill */}
-          <div className="w-full h-3.5 rounded-full bg-slate-100 overflow-hidden relative p-0.5">
+          <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden relative">
             <div
-              className={`h-full rounded-full transition-all duration-700 ${
-                isActive ? 'bg-emerald-500' : 'bg-[#00c853]'
-              }`}
+              className="h-full rounded-full transition-all duration-700 bg-[#059669]"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -2944,7 +2949,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               </span>
               <button
                 onClick={handleRedeemQualification}
-                className="px-3 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-xs shadow-sm cursor-pointer shrink-0"
+                className="px-3 py-1 rounded-lg bg-[#850818] hover:bg-red-900 text-white font-bold text-xs shadow-sm cursor-pointer shrink-0"
               >
                 {t.redeemNow}
               </button>
@@ -2953,18 +2958,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
           {/* Quick Pay with Bank QR option for Free Members */}
           {!isActive && eligibleClearedHeld < QUALIFICATION_TARGET && (
-            <div className="mt-2 p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-[11px] text-slate-600 font-medium">
                 {t.needMoreToQualifyPrefix}{' '}
-                <strong className="text-slate-900 font-mono">{formatLak(remainingToActive)}</strong>{' '}
+                <strong className="text-[#850818] font-extrabold font-mono">
+                  {formatLak(remainingToActive)}
+                </strong>{' '}
                 {t.needMoreToQualifySuffix}
               </span>
               <button
                 type="button"
                 onClick={() => setShowDirectPayQr(true)}
-                className="px-2.5 py-1 rounded-lg bg-[#df1c2d] hover:bg-red-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-sm transition-colors cursor-pointer shrink-0"
+                className="px-3 py-1.5 rounded-lg bg-[#850818] hover:bg-red-900 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer shrink-0"
               >
-                <QrCode className="w-3 h-3" />
+                <QrCode className="w-3.5 h-3.5" />
                 <span>{t.pay16mWithBankQr}</span>
               </button>
             </div>
@@ -2974,11 +2981,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         {/* Section 2: 3 White Balance & Status Tiles */}
         <div className="grid grid-cols-3 gap-2.5">
           {/* Tile 1: Qualification (Locked) */}
-          <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-2.5 sm:p-3 text-center space-y-1 hover:shadow-md transition-shadow">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1a73e8] flex items-center justify-center mx-auto mb-1">
-              <Lock className="w-5 h-5 stroke-[2.2]" />
+          <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-2.5 sm:p-3 text-center space-y-1 hover:shadow-md transition-shadow">
+            <div className="w-8 h-8 rounded-xl bg-red-50 text-[#850818] flex items-center justify-center mx-auto mb-0.5">
+              <Lock className="w-4 h-4 stroke-[2.2]" />
             </div>
-            <div className="text-sm sm:text-base font-black text-slate-900 font-mono leading-tight truncate">
+            <div className="text-sm sm:text-base font-black text-[#850818] font-mono leading-tight truncate">
               {formatNumberWithCommas(eligibleClearedHeld)}
             </div>
             <div className="text-[10px] font-semibold text-slate-500 leading-tight line-clamp-2">
@@ -2987,16 +2994,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
 
           {/* Tile 2: Withdrawable Balance */}
-          <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-2.5 sm:p-3 text-center space-y-1 hover:shadow-md transition-shadow">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#137333] flex items-center justify-center mx-auto mb-1">
-              <Wallet className="w-5 h-5 stroke-[2.2]" />
+          <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-2.5 sm:p-3 text-center space-y-1 hover:shadow-md transition-shadow">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1a73e8] flex items-center justify-center mx-auto mb-0.5">
+              <Wallet className="w-4 h-4 stroke-[2.2]" />
             </div>
             <div className="text-sm sm:text-base font-black text-slate-900 font-mono leading-tight truncate">
-              {formatNumberWithCommas(
-                activeHomeRole === 'SINGER' && activeHomeSinger
-                  ? Math.max(balances.available, activeHomeSinger.walletAvailableLak)
-                  : balances.available
-              )}
+              {formatNumberWithCommas(balances.available)}
             </div>
             <div className="text-[10px] font-semibold text-slate-500 leading-tight line-clamp-2">
               {t.tileWithdrawableBalance}
@@ -3004,11 +3007,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
 
           {/* Tile 3: Member Status */}
-          <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-2.5 sm:p-3 text-center space-y-1 hover:shadow-md transition-shadow">
-            <div className="w-9 h-9 rounded-xl bg-red-50 text-[#df1c2d] flex items-center justify-center mx-auto mb-1">
-              <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
+          <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-2.5 sm:p-3 text-center space-y-1 hover:shadow-md transition-shadow">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#059669] flex items-center justify-center mx-auto mb-0.5">
+              <ShieldCheck className="w-4 h-4 stroke-[2.2]" />
             </div>
-            <div className="text-sm sm:text-base font-black text-slate-900 leading-tight truncate">
+            <div className="text-sm sm:text-base font-black text-[#059669] leading-tight truncate">
               {isActive ? t.statusActiveShort : t.statusFreeShort}
             </div>
             <div className="text-[10px] font-semibold text-slate-500 leading-tight line-clamp-2">
@@ -3017,218 +3020,119 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Section 3: Vibrant Colorful Action Buttons Grid (Exact 7 colors from screenshot) */}
-        <div className="space-y-2.5 pt-1">
-          {/* Row 1: 3 Big Colorful Gradient Cards (Red, Blue, Green) */}
-          <div className="grid grid-cols-3 gap-2.5">
-            {/* Button 1: Buy Music Package (Vibrant Red Gradient) */}
+        {/* Section 2B: Quick Actions (Register, 1.6M Package, Academy, Share Link + Staff, Singer List, Help Center) */}
+        <div className="space-y-2 pt-0.5">
+          <h4 className="text-xs font-extrabold text-slate-900 tracking-tight">
+            Quick Actions
+          </h4>
+          <div className="grid grid-cols-4 gap-2">
             <button
+              type="button"
+              onClick={() => setShowAuthPortalModal(true)}
+              className="bg-white border border-slate-200/90 hover:border-red-200 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
+            >
+              <div className="w-8 h-8 rounded-xl bg-red-50 text-[#850818] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <UserPlus className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                Register
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => onNavigate('catalog')}
-              className="bg-gradient-to-br from-[#e0192d] to-[#bd0d1e] shadow-md shadow-red-500/20 text-white rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-white border border-slate-200/90 hover:border-amber-200 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <Package className="w-5 h-5 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <ShoppingBag className="w-4 h-4 stroke-[2.2]" />
               </div>
-              <span className="text-[11px] font-bold leading-tight text-white mt-0.5 line-clamp-2">
-                {t.btnBuyMusicPackage}
-              </span>
-              <span className="text-[10px] font-semibold text-white/95 font-mono">
-                1,600,000 LAK
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                1.6M Package
               </span>
             </button>
 
-            {/* Button 2: My Network (Rich Royal Blue Gradient) */}
             <button
-              onClick={() => onNavigate('network')}
-              className="bg-gradient-to-br from-[#1268e8] to-[#0c4bb2] shadow-md shadow-blue-500/20 text-white rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              type="button"
+              onClick={() => onNavigate('academy')}
+              className="bg-white border border-slate-200/90 hover:border-blue-200 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <Users className="w-5 h-5 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <BookOpen className="w-4 h-4 stroke-[2.2]" />
               </div>
-              <span className="text-[11px] font-bold leading-tight text-white mt-0.5 line-clamp-2">
-                {t.btnMyNetwork}
-              </span>
-              <span className="text-[10px] font-semibold text-white/95">
-                {t.btnThreeLevels}
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                Academy
               </span>
             </button>
 
-            {/* Button 3: My Music (Vivid Emerald Green Gradient) */}
             <button
-              onClick={() => onNavigate('mymusic')}
-              className="bg-gradient-to-br from-[#05b865] to-[#038e4c] shadow-md shadow-emerald-500/20 text-white rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center text-center gap-1 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              type="button"
+              onClick={() => setActiveQrModal('REFERRAL')}
+              className="bg-white border border-slate-200/90 hover:border-emerald-200 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center group-hover:bg-white/25 transition-colors">
-                <Music className="w-5 h-5 text-white stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Share2 className="w-4 h-4 stroke-[2.2]" />
               </div>
-              <span className="text-[11px] font-bold leading-tight text-white mt-0.5 line-clamp-2">
-                {t.btnMyMusic}
-              </span>
-              <span className="text-[10px] font-semibold text-white/95">
-                ({songs.length} {t.btnSongsCountSuffix})
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                Share Link
               </span>
             </button>
           </div>
 
-          {/* Row 2: 6 Colorful Cards (Academy, Music Hub, Staff, Singer, Promotions, Support) with Clean White Icons */}
-          <div className="grid grid-cols-6 gap-1 sm:gap-2">
-            {/* Button 4: Academy (Cyan Gradient with Clean White Graduation Cap Icon) */}
+          {/* Row 2: Staff, Singer List & Help Center Quick Action Buttons */}
+          <div className="grid grid-cols-3 gap-2 pt-0.5">
             <button
-              onClick={() => onNavigate('academy')}
-              className="bg-gradient-to-br from-[#13a8c7] to-[#0c829b] shadow-md shadow-cyan-500/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
-            >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
-                {customHomeIcons.academy ? (
-                  <img
-                    src={customHomeIcons.academy}
-                    alt="Academy"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  /* Clean White Mortarboard Graduation Cap Icon */
-                  <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-                    <path d="M12 3L1 8.5L12 14L21 9.5V16H23V8.5L12 3ZM5 12.18V16.18C5 18.4 8.13 20.5 12 20.5C15.87 20.5 19 18.4 19 16.18V12.18L12 15.68L5 12.18Z" />
-                  </svg>
-                )}
-              </div>
-              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
-                {t.btnAcademy}
-              </span>
-            </button>
-
-            {/* Button 5: Music Hub (Electric Sky Blue Gradient with Clean White Headphones Icon — Placed between Academy and Staff) */}
-            <button
-              onClick={() => onNavigate('musichub')}
-              className="bg-gradient-to-br from-[#0088ff] to-[#0066cc] shadow-md shadow-blue-400/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
-            >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
-                {customHomeIcons.musicHub ? (
-                  <img
-                    src={customHomeIcons.musicHub}
-                    alt="Music Hub"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Headphones className="w-5 h-5 text-white stroke-[2.2]" />
-                )}
-              </div>
-              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
-                {t.btnMusicHub}
-              </span>
-            </button>
-
-            {/* Button 6: Staff (Royal Blue Gradient with Clean White 3-People Team Icon — Opens DMC Staff & 8 Positions Modal) */}
-            <button
+              type="button"
               onClick={() => {
                 setStaffModalMode('LIST');
                 setShowStaffModal(true);
               }}
-              className="bg-gradient-to-br from-[#1d63dc] to-[#1545a8] shadow-md shadow-blue-600/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
-              title="DMC Staff & 8 Positions (Administrator, Assistance, Accounting, Marketing, IT, Teacher, Fencer, Part time)"
+              className="bg-white border border-slate-200/90 hover:border-sky-300 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
-                {customHomeIcons.staff ? (
-                  <img
-                    src={customHomeIcons.staff}
-                    alt="DMC Staff"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  /* Clean White 3-People Staff Team Icon */
-                  <svg viewBox="0 0 28 22" className="w-5 h-5 text-white" fill="currentColor">
-                    {/* Left Person */}
-                    <circle cx="6.5" cy="7.5" r="2.7" opacity="0.9" />
-                    <path d="M1.5 18C1.5 14.3 3.7 12.5 6.5 12.5C7.4 12.5 8.2 12.7 8.9 13.1C7.8 14.3 7.2 16 7.2 18H1.5Z" opacity="0.9" />
-                    {/* Right Person */}
-                    <circle cx="21.5" cy="7.5" r="2.7" opacity="0.9" />
-                    <path d="M26.5 18C26.5 14.3 24.3 12.5 21.5 12.5C20.6 12.5 19.8 12.7 19.1 13.1C20.2 14.3 20.8 16 20.8 18H26.5Z" opacity="0.9" />
-                    {/* Center Leader Person */}
-                    <circle cx="14" cy="5.8" r="3.4" />
-                    <path d="M8.5 18.5C8.5 14.2 10.9 11.8 14 11.8C17.1 11.8 19.5 14.2 19.5 18.5H8.5Z" />
-                  </svg>
-                )}
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Users className="w-4 h-4 stroke-[2.2]" />
               </div>
-              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
                 Staff
               </span>
             </button>
 
-            {/* Button 6B (Placed Next to Staff Button): Click to Pop Up 5 Singers Selection & Booking */}
             <button
+              type="button"
               onClick={() => {
-                setSingerModalInitialTab('BOOKING_PARTY');
+                setSingerModalInitialTab('DIRECTORY');
                 setShowSingerModal(true);
               }}
-              className="bg-gradient-to-br from-[#f59e0b] via-[#ea580c] to-[#b91c1c] shadow-md shadow-amber-500/25 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
-              title="Click to Pop Up & Select Singer (5 People)"
+              className="bg-white border border-slate-200/90 hover:border-orange-300 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden group-hover:bg-white/30 transition-colors">
-                {customHomeIcons.singer ? (
-                  <img
-                    src={customHomeIcons.singer}
-                    alt="DMC Singer"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Mic className="w-5 h-5 text-white stroke-[2.3]" />
-                )}
+              <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Mic className="w-4 h-4 stroke-[2.2]" />
               </div>
-              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
-                Singer
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                Singer List
               </span>
             </button>
 
-            {/* Button 7: Promotions (Hot Pink Gradient with Clean White Guitar Icon) */}
             <button
+              type="button"
               onClick={() => {
-                setPromotionModalMode('LIST');
-                setShowPromotionsModal(true);
+                setSupportModalMode('REGISTER_VIDEO_GUIDE');
+                setShowSupportModal(true);
               }}
-              className="bg-gradient-to-br from-[#e60067] to-[#b3004b] shadow-md shadow-pink-500/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+              className="bg-white border border-slate-200/90 hover:border-indigo-300 shadow-xs rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
-                {customHomeIcons.promotions ? (
-                  <img
-                    src={customHomeIcons.promotions}
-                    alt="Promotions"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  /* Clean White Acoustic Guitar Icon (Larger & Fuller Proportion) */
-                  <svg viewBox="2.5 0.2 19.8 20.2" className="w-5 h-5 text-white" fill="currentColor">
-                    <path d="M19.8 2.2L21.8 4.2C22.2 4.6 22.2 5.2 21.8 5.6L19.9 7.5L18.5 6.1L14.2 10.4C15.3 11.8 15.4 13.7 14.2 15.2C13.6 15.9 12.8 16.4 12 16.6C11.8 17.5 11.3 18.3 10.6 19C8.9 20.6 6.1 20.4 4.4 18.7L5.3 17.8C3.6 16.1 3.4 13.3 5 11.6C5.7 10.9 6.5 10.4 7.4 10.2C7.6 9.4 8.1 8.6 8.8 8C10.3 6.8 12.2 6.9 13.6 8L17.9 3.7L16.5 2.3L18.4 0.4C18.8 0 19.4 0 19.8 2.2ZM9.6 12.6C8.8 13.4 8.8 14.7 9.6 15.5C10.4 16.3 11.7 16.3 12.5 15.5C13.3 14.7 13.3 13.4 12.5 12.6C11.7 11.8 10.4 11.8 9.6 12.6ZM6.4 15.3L8.7 17.6L7.5 18.8L5.2 16.5L6.4 15.3Z" />
-                  </svg>
-                )}
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <HelpCircle className="w-4 h-4 stroke-[2.2]" />
               </div>
-              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
-                {t.btnPromotions}
-              </span>
-            </button>
-
-            {/* Button 8: Support (Deep Purple Gradient) */}
-            <button
-              onClick={() => setShowSupportModal(true)}
-              className="bg-gradient-to-br from-[#2e1d87] to-[#1e1259] shadow-md shadow-purple-900/20 text-white rounded-2xl py-2.5 px-1 flex flex-col items-center justify-between text-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
-            >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center overflow-hidden group-hover:bg-white/25 transition-colors">
-                {customHomeIcons.support ? (
-                  <img
-                    src={customHomeIcons.support}
-                    alt="Support"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <HelpCircle className="w-5 h-5 text-white stroke-[2.2]" />
-                )}
-              </div>
-              <span className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight whitespace-nowrap truncate max-w-full">
-                {t.btnSupport}
+              <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                Help Center
               </span>
             </button>
           </div>
         </div>
       </div>
       )}
+      </div>
 
       {/* ---------------- 4. MODALS (AVATAR PICKER, QR, PROMOTIONS, SUPPORT) ---------------- */}
 
@@ -4138,7 +4042,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
             {supportModalMode === 'REGISTER_VIDEO_GUIDE' ? (
               <MemberRegistrationTutorialGuide
-                onStartRegistrationNow={() => {
+                onStartRegistration={() => {
                   setShowSupportModal(false);
                   setAuthInitialMode('REGISTER');
                   setShowAuthPortalModal(true);
@@ -6050,8 +5954,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                       e.preventDefault();
                       const upgraded = adminUpgradeMemberToStaff(
                         selectedMemberToUpgradeId,
-                        staffForm.position,
                         {
+                          position: staffForm.position,
                           staffCode: staffForm.staffCode.trim(),
                           branch: staffForm.branch.trim(),
                           bioOrDuty: staffForm.bioOrDuty.trim(),
@@ -6215,8 +6119,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   } else if (selectedMemberToUpgradeId) {
                     adminUpgradeMemberToStaff(
                       selectedMemberToUpgradeId,
-                      staffForm.position,
                       {
+                        position: staffForm.position,
                         staffCode: staffForm.staffCode.trim(),
                         branch: staffForm.branch.trim(),
                         bioOrDuty: staffForm.bioOrDuty.trim(),

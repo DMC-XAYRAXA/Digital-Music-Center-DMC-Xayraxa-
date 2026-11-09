@@ -17,7 +17,6 @@ import { BankQrPaymentModal } from '../common/BankQrPaymentModal';
 import { LaoShippingCarrierModal } from '../common/LaoShippingCarrierModal';
 import { DmcOfficialLogo } from '../common/DmcLogo';
 import { DmcPricingStructureCard } from '../common/DmcPricingStructureCard';
-import { AcademyScreen } from './AcademyScreen';
 import {
   CopyrightCertificateModal,
   downloadDmcCertificateImage,
@@ -44,6 +43,7 @@ import {
   User,
   Building2,
   Navigation,
+  ChevronLeft,
   ChevronRight,
   Check,
   Upload,
@@ -53,6 +53,10 @@ import {
   Pause,
   FileAudio,
   Headphones,
+  Search,
+  GraduationCap,
+  Globe,
+  Receipt,
 } from 'lucide-react';
 import {
   ProductSKU,
@@ -66,7 +70,7 @@ import {
 
 interface CatalogScreenProps {
   onNavigate: (
-    tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet' | 'mymusic' | 'musichub'
+    tab: 'home' | 'membership' | 'catalog' | 'network' | 'wallet' | 'mymusic' | 'musichub' | 'academy'
   ) => void;
   viewMode?: 'PACKAGE' | 'HUB' | 'MY_MUSIC';
 }
@@ -96,6 +100,10 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
   onNavigate: _onNavigate,
   viewMode = 'HUB',
 }) => {
+  const [storeSearchQuery, setStoreSearchQuery] = useState('');
+  const [storeTopTab, setStoreTopTab] = useState<
+    'ALL' | 'PACKAGE' | 'INSTRUMENTS' | 'COURSES' | 'DIGITAL_MUSIC' | 'PROMOTIONS'
+  >('ALL');
   const {
     products,
     orders,
@@ -1002,8 +1010,380 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
     setIsProductCrudOpen(false);
   };
 
+  const showcaseGuitar =
+    products.find((p) => p.category === 'GUITAR') || products[1] || featuredMusic;
+
   return (
-    <div className="@container space-y-5 pb-16 animate-in fade-in">
+    <div className="@container pb-16 animate-in fade-in bg-white min-h-full">
+      {/* =====================================================================
+          02 · STORE — CRIMSON TOP APP BAR + SEARCH (Matches image_b670fd1b.png)
+         ===================================================================== */}
+      <div className="bg-gradient-to-b from-[#8f0c1c] to-[#7a0916] px-4 pt-3 pb-5 space-y-3 text-white">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => _onNavigate('home')}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer shrink-0"
+              aria-label="Back to Home"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <DmcOfficialLogo size={36} rounded="full" withGoldRing={true} />
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold tracking-widest text-amber-200/90 uppercase leading-none">
+                DMC XAYRAXA
+              </div>
+              <h1 className="text-base font-black tracking-tight text-white truncate mt-0.5">
+                {viewMode === 'MY_MUSIC'
+                  ? 'MY MUSIC COPYRIGHT'
+                  : viewMode === 'PACKAGE'
+                  ? '1.6M MUSIC PACKAGE'
+                  : 'DMC MUSIC STORE'}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="px-2.5 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-bold flex items-center gap-1">
+              <Globe className="w-3 h-3 text-amber-300" />
+              <span className="uppercase">{language}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="relative w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="Open Cart"
+            >
+              <ShoppingBag className="w-4 h-4 text-amber-200" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-[#7a0916] font-black text-[9px] flex items-center justify-center">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* White Search Bar */}
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={storeSearchQuery}
+            onChange={(e) => setStoreSearchQuery(e.target.value)}
+            placeholder="Search music, instruments, courses..."
+            className="w-full bg-white text-slate-900 placeholder:text-slate-400 text-xs font-medium rounded-full pl-9 pr-8 py-2.5 shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+          {storeSearchQuery && (
+            <button
+              type="button"
+              onClick={() => setStoreSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* =====================================================================
+          02 · STORE — WHITE ROUNDED SHEET BODY (Matches image_b670fd1b.png)
+         ===================================================================== */}
+      <div className="bg-white rounded-t-[28px] -mt-2 px-3.5 pt-4 pb-8 space-y-4 text-slate-900 shadow-[0_-8px_25px_rgba(0,0,0,0.18)] min-h-[calc(100vh-140px)]">
+        {/* Administrator Quick Controls (Only shown when signed in as Administrator) */}
+        {isAdmin && (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+            <span className="font-bold text-slate-700 text-[11px]">
+              Administrator Store Controls
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={openCreateCatalogProduct}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Add Product</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenCoreEdit}
+                className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+              >
+                <Pencil className="w-3 h-3" />
+                <span>Edit 1.6M Package</span>
+              </button>
+              <button
+                type="button"
+                onClick={openAdminCreateShipping}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+              >
+                <Truck className="w-3 h-3" />
+                <span>Add Carrier</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 6 Category Icon Tabs (All, 1.6M Package, Instruments, Courses, Digital Music, Promotions) */}
+        <div className="grid grid-cols-6 gap-1.5">
+          {[
+            {
+              id: 'ALL' as const,
+              label: 'All',
+              icon: ShoppingBag,
+              onClick: () => {
+                setStoreTopTab('ALL');
+                setActiveCategory('ALL');
+              },
+            },
+            {
+              id: 'PACKAGE' as const,
+              label: '1.6M Package',
+              icon: Music,
+              onClick: () => {
+                setStoreTopTab('PACKAGE');
+                _onNavigate('catalog');
+              },
+            },
+            {
+              id: 'INSTRUMENTS' as const,
+              label: 'Instruments',
+              icon: Package,
+              onClick: () => {
+                setStoreTopTab('INSTRUMENTS');
+                setActiveCategory('GUITAR');
+              },
+            },
+            {
+              id: 'COURSES' as const,
+              label: 'Courses',
+              icon: GraduationCap,
+              onClick: () => {
+                setStoreTopTab('COURSES');
+                _onNavigate('academy');
+              },
+            },
+            {
+              id: 'DIGITAL_MUSIC' as const,
+              label: 'Digital Music',
+              icon: FileAudio,
+              onClick: () => {
+                setStoreTopTab('DIGITAL_MUSIC');
+                _onNavigate('mymusic');
+              },
+            },
+            {
+              id: 'PROMOTIONS' as const,
+              label: 'Promotions',
+              icon: Sparkles,
+              onClick: () => {
+                setStoreTopTab('PROMOTIONS');
+                setActiveCategory('ACCESSORY');
+              },
+            },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isTabActive =
+              (viewMode === 'MY_MUSIC' && tab.id === 'DIGITAL_MUSIC') ||
+              (viewMode === 'PACKAGE' && tab.id === 'PACKAGE') ||
+              (viewMode === 'HUB' && storeTopTab === tab.id);
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={tab.onClick}
+                className={`rounded-xl py-2 px-1 flex flex-col items-center justify-center gap-1 border text-center transition-all cursor-pointer ${
+                  isTabActive
+                    ? 'bg-[#850818] border-[#850818] text-white shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Icon
+                  className={`w-4 h-4 ${isTabActive ? 'text-white' : 'text-slate-600'}`}
+                />
+                <span className="text-[9px] font-bold leading-tight line-clamp-1">
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Recommended Section Header */}
+        <div className="flex items-center justify-between pt-0.5">
+          <h3 className="text-sm font-black text-slate-900">Recommended</h3>
+          <span className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-600">
+            Recommended ▾
+          </span>
+        </div>
+
+        {/* Featured Card: 1.6M Music Package */}
+        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+          <div className="relative h-32 sm:h-40 w-full overflow-hidden bg-slate-900">
+            <img
+              src={featuredMusic.imageUrl}
+              alt={featuredMusic.titleEn}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+            <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#f6d365] to-[#d4af37] text-[#3a1d00] font-black text-[9px] uppercase tracking-wider shadow">
+              ★ DMC EXCLUSIVE
+            </span>
+            <div className="absolute bottom-2.5 left-3 right-3 text-white">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                DMC XAYRAXA STUDIO PRODUCTION
+              </div>
+              <div className="text-xs font-extrabold truncate">
+                Official 1-Song Recording & Lifetime Qualification
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-black text-slate-900">1.6M Music Package</div>
+              <div className="text-[11px] text-slate-500 font-medium">
+                1 original song + Studio production
+              </div>
+              <div className="text-base font-black text-[#850818] font-mono mt-0.5">
+                {formatLak(featuredMusic.priceLak)}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleInstantBuyProduct('MUSIC_SINGLE_1600')}
+              className="px-3.5 py-2 rounded-xl bg-[#850818] hover:bg-red-900 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-colors cursor-pointer shrink-0"
+            >
+              <span>View details</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2-Column Product Showcase Grid (Acoustic Guitar & Music Course) */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Card 1: Acoustic Guitar */}
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="h-24 w-full bg-slate-900 overflow-hidden relative">
+                <img
+                  src={showcaseGuitar.imageUrl}
+                  alt={showcaseGuitar.titleEn}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-2.5 space-y-1">
+                <div className="text-xs font-black text-slate-900 truncate">
+                  Acoustic Guitar
+                </div>
+                <div className="text-[10px] text-slate-400 line-through font-mono">
+                  Public: 6,200,000 LAK
+                </div>
+                <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[8px] uppercase tracking-wider">
+                  ♛ MEMBER PRICE
+                </span>
+                <div className="text-xs sm:text-sm font-black text-[#850818] font-mono">
+                  4,200,000 LAK
+                </div>
+              </div>
+            </div>
+            <div className="px-2.5 pb-2.5">
+              <button
+                type="button"
+                onClick={() => handleInstantBuyProduct(showcaseGuitar.sku)}
+                className="w-full py-1.5 rounded-lg border border-slate-300 hover:border-[#850818] text-slate-800 hover:text-[#850818] font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                <span>View details</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Music Course */}
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="h-24 w-full bg-slate-900 overflow-hidden relative">
+                <img
+                  src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80"
+                  alt="Music Course"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-2.5 space-y-1">
+                <div className="text-xs font-black text-slate-900 truncate">
+                  Music Course
+                </div>
+                <div className="text-[10px] text-slate-400 line-through font-mono">
+                  Public: {formatLak(DMC_STANDARD_PRICING.marketPriceLak)}
+                </div>
+                <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[8px] uppercase tracking-wider">
+                  ♛ MEMBER PRICE
+                </span>
+                <div className="text-xs sm:text-sm font-black text-[#850818] font-mono">
+                  {formatLak(DMC_STANDARD_PRICING.memberPriceLak)}
+                </div>
+              </div>
+            </div>
+            <div className="px-2.5 pb-2.5">
+              <button
+                type="button"
+                onClick={() => _onNavigate('academy')}
+                className="w-full py-1.5 rounded-lg border border-slate-300 hover:border-[#850818] text-slate-800 hover:text-[#850818] font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                <span>View details</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Delivery Options & My Orders Tap Rows (Matching 02 · STORE bottom rows) */}
+        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setIsShippingGuideOpen(true)}
+            className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-100/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-red-50 text-[#850818] flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">Delivery options</div>
+                <div className="text-[10px] text-slate-500">
+                  {selectedCarrier.name} ({formatLak(selectedCarrier.baseFeeLak)}) • Calculated at checkout
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCartOpen(true)}
+            className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-100/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">My Orders & Receipts</div>
+                <div className="text-[10px] text-slate-500">
+                  {orders.filter((o) => o.buyerMemberId === currentMember.memberId).length} orders • Cart ({cartItemCount})
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </button>
+        </div>
+      </div>
+
+      {/* FULL CATALOG, MY MUSIC COPYRIGHT & SHIPPING DETAILS */}
+      <div className="px-3.5 pt-4 space-y-5">
       {/* NOTICES */}
       {coreEditSuccessNotice && (
         <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-3 shadow-lg">
@@ -1459,519 +1839,7 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
             })}
           </div>
         </div>
-      ) : viewMode === 'PACKAGE' ? (
-        <>
-          {/* 1. FEATURED CORE PRODUCT: MUSIC_SINGLE_1600 (Active User Member 1,600,000 LAK) */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-slate-900 border-2 border-amber-500/50 p-5 shadow-2xl">
-            <div className="relative z-10 grid grid-cols-1 @3xl:grid-cols-12 gap-5 items-center">
-              <div className="@3xl:col-span-7 space-y-3.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
-                    {t.officialCorePackageBadge}
-                  </span>
-                  <span className="text-xs font-mono text-amber-300 font-bold">
-                    MUSIC_SINGLE_1600
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="text-lg @lg:text-2xl font-black text-white tracking-tight leading-snug">
-                    {getLocalizedProduct(featuredMusic, language).title}
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                    {getLocalizedProduct(featuredMusic, language).description}
-                  </p>
-                </div>
-
-                {/* Candidate Split Disclosure */}
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/30 space-y-2 text-xs">
-                  <div className="font-semibold text-amber-300 flex items-center justify-between gap-2">
-                    <span>{t.commissionSplitDisclosure}</span>
-                    <span className="font-mono font-black text-white">
-                      {formatLak(featuredMusic.priceLak)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 @lg:grid-cols-4 gap-2 pt-1 text-center font-mono">
-                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">DMC Studio</div>
-                      <div className="font-bold text-slate-200 text-[11px] mt-0.5">
-                        {formatLakCompact(featuredMusic.splitRule.dmcBudget || 900000)}
-                      </div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <div className="text-[10px] text-amber-400 font-sans">L1 Direct</div>
-                      <div className="font-bold text-amber-300 text-[11px] mt-0.5">
-                        {formatLakCompact(featuredMusic.splitRule.l1Share || 400000)}
-                      </div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <div className="text-[10px] text-amber-400 font-sans">L2 Second</div>
-                      <div className="font-bold text-amber-300 text-[11px] mt-0.5">
-                        {formatLakCompact(featuredMusic.splitRule.l2Share || 200000)}
-                      </div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <div className="text-[10px] text-amber-400 font-sans">L3 Third</div>
-                      <div className="font-bold text-amber-300 text-[11px] mt-0.5">
-                        {formatLakCompact(featuredMusic.splitRule.l3Share || 100000)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleInstantBuyProduct('MUSIC_SINGLE_1600')}
-                    className="flex-1 min-w-[180px] px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 fill-current shrink-0" />
-                    <span>
-                      {t.buyMusicNow} ({formatLakCompact(featuredMusic.priceLak)})
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => addToCart('MUSIC_SINGLE_1600', true)}
-                    className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{t.addToCart}</span>
-                  </button>
-
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={handleOpenCoreEdit}
-                      className="px-3.5 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{t.editCoreProduct}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="@3xl:col-span-5">
-                <div className="relative rounded-xl overflow-hidden border border-amber-500/30 aspect-video shadow-2xl">
-                  <img
-                    src={featuredMusic.imageUrl}
-                    alt="DMC Recording Studio"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent flex items-end p-3.5">
-                    <div className="text-xs text-white">
-                      <span className="font-bold block">DMC Central Studio, Vientiane</span>
-                      <span className="text-[11px] text-amber-400">
-                        Professional Studio Console & Live Acoustic Room
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. DMC ACADEMY • LEARNING CENTER SECTION (With All Courses Below) */}
-          <AcademyScreen />
-        </>
-      ) : (
-        <>
-          {/* 1. TOP HEADER & SHOPPING CART BUTTON */}
-          <div className="flex flex-col @lg:flex-row @lg:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg">
-            <div>
-              <h2 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
-                <Package className="w-5 h-5 text-amber-400 shrink-0" />
-                <span>{t.catalogTitle}</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-1">{t.catalogSub}</p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={openCreateCatalogProduct}
-                  className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>+ Add Product</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setIsShippingGuideOpen(true)}
-                className="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Truck className="w-3.5 h-3.5 text-amber-400" />
-                <span>Shipping Guide</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsCartOpen(true)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer"
-              >
-                <ShoppingCart className="w-4 h-4 stroke-[2.5]" />
-                <span>Shopping Cart ({cartItemCount})</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 2. MEMBER SELF-SERVICE SHIPPING SELECTION BAR (Persistent across Catalog & Checkout) */}
-          <div className="p-4 rounded-2xl bg-slate-900/95 border border-amber-500/30 shadow-lg space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                  <Truck className="w-4 h-4 text-amber-400" />
-                </div>
-                <div>
-                  <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                    <span>Select Your Shipping Carrier (ເລືອກບໍລິສັດຂົນສົ່ງດ້ວຍຕົນເອງ)</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    Delivering to: <span className="text-amber-300 font-semibold">{deliveryAddress.province}</span> •{' '}
-                    <span className="text-emerald-300 font-semibold">
-                      {selectedCarrier.name} ({formatLak(selectedCarrier.baseFeeLak)})
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCartOpen(true);
-                    setIsEditingAddressInCart(true);
-                  }}
-                  className="text-[11px] font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1 cursor-pointer"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>Edit Delivery Address</span>
-                </button>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={openAdminCreateShipping}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-black flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>+ Add Carrier</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 3 Lao Carrier Radio Cards */}
-            <div className="grid grid-cols-1 @md:grid-cols-3 gap-2.5">
-              {shippingCarriers.map((carrier) => {
-                const isSelected = selectedCarrierId === carrier.id;
-                return (
-                  <div
-                    key={carrier.id}
-                    onClick={() => handleMemberSelectCarrier(carrier.id)}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 relative ${
-                      isSelected
-                        ? 'bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/50 shadow-md'
-                        : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: carrier.accentColor }}
-                        />
-                        <span className="text-xs font-extrabold text-white truncate">
-                          {carrier.name}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-amber-300/90 font-semibold truncate mt-0.5">
-                        {carrier.nameLo}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1.5 text-[10px]">
-                        <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
-                          <Clock className="w-2.5 h-2.5" /> {carrier.estimatedDays}
-                        </span>
-                        <span className="text-slate-500">•</span>
-                        <span className="font-mono font-bold text-amber-300">
-                          {formatLak(carrier.baseFeeLak)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <div
-                        className={`w-5 h-5 rounded-full flex items-center justify-center border ${
-                          isSelected
-                            ? 'bg-amber-400 border-amber-400 text-slate-950'
-                            : 'border-slate-700 text-transparent'
-                        }`}
-                      >
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </div>
-                      {isAdmin && (
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => openAdminEditShipping(carrier)}
-                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 cursor-pointer"
-                            title="Edit Carrier"
-                          >
-                            <Pencil className="w-2.5 h-2.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAdminShipping(carrier.id)}
-                            className="p-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 cursor-pointer"
-                            title="Delete Carrier"
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 3. CATEGORY FILTER TABS (2-Row Layout: 3 Categories Top Row + Full-Width Picks & Accessories Bottom Row) */}
-          <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-2.5 shadow-lg">
-            <div className="grid grid-cols-3 gap-2 items-center">
-              {[
-                { id: 'ALL', label: t.catAll, fullRow: false },
-                { id: 'GUITAR', label: t.catGuitars, fullRow: false },
-                { id: 'AUDIO_GEAR', label: t.catEquipment, fullRow: false },
-                { id: 'ACCESSORY', label: t.catAccessories, fullRow: true },
-              ].map((cat) => {
-                const isActive =
-                  activeCategory === cat.id ||
-                  (cat.id === 'AUDIO_GEAR' && activeCategory === 'EQUIPMENT');
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`${
-                      cat.fullRow ? 'col-span-3 w-full py-2.5 px-4' : 'col-span-1 py-2.5 px-2'
-                    } rounded-xl text-xs sm:text-sm font-bold text-center flex items-center justify-center leading-tight transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md'
-                        : 'text-slate-100 hover:text-white hover:bg-slate-800/70'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 4. PROFESSIONAL PRODUCT CATALOG CARDS */}
-          <div className="grid grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3 gap-4">
-            {filteredProducts
-              .filter((p) => p.sku !== 'MUSIC_SINGLE_1600')
-              .map((prod) => {
-                const inCartQty = cart[prod.sku] || 0;
-                const localizedProd = getLocalizedProduct(prod, language);
-
-                return (
-                  <div
-                    key={prod.sku}
-                    className="rounded-2xl bg-slate-900/95 border border-slate-800 hover:border-amber-500/40 overflow-hidden flex flex-col justify-between transition-all group shadow-lg"
-                  >
-                    <div>
-                      <div className="relative h-44 overflow-hidden bg-slate-950">
-                        <img
-                          src={prod.imageUrl}
-                          alt={localizedProd.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow">
-                            {prod.category}
-                          </span>
-                        </div>
-                        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
-                          {isAdmin && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => openEditCatalogProduct(prod)}
-                                className="p-1.5 rounded-lg bg-slate-950/90 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 transition-colors cursor-pointer shadow"
-                                title="Edit Product"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  adminDeleteProduct(prod.sku);
-                                  setCoreEditSuccessNotice(`Removed product ${prod.sku} from catalog.`);
-                                  setTimeout(() => setCoreEditSuccessNotice(null), 4000);
-                                }}
-                                className="p-1.5 rounded-lg bg-slate-950/90 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/40 transition-colors cursor-pointer shadow"
-                                title="Delete Product"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
-                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-mono bg-slate-950/90 text-emerald-400 border border-emerald-500/30 font-bold">
-                            {t.stockLabel}: {prod.stockSellable}
-                          </span>
-                        </div>
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent p-3 flex items-end justify-between">
-                          <div>
-                            <span className="text-[10px] font-mono text-amber-300/90 font-semibold block">
-                              {prod.sku}
-                            </span>
-                            {prod.marketPriceLak && prod.marketPriceLak > prod.priceLak && (
-                              <span className="text-[10px] font-mono text-slate-400 line-through">
-                                Market: {formatLak(prod.marketPriceLak)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            {prod.memberDiscountLak && prod.memberDiscountLak > 0 && (
-                              <span className="text-[9px] font-black text-emerald-400 block">
-                                Save {formatLak(prod.memberDiscountLak)}
-                              </span>
-                            )}
-                            <span className="text-sm font-black font-mono text-amber-400">
-                              {formatLak(prod.priceLak)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-4 space-y-3">
-                        <div>
-                          <h4 className="font-bold text-sm text-white line-clamp-1">
-                            {localizedProd.title}
-                          </h4>
-                          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                            {localizedProd.description}
-                          </p>
-                        </div>
-
-                        {/* Self-Service Carrier Selector directly on Product Card */}
-                        <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/90 flex items-center justify-between gap-2 text-[11px]">
-                          <div className="flex items-center gap-1.5 text-slate-300 min-w-0">
-                            <Truck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span className="truncate">
-                              Shipping: <strong className="text-white">{selectedCarrier.name}</strong>
-                            </span>
-                            <span className="text-emerald-400 font-mono text-[10px] shrink-0">
-                              (+{formatLakCompact(selectedCarrier.baseFeeLak)})
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const idx = shippingCarriers.findIndex(
-                                (c) => c.id === selectedCarrierId
-                              );
-                              const next =
-                                shippingCarriers[(idx + 1) % shippingCarriers.length];
-                              if (next) handleMemberSelectCarrier(next.id);
-                            }}
-                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] shrink-0 cursor-pointer border border-slate-700"
-                          >
-                            Switch Carrier ↻
-                          </button>
-                        </div>
-
-                        {/* Official DMC Pricing & Commission Pool Breakdown Card */}
-                        <DmcPricingStructureCard
-                          compact
-                          normalPriceLak={prod.marketPriceLak || DMC_STANDARD_PRICING.marketPriceLak}
-                          memberPriceLak={prod.priceLak}
-                          memberDiscountLak={
-                            prod.memberDiscountLak ||
-                            Math.max(
-                              0,
-                              (prod.marketPriceLak || DMC_STANDARD_PRICING.marketPriceLak) -
-                                prod.priceLak
-                            )
-                          }
-                          commissionPoolLak={prod.commissionPoolLak}
-                          l1Percent={prod.splitRule.l1Share || 50}
-                          l2Percent={prod.splitRule.l2Share || 30}
-                          l3Percent={prod.splitRule.l3Share || 20}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Add to Cart / Quantity Control Footer */}
-                    <div className="p-4 pt-0 flex items-center gap-2">
-                      {inCartQty === 0 ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => addToCart(prod.sku, false)}
-                            className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
-                            <span>{t.addToCart}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleInstantBuyProduct(prod.sku)}
-                            className="px-3 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-md"
-                            title="Instant Buy & Checkout with QR"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                            <span>Buy QR</span>
-                          </button>
-                        </>
-                      ) : (
-                        <div className="w-full flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 bg-slate-950 border border-amber-500/40 rounded-xl p-1">
-                            <button
-                              type="button"
-                              onClick={() => removeFromCart(prod.sku)}
-                              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="font-mono font-black text-xs text-amber-300 px-2">
-                              {inCartQty}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => addToCart(prod.sku, false)}
-                              className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                            </button>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsCartOpen(true)}
-                            className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1 cursor-pointer shadow"
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
-                            <span>View Cart</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </>
-      )}
+      ) : null}
 
       {/* FLOATING STICKY SHOPPING CART BAR WHEN CART HAS ITEMS */}
       {cartItemCount > 0 && !isCartOpen && (
@@ -3676,10 +3544,10 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
                   </label>
                   <BeautifulNumberInput
                     value={songForm.priceLak}
-                    onValueChange={(val) =>
-                      setSongForm({ ...songForm, priceLak: val === '' ? 0 : Number(val) })
+                    onChange={(val) =>
+                      setSongForm({ ...songForm, priceLak: Number(val) || 0 })
                     }
-                    className="w-full bg-slate-900 border border-amber-500/50 rounded-xl p-2 text-amber-300 font-mono font-black"
+                    className="w-full"
                   />
                 </div>
                 <div>
@@ -3688,13 +3556,13 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
                   </label>
                   <BeautifulNumberInput
                     value={songForm.marketPriceLak}
-                    onValueChange={(val) =>
+                    onChange={(val) =>
                       setSongForm({
                         ...songForm,
-                        marketPriceLak: val === '' ? 0 : Number(val),
+                        marketPriceLak: Number(val) || 0,
                       })
                     }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-slate-300 font-mono"
+                    className="w-full"
                   />
                 </div>
                 <div>
@@ -3703,13 +3571,13 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
                   </label>
                   <BeautifulNumberInput
                     value={songForm.commissionPoolLak}
-                    onValueChange={(val) =>
+                    onChange={(val) =>
                       setSongForm({
                         ...songForm,
-                        commissionPoolLak: val === '' ? 0 : Number(val),
+                        commissionPoolLak: Number(val) || 0,
                       })
                     }
-                    className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl p-2 text-emerald-300 font-mono font-bold"
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -3806,6 +3674,7 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
           defaultSongTitle={certificateSongTarget.title}
         />
       )}
+      </div>
     </div>
   );
 };
