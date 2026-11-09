@@ -37,6 +37,7 @@ jobs:
       - name: Build production bundle
         run: |
           npm run build
+          echo "dmcxayraxa.music" > dist/CNAME
           touch dist/.nojekyll
           cp dist/index.html dist/404.html
 
@@ -45,4 +46,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          cname: dmcxayraxa.music
           force_orphan: true
