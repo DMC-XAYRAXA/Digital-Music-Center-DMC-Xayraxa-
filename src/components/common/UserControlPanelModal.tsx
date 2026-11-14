@@ -2255,7 +2255,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
           {activeTab === 'LOGIN' && (
             <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs animate-in fade-in">
               <p className="text-slate-400">
-                Sign in with your Lao PDR telephone number or official Member ID (e.g. DMC-LA-00404).
+                Sign in with your Lao PDR telephone number or official Member ID (e.g. DMC000101).
               </p>
 
               {loginError && (
@@ -2271,7 +2271,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="DMC-LA-00404 or +856 20 2233 4455"
+                    placeholder="DMC000101 or +856 20 55414965"
                     value={loginIdentifier}
                     onChange={e => setLoginIdentifier(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono placeholder:text-slate-500 focus:border-amber-500 focus:outline-none"

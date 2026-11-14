@@ -78,8 +78,13 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
 
   const isAdmin = isAdminAuthenticated || isAdminMode;
 
+  const defaultOrganizeHeadId =
+    allMembers.find((m) => !m.sponsorId)?.memberId ||
+    allMembers[0]?.memberId ||
+    currentMember.memberId;
+
   const [focusedMemberId, setFocusedMemberId] = useState<string>(
-    initialRootMemberId || currentMember.memberId
+    initialRootMemberId || defaultOrganizeHeadId
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
@@ -129,12 +134,17 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
 
   const editPhotoInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync root if currentMember changes and user hasn't manually drilled down
+  // Sync root if currentMember/allMembers changes and user hasn't manually drilled down
   React.useEffect(() => {
     if (!initialRootMemberId) {
-      setFocusedMemberId(currentMember.memberId);
+      const headId =
+        allMembers.find((m) => !m.sponsorId)?.memberId ||
+        allMembers[0]?.memberId ||
+        currentMember.memberId;
+      const stillExists = allMembers.some((m) => m.memberId === focusedMemberId);
+      setFocusedMemberId(stillExists ? focusedMemberId : headId);
     }
-  }, [currentMember.memberId, initialRootMemberId]);
+  }, [currentMember.memberId, allMembers, initialRootMemberId, focusedMemberId]);
 
   const rootMember =
     allMembers.find((m) => m.memberId === focusedMemberId) ||
@@ -478,6 +488,9 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>Viewing Organize Root:</span>
             </span>
+            <span className="px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-200 text-[10px] font-black">
+              {allMembers.filter((m) => !m.sponsorId).length || (allMembers.length > 0 ? 1 : 0)} Organize Head (Root)
+            </span>
             <select
               value={rootMember.memberId}
               onChange={(e) => {
@@ -498,7 +511,7 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                   const count = dl.l1.length + dl.l2.length + dl.l3.length;
                   return (
                     <option key={m.memberId} value={m.memberId}>
-                      {m.name} ({m.memberId}) — {count} Downlines
+                      {m.name} ({m.memberId}){!m.sponsorId ? ' [Organize Head Root]' : ''} — {count} Downlines
                     </option>
                   );
                 })}

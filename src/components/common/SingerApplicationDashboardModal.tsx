@@ -116,7 +116,7 @@ export const SingerApplicationDashboardModal: React.FC<
     string | null
   >(null);
   const [showSingerSignInBox, setShowSingerSignInBox] = useState<boolean>(true);
-  const [singerLoginIdentifier, setSingerLoginIdentifier] = useState<string>('DMC-LA-00404');
+  const [singerLoginIdentifier, setSingerLoginIdentifier] = useState<string>('DMC000101');
   const [singerLoginPassword, setSingerLoginPassword] = useState<string>('');
 
   useEffect(() => {
@@ -721,7 +721,7 @@ export const SingerApplicationDashboardModal: React.FC<
 
     if (!matched) {
       showNotice(
-        `Singer account "${singerLoginIdentifier}" not found. Enter your Singer Member ID (e.g. DMC-LA-00404) & Password (123456) or select a Singer below.`,
+        `Singer account "${singerLoginIdentifier}" not found. Enter your Singer Member ID (e.g. DMC000101) & Password or select a Singer below.`,
         'ERROR'
       );
       return;

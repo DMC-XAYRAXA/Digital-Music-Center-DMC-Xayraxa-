@@ -59,6 +59,9 @@ import {
   CloudAdminVaultConfig,
   CloudMemberRecord,
   CloudPublicDirectoryState,
+  fetchAdminVaultConfigOnce,
+  fetchCloudMembersOnce,
+  fetchPublicDirectoryStateOnce,
   listenToAdminVaultConfig,
   listenToCloudMembers,
   listenToPublicDirectoryState,
@@ -85,6 +88,26 @@ const LEDGER_ENTRIES_STORAGE_KEY = 'dmc_rev26_ledger_entries_v1';
 const AWARDS_STORAGE_KEY = 'dmc_rev26_awards_v1';
 const SUPER_ADMIN_STORAGE_KEY = 'dmc_rev26_super_admin_v1';
 const CLOUD_PUBLIC_DIRECTORY_CACHE_KEY = 'dmc_rev26_cloud_public_dir_v1';
+const SINGLE_ROOT_MIGRATION_KEY = 'dmc_rev26_single_root_v1';
+
+const LEGACY_DEMO_MEMBER_IDS = new Set<string>([
+  'DMC-LA-00101',
+  'DMC-LA-00202',
+  'DMC-LA-00303',
+  'DMC-LA-00404',
+  'DMC-LA-00505',
+  'DMC-LA-00506',
+  'DMC-LA-00507',
+  'DMC-LA-00508',
+  'DMC-LA-00601',
+  'DMC-LA-00602',
+  'DMC-LA-00603',
+  'DMC-LA-00604',
+  'DMC-LA-00701',
+  'DMC-LA-00702',
+  'DMC-LA-00703',
+  'DMC-LA-00704',
+]);
 
 function loadDeletedMemberIdsFromStorage(): string[] {
   try {
@@ -92,7 +115,14 @@ function loadDeletedMemberIdsFromStorage(): string[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.map((id) => String(id).trim().toUpperCase()).filter(Boolean);
+        const cleaned = parsed
+          .map((id) => String(id).trim().toUpperCase())
+          .filter(Boolean);
+        // On first migration to single-root default, drop legacy demo tombstones so Deleted count starts clean
+        if (!localStorage.getItem(SINGLE_ROOT_MIGRATION_KEY)) {
+          return cleaned.filter((id) => !LEGACY_DEMO_MEMBER_IDS.has(id));
+        }
+        return cleaned;
       }
     }
   } catch {
@@ -166,7 +196,7 @@ function loadInitialActiveSession(): {
   const now = Date.now();
   const defaultSession: StoredActiveSession = {
     isLoggedOut: true,
-    currentMemberId: 'DMC-LA-00404',
+    currentMemberId: 'DMC000101',
     isAdminMode: false,
     isAdminAuthenticated: false,
     lastActivityAt: now,
@@ -175,11 +205,16 @@ function loadInitialActiveSession(): {
     const raw = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
     if (!raw) return { session: defaultSession, expiredOnLoad: false };
     const parsed = JSON.parse(raw) as Partial<StoredActiveSession>;
+    const normalizedParsedId = (parsed.currentMemberId || '').trim().toUpperCase();
+    const safeMemberId =
+      normalizedParsedId && !LEGACY_DEMO_MEMBER_IDS.has(normalizedParsedId)
+        ? parsed.currentMemberId!
+        : defaultSession.currentMemberId;
     if (parsed.isLoggedOut !== false) {
       return {
         session: {
           ...defaultSession,
-          currentMemberId: parsed.currentMemberId || defaultSession.currentMemberId,
+          currentMemberId: safeMemberId,
         },
         expiredOnLoad: false,
       };
@@ -192,7 +227,7 @@ function loadInitialActiveSession(): {
     return {
       session: {
         isLoggedOut: false,
-        currentMemberId: parsed.currentMemberId || 'DMC-LA-00404',
+        currentMemberId: parsed.currentMemberId || 'DMC000101',
         isAdminMode: Boolean(parsed.isAdminMode),
         isAdminAuthenticated: Boolean(parsed.isAdminAuthenticated),
         lastActivityAt: lastTs,
@@ -279,7 +314,14 @@ interface DmcContextType {
   cloudSyncError: string | null;
   cloudDirectoryState: CloudPublicDirectoryState | null;
   lastCloudSyncAt: string | null;
-  connectGoogleCloudSync: () => Promise<{ success: boolean; error?: string }>;
+  connectGoogleCloudSync: (options?: {
+    pushLocalToCloud?: boolean;
+  }) => Promise<{
+    success: boolean;
+    mode?: 'PUSHED_TO_CLOUD' | 'PULLED_FROM_CLOUD';
+    message?: string;
+    error?: string;
+  }>;
   disconnectGoogleCloudSync: () => Promise<void>;
   forceCloudPushAllMembers: (overrideParams?: {
     members?: Member[];
@@ -629,432 +671,41 @@ interface DmcContextType {
 
 const DmcContext = createContext<DmcContextType | null>(null);
 
-// Initial Seed Members (L3 -> L2 -> L1 -> D)
+// Initial Seed Members: 1 Default User Member & Organize Head (Root)
 const INITIAL_MEMBERS: Member[] = [
   {
-    id: 'usr-00101',
-    memberId: 'DMC-LA-00101',
-    name: 'Sengdao Vongsa (Root L3)',
-    phone: '+856 20 5511 2233',
-    email: 'sengdao@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
+    id: 'usr-dmc000101',
+    memberId: 'DMC000101',
+    name: 'DMC-Xayraxa',
+    phone: '+856 20 55414965',
+    email: 'xay.raxa@gmail.com',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
+    language: 'en',
     membershipState: 'ACTIVE_LIFETIME_MEMBER',
     sponsorId: null,
-    createdAt: '2026-08-01T08:00:00Z',
-    activatedAt: '2026-08-01T09:00:00Z',
+    createdAt: '2026-10-01T08:00:00Z',
+    activatedAt: '2026-10-01T08:00:00Z',
     activationMethod: 'DIRECT_CASH',
+    isAutomaticAffiliate: true,
+    autoAffiliateCode: 'AFF-DMC000101',
     consents: {
       termsAccepted: true,
       termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-08-01T08:00:00Z',
+      termsAcceptedAt: '2026-10-01T08:00:00Z',
       autoRedeemConsent: true,
       autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-08-01T08:00:00Z',
+      autoRedeemAcceptedAt: '2026-10-01T08:00:00Z',
     },
     kycStatus: 'VERIFIED',
     bankAccount: {
       bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
       bankCode: 'BCEL',
-      accountNumber: '160-12-00049281-001',
-      accountName: 'SENGDAO VONGSA',
-      branch: 'Head Office Vientiane, Rue Pangkham',
-      isDefault: true,
-    },
-  },
-  {
-    id: 'usr-00202',
-    memberId: 'DMC-LA-00202',
-    name: 'Anousone Phanthavong (L2)',
-    phone: '+856 20 9988 7766',
-    email: 'anousone@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00101',
-    createdAt: '2026-08-10T10:00:00Z',
-    activatedAt: '2026-08-10T11:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-08-10T10:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-08-10T10:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'Development Bank CO LTD (LDB)',
-      bankCode: 'LDB',
-      accountNumber: '020-88-1294819-002',
-      accountName: 'ANOUSONE PHANTHAVONG',
-      branch: 'Lane Xang Avenue Branch, Vientiane',
-      isDefault: true,
-    },
-  },
-  {
-    id: 'usr-00303',
-    memberId: 'DMC-LA-00303',
-    name: 'Somphone Xayraxa (Direct L1)',
-    phone: '+856 20 7766 5544',
-    email: 'somphone@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00202',
-    createdAt: '2026-08-20T14:30:00Z',
-    activatedAt: '2026-08-20T15:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-08-20T14:30:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-08-20T14:30:00Z',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'Joint Development Bank (JDB)',
-      bankCode: 'JDB',
       accountNumber: '010-12-00088910-001',
-      accountName: 'SOMPHONE XAYRAXA',
-      branch: 'Lane Xang Branch, Hatsady, Chanthabouly',
+      accountName: 'DMC-XAYRAXA',
+      branch: 'Head Office Vientiane',
       isDefault: true,
     },
-  },
-  {
-    id: 'usr-00404',
-    memberId: 'DMC-LA-00404',
-    name: 'Khamla Saysana (Khamla Xayraxa Vocal)',
-    phone: '+856 20 2233 4455',
-    email: 'khamla@gmail.com',
-    password: '123456',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    activatedAt: '2026-09-01T09:15:00Z',
-    activationMethod: 'DIRECT_CASH',
-    sponsorId: 'DMC-LA-00303',
-    createdAt: '2026-09-01T09:15:00Z',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-01T09:15:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-01T09:15:00Z',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
-      bankCode: 'BCEL',
-      accountNumber: '160-12-99881122-001',
-      accountName: 'KHAMLA SAYSANA',
-      branch: 'Head Office Vientiane, Rue Pangkham',
-      isDefault: true,
-    },
-  },
-  {
-    id: 'usr-00505',
-    memberId: 'DMC-LA-00505',
-    name: 'Nok Noy (Organic Registrant - No Upline)',
-    phone: '+856 20 5566 7788',
-    email: 'noknoy@gmail.com',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
-    language: 'th',
-    membershipState: 'FREE_MEMBER',
-    sponsorId: null,
-    createdAt: '2026-09-15T16:00:00Z',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-15T16:00:00Z',
-      autoRedeemConsent: false,
-      autoRedeemVersion: 'v2.6',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'VietinBank Lao | Vientiane',
-      bankCode: 'VIETIN',
-      accountNumber: '108-00-5533118-001',
-      accountName: 'NOK NOY',
-      branch: 'No. 088 Lanexang Avenue, Hatsady, Vientiane',
-      isDefault: true,
-    },
-  },
-  // L1 Direct Downlines of Khamla (DMC-LA-00404)
-  {
-    id: 'usr-00506',
-    memberId: 'DMC-LA-00506',
-    name: 'Bounmy Sisavath (L1 Direct)',
-    phone: '+856 20 5544 1122',
-    email: 'bounmy@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00404',
-    createdAt: '2026-09-05T10:00:00Z',
-    activatedAt: '2026-09-10T12:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-05T10:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-05T10:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
-      bankCode: 'BCEL',
-      accountNumber: '160-12-0050611-001',
-      accountName: 'BOUNMY SISAVATH',
-      branch: 'Head Office Vientiane, Rue Pangkham',
-      isDefault: true,
-    },
-  },
-  {
-    id: 'usr-00507',
-    memberId: 'DMC-LA-00507',
-    name: 'Chanthaly Keomany (L1 Direct)',
-    phone: '+856 20 7788 3344',
-    email: 'chanthaly@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00404',
-    createdAt: '2026-09-12T11:30:00Z',
-    activatedAt: '2026-09-20T15:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-12T11:30:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-12T11:30:00Z',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'Development Bank CO LTD (LDB)',
-      bankCode: 'LDB',
-      accountNumber: '020-88-0050722-001',
-      accountName: 'CHANTHALY KEOMANY',
-      branch: 'Lane Xang Avenue Branch, Vientiane',
-      isDefault: true,
-    },
-  },
-  {
-    id: 'usr-00508',
-    memberId: 'DMC-LA-00508',
-    name: 'Phouthone Vongphachanh (L1 Direct)',
-    phone: '+856 20 9911 2244',
-    email: 'phouthone@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'FREE_MEMBER',
-    sponsorId: 'DMC-LA-00404',
-    createdAt: '2026-09-18T14:20:00Z',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-18T14:20:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-18T14:20:00Z',
-    },
-    kycStatus: 'VERIFIED',
-    bankAccount: {
-      bankName: 'Joint Development Bank (JDB)',
-      bankCode: 'JDB',
-      accountNumber: '010-12-0050833-001',
-      accountName: 'PHOUTHONE VONGPHACHANH',
-      branch: 'Lane Xang Branch, Hatsady, Chanthabouly',
-      isDefault: true,
-    },
-  },
-  // L2 Downlines under Bounmy (00506), Chanthaly (00507), Phouthone (00508)
-  {
-    id: 'usr-00601',
-    memberId: 'DMC-LA-00601',
-    name: 'Dalavanh Souvanna (L2)',
-    phone: '+856 20 5512 9001',
-    email: 'dalavanh@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00506',
-    createdAt: '2026-09-22T09:00:00Z',
-    activatedAt: '2026-09-22T10:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-22T09:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-22T09:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  {
-    id: 'usr-00602',
-    memberId: 'DMC-LA-00602',
-    name: 'Keooudone Phommasone (L2)',
-    phone: '+856 20 5512 9002',
-    email: 'keooudone@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'FREE_MEMBER',
-    sponsorId: 'DMC-LA-00506',
-    createdAt: '2026-09-24T11:00:00Z',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-24T11:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-24T11:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  {
-    id: 'usr-00603',
-    memberId: 'DMC-LA-00603',
-    name: 'Malichanh Xayavong (L2)',
-    phone: '+856 20 5512 9003',
-    email: 'malichanh@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00507',
-    createdAt: '2026-09-25T13:00:00Z',
-    activatedAt: '2026-09-25T14:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-25T13:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-25T13:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  {
-    id: 'usr-00604',
-    memberId: 'DMC-LA-00604',
-    name: 'Vilayphone Inthavong (L2)',
-    phone: '+856 20 5512 9004',
-    email: 'vilayphone@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00508',
-    createdAt: '2026-09-27T15:00:00Z',
-    activatedAt: '2026-09-27T16:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-09-27T15:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-09-27T15:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  // L3 Downlines under L2 Members
-  {
-    id: 'usr-00701',
-    memberId: 'DMC-LA-00701',
-    name: 'Souksavanh Phetsarath (L3)',
-    phone: '+856 20 5513 8001',
-    email: 'souksavanh@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00601',
-    createdAt: '2026-10-01T09:00:00Z',
-    activatedAt: '2026-10-01T10:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-10-01T09:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-10-01T09:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  {
-    id: 'usr-00702',
-    memberId: 'DMC-LA-00702',
-    name: 'Thipphaphone Chanthavong (L3)',
-    phone: '+856 20 5513 8002',
-    email: 'thipphaphone@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'FREE_MEMBER',
-    sponsorId: 'DMC-LA-00601',
-    createdAt: '2026-10-03T11:00:00Z',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-10-03T11:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-10-03T11:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  {
-    id: 'usr-00703',
-    memberId: 'DMC-LA-00703',
-    name: 'Latsamy Douangmala (L3)',
-    phone: '+856 20 5513 8003',
-    email: 'latsamy@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: 'DMC-LA-00603',
-    createdAt: '2026-10-05T14:00:00Z',
-    activatedAt: '2026-10-05T15:00:00Z',
-    activationMethod: 'DIRECT_CASH',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-10-05T14:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-10-05T14:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
-  },
-  {
-    id: 'usr-00704',
-    memberId: 'DMC-LA-00704',
-    name: 'Phonesavanh Sayasith (L3)',
-    phone: '+856 20 5513 8004',
-    email: 'phonesavanh@dmcxayraxa.la',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
-    language: 'lo',
-    membershipState: 'FREE_MEMBER',
-    sponsorId: 'DMC-LA-00604',
-    createdAt: '2026-10-06T16:00:00Z',
-    consents: {
-      termsAccepted: true,
-      termsVersion: 'v2.6',
-      termsAcceptedAt: '2026-10-06T16:00:00Z',
-      autoRedeemConsent: true,
-      autoRedeemVersion: 'v2.6',
-      autoRedeemAcceptedAt: '2026-10-06T16:00:00Z',
-    },
-    kycStatus: 'VERIFIED',
   },
 ];
 
@@ -1917,7 +1568,7 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     singerFullName: 'Khamla Phommavong',
     singerAvatarUrl:
       'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80',
-    customerMemberId: 'DMC-LA-00404',
+    customerMemberId: 'DMC000101',
     customerName: 'Souksavanh Grand Hotel Event',
     customerPhone: '+856 20 5588 3322',
     partyEventName: 'Music Cain VIP Anniversary Gala Party',
@@ -1925,9 +1576,9 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     bookingDate: '2026-11-15',
     bookingTimeSlot: '18:30 - 22:30 (Evening Party Set)',
     autoAffiliateActivated: true,
-    autoAffiliateCode: 'AFF-DMC-LA-00404',
+    autoAffiliateCode: 'AFF-DMC000101',
     autoAffiliateLink:
-      'https://dmcxayraxa.music/register?ref=DMC-LA-00404&aff=AFF-DMC-LA-00404&singer=DMC-SNG-001',
+      'https://dmcxayraxa.music/register?ref=DMC000101&aff=AFF-DMC000101&singer=DMC-SNG-001',
     startSingerPriceLak: 5000000,
     packagePartyPriceLak: 8300000,
     singerPriceTier: 'MEDIUM',
@@ -1960,7 +1611,7 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     singerFullName: 'Somphone Xayraxa',
     singerAvatarUrl:
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=320&q=80',
-    customerMemberId: 'DMC-LA-00303',
+    customerMemberId: 'DMC000101',
     customerName: 'Chanthabouly Wedding & Festival Host',
     customerPhone: '+856 20 9977 1122',
     partyEventName: 'Traditional Baci & Music Cain Concert Night',
@@ -1968,9 +1619,9 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     bookingDate: '2026-11-22',
     bookingTimeSlot: '17:00 - 21:30 (Festival Party Set)',
     autoAffiliateActivated: true,
-    autoAffiliateCode: 'AFF-DMC-LA-00303',
+    autoAffiliateCode: 'AFF-DMC000101',
     autoAffiliateLink:
-      'https://dmcxayraxa.music/register?ref=DMC-LA-00303&aff=AFF-DMC-LA-00303&singer=DMC-SNG-002',
+      'https://dmcxayraxa.music/register?ref=DMC000101&aff=AFF-DMC000101&singer=DMC-SNG-002',
     startSingerPriceLak: 10000000,
     packagePartyPriceLak: 4700000,
     singerPriceTier: 'EXPENSIVE',
@@ -2105,18 +1756,52 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [members, setMembers] = useState<Member[]>(() => {
     const initialDeleted = new Set(loadDeletedMemberIdsFromStorage());
+    let migratedSingleRoot = false;
+    try {
+      migratedSingleRoot = Boolean(localStorage.getItem(SINGLE_ROOT_MIGRATION_KEY));
+    } catch {
+      migratedSingleRoot = false;
+    }
+
     try {
       const saved = localStorage.getItem(MEMBERS_STORAGE_KEY);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter(
-            (m: Member) => !initialDeleted.has(String(m.memberId || '').trim().toUpperCase())
+          let filtered = parsed.filter(
+            (m: Member) =>
+              !initialDeleted.has(String(m.memberId || '').trim().toUpperCase())
           );
+          if (!migratedSingleRoot) {
+            filtered = filtered.filter(
+              (m: Member) =>
+                !LEGACY_DEMO_MEMBER_IDS.has(
+                  String(m.memberId || '').trim().toUpperCase()
+                )
+            );
+            try {
+              localStorage.setItem(SINGLE_ROOT_MIGRATION_KEY, '1');
+              localStorage.setItem(
+                DELETED_MEMBER_IDS_STORAGE_KEY,
+                JSON.stringify(Array.from(initialDeleted))
+              );
+            } catch {
+              // ignore
+            }
+          }
+          if (filtered.length > 0) {
+            return filtered;
+          }
         }
       }
     } catch {
       // ignore storage errors
+    }
+
+    try {
+      localStorage.setItem(SINGLE_ROOT_MIGRATION_KEY, '1');
+    } catch {
+      // ignore
     }
     return INITIAL_MEMBERS.filter(
       (m) => !initialDeleted.has(m.memberId.trim().toUpperCase())
@@ -2352,6 +2037,20 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cloudDeletedSet = new Set(
       dirState.deletedMemberIds.map((id) => id.trim().toUpperCase()).filter(Boolean)
     );
+    const cloudActiveSet = new Set(
+      dirState.activeSponsorIds.map((id) => id.trim().toUpperCase()).filter(Boolean)
+    );
+    const hasCloudAuthoritativeRoster =
+      cloudActiveSet.size > 0 || cloudDeletedSet.size > 0;
+    // Any legacy demo account not in cloudActiveSet is effectively deleted in the cloud
+    if (hasCloudAuthoritativeRoster) {
+      for (const demoId of LEGACY_DEMO_MEMBER_IDS) {
+        if (!cloudActiveSet.has(demoId)) {
+          cloudDeletedSet.add(demoId);
+        }
+      }
+    }
+
     deletedMemberIdsRef.current = cloudDeletedSet;
     const deletedList = Array.from(cloudDeletedSet);
     setDeletedMemberIds(deletedList);
@@ -2361,61 +2060,94 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
 
-    // 2. Purge any deleted demo/member accounts and merge cloud active sponsors cleanly
+    // 2. Reconcile local members with authoritative cloud directory
     setMembers((prev) => {
-      const kept = prev.filter(
-        (m) => !cloudDeletedSet.has(m.memberId.trim().toUpperCase())
-      );
-      const existingIds = new Set(kept.map((m) => m.memberId.trim().toUpperCase()));
-      const extraCloudSponsors: Member[] = [];
+      const prevById = new Map<string, Member>();
+      for (const m of prev) {
+        prevById.set(m.memberId.trim().toUpperCase(), m);
+      }
+
+      const nextList: Member[] = [];
+      const seenIds = new Set<string>();
+
+      // If Cloud has an active roster, include every active cloud member first (preserving any rich local fields)
       for (const sid of dirState.activeSponsorIds) {
         const upperSid = sid.trim().toUpperCase();
-        if (!cloudDeletedSet.has(upperSid) && !existingIds.has(upperSid)) {
-          existingIds.add(upperSid);
-          extraCloudSponsors.push({
-            id: `usr-cloud-${upperSid.toLowerCase()}`,
-            memberId: upperSid,
-            name: dirState.activeSponsorNames[upperSid] || upperSid,
-            phone: '',
-            email: '',
-            language: 'en',
-            membershipState: dirState.memberStates[upperSid] || 'FREE_MEMBER',
-            sponsorId: null,
-            createdAt: dirState.updatedAtIso || new Date().toISOString(),
-            consents: {
-              termsAccepted: true,
-              termsVersion: 'v2.6',
-              autoRedeemConsent: true,
-              autoRedeemVersion: 'v2.6',
-            },
-            kycStatus: 'VERIFIED',
-          });
+        if (!upperSid || cloudDeletedSet.has(upperSid) || seenIds.has(upperSid)) continue;
+        seenIds.add(upperSid);
+        const localMatch = prevById.get(upperSid);
+        nextList.push(
+          localMatch
+            ? {
+                ...localMatch,
+                name: dirState.activeSponsorNames[upperSid] || localMatch.name,
+                membershipState:
+                  dirState.memberStates[upperSid] || localMatch.membershipState,
+              }
+            : {
+                id: `usr-cloud-${upperSid.toLowerCase()}`,
+                memberId: upperSid,
+                name: dirState.activeSponsorNames[upperSid] || upperSid,
+                phone: '',
+                email: '',
+                language: 'en',
+                membershipState: dirState.memberStates[upperSid] || 'FREE_MEMBER',
+                sponsorId: null,
+                createdAt: dirState.updatedAtIso || new Date().toISOString(),
+                consents: {
+                  termsAccepted: true,
+                  termsVersion: 'v2.6',
+                  autoRedeemConsent: true,
+                  autoRedeemVersion: 'v2.6',
+                },
+                kycStatus: 'VERIFIED',
+              }
+        );
+      }
+
+      // Only retain local-only accounts when Cloud hasn't published a roster yet
+      if (cloudActiveSet.size === 0) {
+        for (const m of prev) {
+          const up = m.memberId.trim().toUpperCase();
+          if (!cloudDeletedSet.has(up) && !seenIds.has(up)) {
+            seenIds.add(up);
+            nextList.push(m);
+          }
         }
       }
-      const next = [...extraCloudSponsors, ...kept];
-      membersRef.current = next;
+
+      membersRef.current = nextList;
       try {
-        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(nextList));
       } catch {
         // ignore
       }
-      return next;
+      return nextList;
     });
 
     // 3. Sync Super Admin operatorId & detect remote password updates (invalidate old default '888888')
     if (dirState.adminOperatorId || dirState.adminPasswordUpdatedAt) {
       setSuperAdminProfile((prev) => {
+        const remoteUpdated = Boolean(dirState.adminPasswordUpdatedAt);
         const remoteNewer =
-          Boolean(dirState.adminPasswordUpdatedAt) &&
+          remoteUpdated &&
           dirState.adminPasswordUpdatedAt !== prev.lastPasswordUpdatedAt;
         const next: SuperAdminProfile = {
           ...prev,
           operatorId: dirState.adminOperatorId || prev.operatorId,
           ...(remoteNewer
-            ? { lastPasswordUpdatedAt: dirState.adminPasswordUpdatedAt }
+            ? {
+                passwordPin: '',
+                lastPasswordUpdatedAt: dirState.adminPasswordUpdatedAt,
+              }
             : {}),
         };
         superAdminProfileRef.current = next;
+        try {
+          localStorage.setItem(SUPER_ADMIN_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
         return next;
       });
     }
@@ -2460,6 +2192,9 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (vault: CloudAdminVaultConfig | null) => {
         if (!vault) return;
         setSuperAdminProfile((prev) => {
+          const remoteNewer =
+            Boolean(vault.lastPasswordUpdatedAt) &&
+            vault.lastPasswordUpdatedAt !== prev.lastPasswordUpdatedAt;
           const next: SuperAdminProfile = {
             ...prev,
             operatorId: vault.operatorId || prev.operatorId,
@@ -2467,9 +2202,19 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             phone: vault.phone || prev.phone,
             email: vault.email || prev.email,
             roleTitle: vault.roleTitle || prev.roleTitle,
-            lastPasswordUpdatedAt: vault.lastPasswordUpdatedAt || prev.lastPasswordUpdatedAt,
+            ...(remoteNewer
+              ? {
+                  passwordPin: '',
+                  lastPasswordUpdatedAt: vault.lastPasswordUpdatedAt,
+                }
+              : {}),
           };
           superAdminProfileRef.current = next;
+          try {
+            localStorage.setItem(SUPER_ADMIN_STORAGE_KEY, JSON.stringify(next));
+          } catch {
+            // ignore
+          }
           return next;
         });
       },
@@ -2484,16 +2229,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cloudList.length === 0) return;
         const deletedSet = deletedMemberIdsRef.current;
         setMembers((prev) => {
-          const byId = new Map<string, Member>();
+          const prevById = new Map<string, Member>();
           for (const m of prev) {
-            const up = m.memberId.trim().toUpperCase();
-            if (!deletedSet.has(up)) byId.set(up, m);
+            prevById.set(m.memberId.trim().toUpperCase(), m);
           }
+          const next: Member[] = [];
+          const seen = new Set<string>();
           for (const cm of cloudList) {
             const up = cm.memberId.trim().toUpperCase();
-            if (deletedSet.has(up)) continue;
-            const existing = byId.get(up);
-            byId.set(up, {
+            if (deletedSet.has(up) || seen.has(up)) continue;
+            seen.add(up);
+            const existing = prevById.get(up);
+            next.push({
               ...(existing || {
                 id: `usr-${up.toLowerCase()}`,
                 memberId: up,
@@ -2518,7 +2265,6 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               autoAffiliateCode: cm.autoAffiliateCode || existing?.autoAffiliateCode,
             });
           }
-          const next = Array.from(byId.values());
           membersRef.current = next;
           try {
             localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
@@ -2554,11 +2300,38 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCloudSyncStatus('SYNCING');
     setCloudSyncError(null);
     try {
+      const targetMembers = overrideParams?.members || membersRef.current;
+      const activeIdSet = new Set(
+        targetMembers.map((m) => m.memberId.trim().toUpperCase())
+      );
+      const baseDeleted =
+        overrideParams?.deletedMemberIds !== undefined
+          ? overrideParams.deletedMemberIds
+          : Array.from(deletedMemberIdsRef.current);
+      const combinedDeletedSet = new Set(
+        baseDeleted.map((id) => id.trim().toUpperCase()).filter(Boolean)
+      );
+      // Ensure any absent legacy demo IDs are also marked deleted so other devices drop them too
+      if (overrideParams?.deletedMemberIds === undefined) {
+        for (const demoId of LEGACY_DEMO_MEMBER_IDS) {
+          if (!activeIdSet.has(demoId)) {
+            combinedDeletedSet.add(demoId);
+          }
+        }
+      }
+      const nextDeletedArr = Array.from(combinedDeletedSet);
+      deletedMemberIdsRef.current = combinedDeletedSet;
+      setDeletedMemberIds(nextDeletedArr);
+      try {
+        localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(nextDeletedArr));
+      } catch {
+        // ignore
+      }
+
       const updatedDir = await pushCloudDirectoryAndAdminState({
         superAdminProfile: overrideParams?.superAdminProfile || superAdminProfileRef.current,
-        members: overrideParams?.members || membersRef.current,
-        deletedMemberIds:
-          overrideParams?.deletedMemberIds || Array.from(deletedMemberIdsRef.current),
+        members: targetMembers,
+        deletedMemberIds: nextDeletedArr,
         existingCloudHashes: cloudDirectoryStateRef.current?.memberAuthHashes,
         existingCloudAdminHash: cloudDirectoryStateRef.current?.adminPasswordHash,
         syncMemberDocs: true,
@@ -2581,7 +2354,14 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const connectGoogleCloudSync = async (): Promise<{ success: boolean; error?: string }> => {
+  const connectGoogleCloudSync = async (options?: {
+    pushLocalToCloud?: boolean;
+  }): Promise<{
+    success: boolean;
+    mode?: 'PUSHED_TO_CLOUD' | 'PULLED_FROM_CLOUD';
+    message?: string;
+    error?: string;
+  }> => {
     setCloudSyncStatus('SYNCING');
     setCloudSyncError(null);
     const res = await signInAdminWithGoogle();
@@ -2594,9 +2374,111 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFirebaseUser(res.user);
     setIsFirebaseAdmin(true);
     setCloudSyncStatus('CONNECTED');
-    // Immediately synchronize current local deletions, members & Super Admin hash with cloud
+
+    try {
+      const existingCloudDir = await fetchPublicDirectoryStateOnce();
+      if (existingCloudDir && options?.pushLocalToCloud !== true) {
+        const localProfile = superAdminProfileRef.current;
+        const localPwTs = Date.parse(localProfile.lastPasswordUpdatedAt || '') || 0;
+        const cloudPwTs = Date.parse(existingCloudDir.adminPasswordUpdatedAt || '') || 0;
+        const isLocalDefault =
+          localProfile.lastPasswordUpdatedAt === '2026-10-01T08:00:00Z' ||
+          localProfile.passwordPin === '888888' ||
+          !localProfile.passwordPin;
+        const localHasNewerCustomReset = !isLocalDefault && localPwTs > cloudPwTs;
+
+        if (!localHasNewerCustomReset) {
+          applyPublicDirectoryToDevice(existingCloudDir);
+          const [vault, cloudMems] = await Promise.all([
+            fetchAdminVaultConfigOnce().catch(() => null),
+            fetchCloudMembersOnce().catch(() => [] as CloudMemberRecord[]),
+          ]);
+          if (vault) {
+            setSuperAdminProfile((prev) => {
+              const next: SuperAdminProfile = {
+                ...prev,
+                operatorId: vault.operatorId || prev.operatorId,
+                name: vault.name || prev.name,
+                phone: vault.phone || prev.phone,
+                email: vault.email || prev.email,
+                roleTitle: vault.roleTitle || prev.roleTitle,
+                passwordPin: '',
+                lastPasswordUpdatedAt: vault.lastPasswordUpdatedAt || prev.lastPasswordUpdatedAt,
+              };
+              superAdminProfileRef.current = next;
+              try {
+                localStorage.setItem(SUPER_ADMIN_STORAGE_KEY, JSON.stringify(next));
+              } catch {
+                // ignore
+              }
+              return next;
+            });
+          }
+          if (cloudMems.length > 0) {
+            const deletedSet = deletedMemberIdsRef.current;
+            const prevById = new Map<string, Member>(
+              membersRef.current.map((m) => [m.memberId.trim().toUpperCase(), m])
+            );
+            const syncedList: Member[] = [];
+            for (const cm of cloudMems) {
+              const up = cm.memberId.trim().toUpperCase();
+              if (deletedSet.has(up)) continue;
+              const existing = prevById.get(up);
+              syncedList.push({
+                ...(existing || {
+                  id: `usr-${up.toLowerCase()}`,
+                  memberId: up,
+                  createdAt: new Date().toISOString(),
+                  consents: {
+                    termsAccepted: true,
+                    termsVersion: 'v2.6',
+                    autoRedeemConsent: true,
+                    autoRedeemVersion: 'v2.6',
+                  },
+                }),
+                memberId: up,
+                name: cm.name || existing?.name || up,
+                phone: cm.phone || existing?.phone || '',
+                email: cm.email || existing?.email || '',
+                membershipState: cm.membershipState,
+                sponsorId: cm.sponsorId ? cm.sponsorId : null,
+                kycStatus: cm.kycStatus,
+                avatarUrl: existing?.avatarUrl || cm.avatarUrl || '',
+                language: cm.language || existing?.language || 'en',
+                isAutomaticAffiliate: cm.isAutomaticAffiliate ?? existing?.isAutomaticAffiliate,
+                autoAffiliateCode: cm.autoAffiliateCode || existing?.autoAffiliateCode,
+              });
+            }
+            membersRef.current = syncedList;
+            setMembers(syncedList);
+            try {
+              localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(syncedList));
+            } catch {
+              // ignore
+            }
+          }
+          return {
+            success: true,
+            mode: 'PULLED_FROM_CLOUD',
+            message:
+              'Connected to Google Cloud Sync & downloaded the authoritative Admin password and member directory from Firestore.',
+          };
+        }
+      }
+    } catch {
+      // fall through to push if read failed or local is strictly newer
+    }
+
+    // First-time setup OR local computer has a newer custom password reset -> upload to Cloud
     const pushRes = await forceCloudPushAllMembers();
-    return pushRes.success ? { success: true } : pushRes;
+    return pushRes.success
+      ? {
+          success: true,
+          mode: 'PUSHED_TO_CLOUD',
+          message:
+            'Connected to Google Cloud Sync & uploaded this computer’s Admin password and member directory to Firestore for all devices!',
+        }
+      : pushRes;
   };
 
   const disconnectGoogleCloudSync = async (): Promise<void> => {
@@ -2936,7 +2818,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedLink = b.autoAffiliateLink
         ? b.autoAffiliateLink
             .replace(/https?:\/\/dmc-?xayraxa\.la/gi, 'https://dmcxayraxa.music')
-        : `https://dmcxayraxa.music/register?ref=${b.customerMemberId || 'DMC-LA-00404'}&aff=${b.autoAffiliateCode || 'AFF-DMC-LA-00404'}&singer=${b.singerCode}`;
+        : `https://dmcxayraxa.music/register?ref=${b.customerMemberId || 'DMC000101'}&aff=${b.autoAffiliateCode || 'AFF-DMC000101'}&singer=${b.singerCode}`;
 
       if (
         b.startSingerPriceLak !== 0 ||
@@ -3029,12 +2911,17 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const missingSingerMembers: Member[] = [];
+    // Do not auto-inject legacy seed singer/booking demo members into Members CRUD (keep 1 default Root Member DMC000101)
     singerProfiles.forEach((sng, idx) => {
+      if (sng.id.startsWith('sng-prof-')) return;
       const targetMemberId =
         sng.memberId?.trim() ||
         `DMC-LA-${String(410 + idx).padStart(5, '0')}`;
       const targetUpper = targetMemberId.toUpperCase();
-      if (deletedMemberIdsRef.current.has(targetUpper)) {
+      if (
+        deletedMemberIdsRef.current.has(targetUpper) ||
+        LEGACY_DEMO_MEMBER_IDS.has(targetUpper)
+      ) {
         return;
       }
       const exists =
@@ -3055,7 +2942,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           password: '123456',
           avatarUrl: sng.avatarUrl,
           language: 'en',
-          sponsorId: 'DMC-LA-00101',
+          sponsorId: membersRef.current[0]?.memberId || 'DMC000101',
           membershipState: 'ACTIVE_LIFETIME_MEMBER',
           createdAt: sng.appliedAt || new Date().toISOString(),
           activatedAt: sng.appliedAt || new Date().toISOString(),
@@ -3088,11 +2975,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     normalizedBookings.forEach((bk, idx) => {
+      if (bk.id === 'bk-sng-001' || bk.id === 'bk-sng-002') return;
       const targetCustMemberId =
         bk.customerMemberId?.trim() ||
         `DMC-LA-${String(810 + idx).padStart(5, '0')}`;
       const targetCustUpper = targetCustMemberId.toUpperCase();
-      if (deletedMemberIdsRef.current.has(targetCustUpper)) {
+      if (
+        deletedMemberIdsRef.current.has(targetCustUpper) ||
+        LEGACY_DEMO_MEMBER_IDS.has(targetCustUpper)
+      ) {
         return;
       }
       const exists =
@@ -3113,7 +3004,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           password: '123456',
           avatarUrl:
             'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
-          sponsorId: 'DMC-LA-00101',
+          sponsorId: membersRef.current[0]?.memberId || 'DMC000101',
           language: 'en',
           membershipState: 'ACTIVE_LIFETIME_MEMBER',
           createdAt: bk.createdAt || new Date().toISOString(),
@@ -3484,50 +3375,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // ignore storage errors
     }
-    return [
-      {
-        id: 'awd-101',
-        orderId: 'ORD-20260901-001',
-        orderLineId: 'line-1',
-        sku: 'MUSIC_SINGLE_1600',
-        tier: 'L1',
-        beneficiaryMemberId: 'DMC-LA-00404',
-        buyerMemberId: 'DMC-LA-00505',
-        grossAwardLak: 400000,
-        status: 'HELD_FOR_QUALIFICATION',
-        ruleVersion: 'v2.6',
-        createdAt: '2026-09-02T10:00:00Z',
-        clearedAt: '2026-09-02T10:00:00Z',
-      },
-      {
-        id: 'awd-102',
-        orderId: 'ORD-20260910-002',
-        orderLineId: 'line-1',
-        sku: 'MUSIC_SINGLE_1600',
-        tier: 'L1',
-        beneficiaryMemberId: 'DMC-LA-00404',
-        buyerMemberId: 'DMC-LA-00506',
-        grossAwardLak: 400000,
-        status: 'HELD_FOR_QUALIFICATION',
-        ruleVersion: 'v2.6',
-        createdAt: '2026-09-10T12:00:00Z',
-        clearedAt: '2026-09-10T12:00:00Z',
-      },
-      {
-        id: 'awd-103',
-        orderId: 'ORD-20260920-003',
-        orderLineId: 'line-1',
-        sku: 'MUSIC_SINGLE_1600',
-        tier: 'L1',
-        beneficiaryMemberId: 'DMC-LA-00404',
-        buyerMemberId: 'DMC-LA-00507',
-        grossAwardLak: 400000,
-        status: 'HELD_FOR_QUALIFICATION',
-        ruleVersion: 'v2.6',
-        createdAt: '2026-09-20T15:00:00Z',
-        clearedAt: '2026-09-20T15:00:00Z',
-      },
-    ];
+    return [];
   });
 
   useEffect(() => {
@@ -3539,223 +3387,33 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [awards]);
 
   // Unallocated awards
-  const [unallocatedAwards, setUnallocatedAwards] = useState<UnallocatedAwardRecord[]>([
-    {
-      id: 'unalloc-001',
-      orderId: 'ORD-20260915-088',
-      sku: 'MUSIC_SINGLE_1600',
-      tier: 'L2',
-      amountLak: 200000,
-      reason: 'MISSING_UPLINE',
-      recordedAt: '2026-09-15T16:05:00Z',
-    },
-    {
-      id: 'unalloc-002',
-      orderId: 'ORD-20260915-088',
-      sku: 'MUSIC_SINGLE_1600',
-      tier: 'L3',
-      amountLak: 100000,
-      reason: 'MISSING_UPLINE',
-      recordedAt: '2026-09-15T16:05:00Z',
-    },
-  ]);
+  const [unallocatedAwards, setUnallocatedAwards] = useState<UnallocatedAwardRecord[]>([]);
 
   // Orders
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: 'ORD-20260901-001',
-      buyerMemberId: 'DMC-LA-00505',
-      items: [
-        {
-          orderLineId: 'line-1',
-          sku: 'MUSIC_SINGLE_1600',
-          title: 'MUSIC_SINGLE_1600: Studio Song Production Package',
-          unitPriceLak: 1600000,
-          quantity: 1,
-          totalLak: 1600000,
-          commissionPoolLak: 700000,
-          itemType: 'SERVICE',
-        },
-      ],
-      subtotalLak: 1600000,
-      shippingFeeLak: 0,
-      totalLak: 1600000,
-      paymentMethod: 'BCEL_ONE',
-      paymentReference: 'BCEL-TX-88319028',
-      status: 'PAID',
-      createdAt: '2026-09-02T09:55:00Z',
-      paidAt: '2026-09-02T10:00:00Z',
-    },
-    {
-      id: 'ORD-20261005-042',
-      buyerMemberId: 'DMC-LA-00404',
-      items: [
-        {
-          orderLineId: 'line-gtr',
-          sku: 'GTR-DMC-ACOUSTIC-01',
-          title: 'DMC Xayraxa Signature Solid-Top Acoustic Guitar',
-          unitPriceLak: 2800000,
-          quantity: 1,
-          totalLak: 2800000,
-          commissionPoolLak: 300000,
-          itemType: 'PHYSICAL',
-        },
-      ],
-      subtotalLak: 2800000,
-      shippingFeeLak: 50000,
-      totalLak: 2850000,
-      paymentMethod: 'LAO_QR',
-      paymentReference: 'LQR-99021882',
-      status: 'SHIPPED',
-      carrierId: 'ANOUSITH',
-      carrierName: 'Anousith Logistics',
-      trackingNumber: 'ANS-LA-889921',
-      createdAt: '2026-10-05T11:20:00Z',
-      paidAt: '2026-10-05T11:25:00Z',
-    },
-  ]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
   // Withdrawals
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([
-    {
-      id: 'WTH-20261001-001',
-      memberId: 'DMC-LA-00101',
-      amountLak: 1000000,
-      bankFeeLak: 5000,
-      netPayoutLak: 995000,
-      bankName: 'BCEL One',
-      accountNumber: '160-12-00049281-001',
-      accountName: 'SENGDAO VONGSA',
-      status: 'PAID',
-      requestedAt: '2026-10-01T14:00:00Z',
-      makerAdminId: 'ADM-FIN-MAKER-01',
-      makerApprovedAt: '2026-10-01T14:30:00Z',
-      checkerAdminId: 'ADM-FIN-CHECKER-02',
-      checkerPaidAt: '2026-10-01T15:00:00Z',
-    },
-    {
-      id: 'WTH-20261011-002',
-      memberId: 'DMC-LA-00303',
-      amountLak: 400000,
-      bankFeeLak: 5000,
-      netPayoutLak: 395000,
-      bankName: 'BCEL One',
-      accountNumber: '160-12-00088910-001',
-      accountName: 'SOMPHONE XAYRAXA',
-      status: 'ADMIN_REVIEW',
-      requestedAt: '2026-10-11T16:20:00Z',
-      makerAdminId: 'ADM-FIN-MAKER-01',
-      makerApprovedAt: '2026-10-11T16:45:00Z',
-    },
-  ]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
 
-  // Immutable Ledger Entries
+  // Immutable Ledger Entries (clean default 0 LAK for single root DMC000101)
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(() => {
     try {
       const saved = localStorage.getItem(LEDGER_ENTRIES_STORAGE_KEY);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (e: LedgerEntry) =>
+              !LEGACY_DEMO_MEMBER_IDS.has(
+                String(e.memberId || '').trim().toUpperCase()
+              )
+          );
+        }
       }
     } catch {
       // ignore storage errors
     }
-    return [
-      // Khamla's 3 seed awards (400k x 3 = 1,200,000 LAK held for qualification, matching Spec Table 11 A04!)
-      {
-        id: 'led-001',
-        txRef: 'TX-20260902-001',
-        timestamp: '2026-09-02T10:00:00Z',
-        memberId: 'DMC-LA-00404',
-        type: 'COMMISSION_CLEARED_HELD',
-        sourceRef: 'awd-101',
-        debit: 0,
-        credit: 400000,
-        targetBalance: 'HELD_FOR_QUALIFICATION',
-        balanceAfter: 400000,
-        description: 'L1 Direct Commission on Music Package (ORD-20260901-001) held for qualification',
-      },
-      {
-        id: 'led-002',
-        txRef: 'TX-20260910-002',
-        timestamp: '2026-09-10T12:00:00Z',
-        memberId: 'DMC-LA-00404',
-        type: 'COMMISSION_CLEARED_HELD',
-        sourceRef: 'awd-102',
-        debit: 0,
-        credit: 400000,
-        targetBalance: 'HELD_FOR_QUALIFICATION',
-        balanceAfter: 800000,
-        description: 'L1 Direct Commission on Music Package (ORD-20260910-002) held for qualification',
-      },
-      {
-        id: 'led-003',
-        txRef: 'TX-20260920-003',
-        timestamp: '2026-09-20T15:00:00Z',
-        memberId: 'DMC-LA-00404',
-        type: 'COMMISSION_CLEARED_HELD',
-        sourceRef: 'awd-103',
-        debit: 0,
-        credit: 400000,
-        targetBalance: 'HELD_FOR_QUALIFICATION',
-        balanceAfter: 1200000,
-        description: 'L1 Direct Commission on Music Package (ORD-20260920-003) held for qualification',
-      },
-      // Somphone's initial seed balance
-      {
-        id: 'led-004',
-        txRef: 'TX-20260920-004',
-        timestamp: '2026-09-20T15:05:00Z',
-        memberId: 'DMC-LA-00303',
-        type: 'COMMISSION_CLEARED_AVAILABLE',
-        sourceRef: 'awd-seed-01',
-        debit: 0,
-        credit: 800000,
-        targetBalance: 'AVAILABLE',
-        balanceAfter: 800000,
-        description: 'Cleared referral commissions for Active Lifetime Member',
-      },
-      {
-        id: 'led-005',
-        txRef: 'TX-20261011-005',
-        timestamp: '2026-10-11T16:20:00Z',
-        memberId: 'DMC-LA-00303',
-        type: 'WITHDRAWAL_RESERVE',
-        sourceRef: 'WTH-20261011-002',
-        debit: 400000,
-        credit: 0,
-        targetBalance: 'AVAILABLE',
-        balanceAfter: 400000,
-        description: 'Atomic hold reserved for withdrawal payout review (WTH-20261011-002)',
-      },
-      // Sengdao's initial seed balance
-      {
-        id: 'led-006',
-        txRef: 'TX-20260915-006',
-        timestamp: '2026-09-15T09:00:00Z',
-        memberId: 'DMC-LA-00101',
-        type: 'COMMISSION_CLEARED_AVAILABLE',
-        sourceRef: 'awd-seed-02',
-        debit: 0,
-        credit: 1500000,
-        targetBalance: 'AVAILABLE',
-        balanceAfter: 1500000,
-        description: 'L3 Network commissions cleared into Available balance',
-      },
-      {
-        id: 'led-007',
-        txRef: 'TX-20261001-007',
-        timestamp: '2026-10-01T15:00:00Z',
-        memberId: 'DMC-LA-00101',
-        type: 'WITHDRAWAL_PAID',
-        sourceRef: 'WTH-20261001-001',
-        debit: 1000000,
-        credit: 0,
-        targetBalance: 'AVAILABLE',
-        balanceAfter: 500000,
-        description: 'BCEL One external transfer settled successfully (WTH-20261001-001)',
-      },
-    ];
+    return [];
   });
 
   useEffect(() => {
@@ -6861,7 +6519,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         members.find(
           m =>
             m.memberId.toUpperCase() ===
-            (data.sponsorMemberId || 'DMC-LA-00101').trim().toUpperCase()
+            (data.sponsorMemberId || members[0]?.memberId || 'DMC000101').trim().toUpperCase()
         ) || members[0];
 
       const newGeneralMember: Member = {
@@ -7054,14 +6712,16 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       singerStageName: cleanStage,
       singerFullName: data.fullName.trim(),
       singerAvatarUrl: resolvedAvatar,
-      customerMemberId: 'DMC-LA-00303',
+      customerMemberId: members[0]?.memberId || 'DMC000101',
       customerName: 'Thippavanh Keomany (VIP Party Host)',
       customerPhone: '+856 20 7788 3344',
       autoAffiliateActivated: true,
-      autoAffiliateCode: 'AFF-DMC-LA-00303',
-      autoAffiliateLink: `https://dmcxayraxa.music/register?ref=DMC-LA-00303&aff=AFF-DMC-LA-00303&singer=${encodeURIComponent(
-        singerCode
-      )}`,
+      autoAffiliateCode: `AFF-${members[0]?.memberId || 'DMC000101'}`,
+      autoAffiliateLink: `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
+        members[0]?.memberId || 'DMC000101'
+      )}&aff=AFF-${encodeURIComponent(
+        members[0]?.memberId || 'DMC000101'
+      )}&singer=${encodeURIComponent(singerCode)}`,
       partyEventName: `${cleanStage} Debut Music Cain Party Set Night`,
       eventLocation: data.province.trim() || 'Vientiane Capital Grand Hall',
       bookingDate: initialScheduleDateStr,
@@ -8407,7 +8067,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
         language: 'lo',
         membershipState: 'ACTIVE_LIFETIME_MEMBER',
-        sponsorId: singer.memberId || 'DMC-LA-00101',
+        sponsorId: singer.memberId || membersRef.current[0]?.memberId || 'DMC000101',
         createdAt: nowIso,
         activatedAt: nowIso,
         activationMethod: 'DIRECT_CASH',
@@ -8536,7 +8196,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Resolve L1, L2, L3 Upline Sponsors for Customer Booking Member Activation (L1: 400,000 • L2: 200,000 • L3: 100,000 LAK)
-    const l1SponsorId = singer.memberId || 'DMC-LA-00001';
+    const l1SponsorId = singer.memberId || membersRef.current[0]?.memberId || 'DMC000101';
     const l1SponsorMember = members.find(m => m.memberId === l1SponsorId) || null;
     const l2SponsorMember = l1SponsorMember?.sponsorId
       ? members.find(m => m.memberId === l1SponsorMember.sponsorId) || null
@@ -8895,13 +8555,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [customerAffiliateCommissionPool, setCustomerAffiliateCommissionPool] =
     useState<Record<string, number>>(() => {
     const defaults: Record<string, number> = {
-      'DMC-LA-00303': 0,
-      'DMC-LA-00404': 0,
-      'DMC-LA-00101': 0,
-      'DMC-LA-00102': 750000,
-      'DMC-LA-00201': 650000,
-      'DMC-LA-00202': 0,
-      'DMC-LA-00506': 0,
+      'DMC000101': 0,
     };
     try {
       const raw = localStorage.getItem(
@@ -10466,10 +10120,10 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ]);
 
   const runAllUatTests = () => {
-    // Re-verify live values against active state
-    const khamlaBalances = getMemberBalances('DMC-LA-00404');
-    const khamlaRemaining = Math.max(0, 1600000 - khamlaBalances.heldForQualification);
-    const khamlaPercent = Math.min(100, Math.floor((khamlaBalances.heldForQualification / 1600000) * 100));
+    const rootId = members[0]?.memberId || 'DMC000101';
+    const rootBalances = getMemberBalances(rootId);
+    const rootRemaining = Math.max(0, 1600000 - rootBalances.heldForQualification);
+    const rootPercent = Math.min(100, Math.floor((rootBalances.heldForQualification / 1600000) * 100));
 
     setUatResults(prev =>
       prev.map(t => {
@@ -10478,7 +10132,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...t,
             pass: true,
             status: 'PASSED',
-            observed: `Current Khamla Held: ${khamlaBalances.heldForQualification.toLocaleString()} LAK (${khamlaPercent}%), Remaining: ${khamlaRemaining.toLocaleString()} LAK, Available: ${khamlaBalances.available.toLocaleString()} LAK`,
+            observed: `Current Root (${rootId}) Held: ${rootBalances.heldForQualification.toLocaleString()} LAK (${rootPercent}%), Remaining: ${rootRemaining.toLocaleString()} LAK, Available: ${rootBalances.available.toLocaleString()} LAK`,
           };
         }
         return { ...t, status: 'PASSED' };

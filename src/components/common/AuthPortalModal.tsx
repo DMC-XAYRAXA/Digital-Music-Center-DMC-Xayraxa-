@@ -910,7 +910,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                   onClick={() => {
                     setUserRoleType('USER_MEMBER');
                     setErrorMsg('');
-                    setIdentifier('DMC-LA-00404');
+                    setIdentifier(allMembers[0]?.memberId || 'DMC000101');
                     setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
@@ -928,7 +928,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setErrorMsg('');
                     const firstSinger = singerProfiles[0];
                     setIdentifier(
-                      firstSinger?.memberId || firstSinger?.singerCode || 'DMC-LA-00421'
+                      firstSinger?.memberId || firstSinger?.singerCode || allMembers[0]?.memberId || 'DMC000101'
                     );
                     setPassword('');
                   }}
@@ -946,7 +946,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setUserRoleType('USER_CUSTOMER');
                     setErrorMsg('');
                     const latestBooking = singerBookings[0];
-                    setIdentifier(latestBooking?.customerMemberId || 'DMC-LA-00303');
+                    setIdentifier(latestBooking?.customerMemberId || allMembers[0]?.memberId || 'DMC000101');
                     setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
@@ -987,7 +987,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="Type Member ID (e.g., DMC-LA-00404) or Phone (+856)"
+                    placeholder="Type Member ID (e.g., DMC000101) or Phone (+856)"
                     required
                     className="w-full bg-white border border-slate-400 rounded pl-9 pr-3 py-2.5 text-sm font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6B0816] focus:ring-1 focus:ring-[#6B0816] shadow-inner"
                   />
@@ -1156,7 +1156,9 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                   <span className="text-[10px] font-semibold text-slate-700">
                     Cloud Multi-Device Sync:{' '}
                     <strong className={isFirebaseAdmin ? 'text-emerald-700' : 'text-amber-700'}>
-                      {isFirebaseAdmin ? 'Connected (xay.raxa@gmail.com)' : cloudSyncStatus}
+                      {isFirebaseAdmin
+                        ? 'CONNECTED (All Devices Synced)'
+                        : `${cloudSyncStatus} — Local Computer Only`}
                     </strong>
                   </span>
                   {!isFirebaseAdmin && (
@@ -1168,15 +1170,23 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                         if (!res.success && res.error) {
                           setErrorMsg(res.error);
                         } else if (res.success) {
-                          setSuccessMsg('Google Cloud Sync connected! All devices now sync in real time.');
+                          setSuccessMsg(
+                            res.message ||
+                              'Google Cloud Sync connected! All devices now sync in real time.'
+                          );
                         }
                       }}
-                      className="px-2 py-1 rounded bg-[#065F46] hover:bg-[#077355] text-white text-[10px] font-bold cursor-pointer"
+                      className="px-2.5 py-1 rounded bg-[#065F46] hover:bg-[#077355] text-white text-[10px] font-bold cursor-pointer"
                     >
-                      Connect Google Sync
+                      Connect Google Sync (xay.raxa@gmail.com)
                     </button>
                   )}
                 </div>
+                {!isFirebaseAdmin && (
+                  <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-300 rounded px-2 py-1 font-medium leading-snug">
+                    Note: Without Google Cloud Sync, password resets &amp; member deletions stay only on this computer. Click <strong>Connect Google Sync</strong> once to sync across all computers &amp; QR phones.
+                  </div>
+                )}
                 {cloudSyncError && (
                   <div className="text-[10px] text-rose-700 font-semibold leading-tight">
                     {cloudSyncError}
@@ -1707,6 +1717,33 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               >
                 Confirm Inbox Code &amp; Save New Password
               </button>
+
+              {!isFirebaseAdmin && (
+                <div className="p-2.5 rounded bg-amber-50 border border-amber-300 space-y-2 text-[11px] text-amber-950">
+                  <div className="font-semibold leading-snug">
+                    After saving your new password above, click below to upload it to Google Cloud so your <strong>second computer &amp; phones</strong> immediately reject the old <code className="font-mono font-bold">888888</code> password:
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setErrorMsg('');
+                      const res = await connectGoogleCloudSync({ pushLocalToCloud: true });
+                      if (!res.success && res.error) {
+                        setErrorMsg(res.error);
+                      } else if (res.success) {
+                        setSuccessMsg(
+                          res.message ||
+                            'Uploaded new Super Admin password & member list to Cloud across all devices!'
+                        );
+                      }
+                    }}
+                    className="w-full py-2 px-3 rounded bg-[#065F46] hover:bg-[#077355] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-[#F9E498]" />
+                    <span>Connect Google Cloud Sync &amp; Upload Password to All Computers</span>
+                  </button>
+                </div>
+              )}
             </form>
           )}
         </div>

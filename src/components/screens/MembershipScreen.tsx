@@ -49,7 +49,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
     phone: '+856 20 ',
     email: '',
     password: '123456',
-    sponsorCode: currentMember.memberId || 'DMC-LA-00404',
+    sponsorCode: currentMember.memberId || 'DMC000101',
     termsConsent: true,
     autoRedeemConsent: true,
   });
@@ -317,7 +317,7 @@ export const MembershipScreen: React.FC<MembershipScreenProps> = ({ onNavigate }
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. DMC-LA-00404"
+                  placeholder="e.g. DMC000101"
                   value={formData.sponsorCode}
                   onChange={e => handleSponsorChange(e.target.value)}
                   className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono uppercase"

@@ -147,6 +147,108 @@ function sanitizeSafeUrl(url?: string): string {
   return trimmed;
 }
 
+function parsePublicDirectorySnap(
+  d: Record<string, unknown>
+): CloudPublicDirectoryState {
+  let updatedAtIso: string | undefined;
+  const rawUpdatedAt = d.updatedAt as { toDate?: () => Date } | undefined;
+  if (rawUpdatedAt && typeof rawUpdatedAt.toDate === 'function') {
+    updatedAtIso = rawUpdatedAt.toDate().toISOString();
+  }
+  return {
+    schemaVersion: Number(d.schemaVersion || 1),
+    adminOperatorId: String(d.adminOperatorId || 'SUPER-ADMIN-LAO'),
+    adminPasswordHash: String(d.adminPasswordHash || ''),
+    adminPasswordUpdatedAt: String(d.adminPasswordUpdatedAt || ''),
+    deletedMemberIds: Array.isArray(d.deletedMemberIds)
+      ? d.deletedMemberIds.map((x: unknown) => String(x).trim().toUpperCase()).filter(Boolean)
+      : [],
+    activeSponsorIds: Array.isArray(d.activeSponsorIds)
+      ? d.activeSponsorIds.map((x: unknown) => String(x).trim().toUpperCase()).filter(Boolean)
+      : [],
+    activeSponsorNames:
+      d.activeSponsorNames && typeof d.activeSponsorNames === 'object'
+        ? (d.activeSponsorNames as Record<string, string>)
+        : {},
+    memberAuthHashes:
+      d.memberAuthHashes && typeof d.memberAuthHashes === 'object'
+        ? (d.memberAuthHashes as Record<string, string>)
+        : {},
+    memberStates:
+      d.memberStates && typeof d.memberStates === 'object'
+        ? (d.memberStates as Record<string, Member['membershipState']>)
+        : {},
+    ownerUid: String(d.ownerUid || ''),
+    updatedAtIso,
+  };
+}
+
+export async function fetchPublicDirectoryStateOnce(): Promise<CloudPublicDirectoryState | null> {
+  const path = 'public_directory/state';
+  try {
+    const snap = await getDoc(doc(db, 'public_directory', 'state'));
+    if (!snap.exists()) return null;
+    return parsePublicDirectorySnap(snap.data() as Record<string, unknown>);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.GET, path);
+  }
+}
+
+export async function fetchAdminVaultConfigOnce(): Promise<CloudAdminVaultConfig | null> {
+  const path = 'admin_vault/super_admin_config';
+  try {
+    const snap = await getDoc(doc(db, 'admin_vault', 'super_admin_config'));
+    if (!snap.exists()) return null;
+    const d = snap.data();
+    return {
+      operatorId: String(d.operatorId || 'SUPER-ADMIN-LAO'),
+      name: String(d.name || 'Xayraxa Master Administrator'),
+      phone: String(d.phone || '+856 20 5599 8888'),
+      email: String(d.email || AUTHORIZED_ADMIN_EMAIL),
+      roleTitle: String(d.roleTitle || 'Chief Executive & Master CRUD Controller'),
+      passwordHash: String(d.passwordHash || ''),
+      lastPasswordUpdatedAt: String(d.lastPasswordUpdatedAt || ''),
+      ownerUid: String(d.ownerUid || ''),
+    };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.GET, path);
+  }
+}
+
+export async function fetchCloudMembersOnce(): Promise<CloudMemberRecord[]> {
+  const path = 'members';
+  try {
+    const snap = await getDocs(collection(db, 'members'));
+    return snap.docs.map((docSnap) => {
+      const d = docSnap.data();
+      return {
+        memberId: String(d.memberId || docSnap.id),
+        name: String(d.name || ''),
+        phone: String(d.phone || ''),
+        email: String(d.email || ''),
+        passwordHash: String(d.passwordHash || ''),
+        membershipState:
+          d.membershipState === 'ACTIVE_LIFETIME_MEMBER'
+            ? 'ACTIVE_LIFETIME_MEMBER'
+            : 'FREE_MEMBER',
+        sponsorId: String(d.sponsorId || ''),
+        kycStatus:
+          d.kycStatus === 'VERIFIED' || d.kycStatus === 'PENDING'
+            ? d.kycStatus
+            : 'UNVERIFIED',
+        avatarUrl: String(d.avatarUrl || ''),
+        language: sanitizeLanguage(d.language),
+        isAutomaticAffiliate: Boolean(d.isAutomaticAffiliate),
+        autoAffiliateCode: d.autoAffiliateCode ? String(d.autoAffiliateCode) : undefined,
+        bankSummary: d.bankSummary ? String(d.bankSummary) : undefined,
+        ownerUid: String(d.ownerUid || ''),
+      };
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, path);
+  }
+}
+
 export function listenToPublicDirectoryState(
   onData: (state: CloudPublicDirectoryState | null) => void,
   onError?: (err: Error) => void
@@ -160,37 +262,7 @@ export function listenToPublicDirectoryState(
         onData(null);
         return;
       }
-      const d = snap.data();
-      let updatedAtIso: string | undefined;
-      if (d.updatedAt && typeof d.updatedAt.toDate === 'function') {
-        updatedAtIso = d.updatedAt.toDate().toISOString();
-      }
-      onData({
-        schemaVersion: Number(d.schemaVersion || 1),
-        adminOperatorId: String(d.adminOperatorId || 'SUPER-ADMIN-LAO'),
-        adminPasswordHash: String(d.adminPasswordHash || ''),
-        adminPasswordUpdatedAt: String(d.adminPasswordUpdatedAt || ''),
-        deletedMemberIds: Array.isArray(d.deletedMemberIds)
-          ? d.deletedMemberIds.map((x: unknown) => String(x).trim().toUpperCase()).filter(Boolean)
-          : [],
-        activeSponsorIds: Array.isArray(d.activeSponsorIds)
-          ? d.activeSponsorIds.map((x: unknown) => String(x).trim().toUpperCase()).filter(Boolean)
-          : [],
-        activeSponsorNames:
-          d.activeSponsorNames && typeof d.activeSponsorNames === 'object'
-            ? (d.activeSponsorNames as Record<string, string>)
-            : {},
-        memberAuthHashes:
-          d.memberAuthHashes && typeof d.memberAuthHashes === 'object'
-            ? (d.memberAuthHashes as Record<string, string>)
-            : {},
-        memberStates:
-          d.memberStates && typeof d.memberStates === 'object'
-            ? (d.memberStates as Record<string, Member['membershipState']>)
-            : {},
-        ownerUid: String(d.ownerUid || ''),
-        updatedAtIso,
-      });
+      onData(parsePublicDirectorySnap(snap.data() as Record<string, unknown>));
     },
     (err) => {
       if (onError) onError(err);

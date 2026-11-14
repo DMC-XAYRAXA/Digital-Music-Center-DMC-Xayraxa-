@@ -171,7 +171,7 @@ export const AdminExcelReportHub: React.FC<{
   const [editingProofId, setEditingProofId] = useState<string | null>(null);
   const [proofForm, setProofForm] = useState({
     referenceNo: `BCEL-QR-${Math.floor(10000000 + Math.random() * 90000000)}`,
-    memberId: allMembers[0]?.memberId || 'DMC-LA-00404',
+    memberId: allMembers[0]?.memberId || 'DMC000101',
     paymentType: 'ORDER_PAYMENT_PROOF' as CustomPaymentProofRecord['paymentType'],
     bankName: corporateBankAccounts[0]?.bankName || 'BCEL One',
     accountOrTxNo: `TX-${Date.now().toString().slice(-8)}`,
