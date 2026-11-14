@@ -910,7 +910,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                   onClick={() => {
                     setUserRoleType('USER_MEMBER');
                     setErrorMsg('');
-                    setIdentifier(allMembers[0]?.memberId || 'DMC000101');
+                    setIdentifier(allMembers[0]?.memberId || 'DMC-LA-000004');
                     setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
@@ -928,7 +928,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setErrorMsg('');
                     const firstSinger = singerProfiles[0];
                     setIdentifier(
-                      firstSinger?.memberId || firstSinger?.singerCode || allMembers[0]?.memberId || 'DMC000101'
+                      firstSinger?.memberId || firstSinger?.singerCode || allMembers[0]?.memberId || 'DMC-LA-000004'
                     );
                     setPassword('');
                   }}
@@ -946,7 +946,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setUserRoleType('USER_CUSTOMER');
                     setErrorMsg('');
                     const latestBooking = singerBookings[0];
-                    setIdentifier(latestBooking?.customerMemberId || allMembers[0]?.memberId || 'DMC000101');
+                    setIdentifier(latestBooking?.customerMemberId || allMembers[0]?.memberId || 'DMC-LA-000004');
                     setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
@@ -987,7 +987,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="Type Member ID (e.g., DMC000101) or Phone (+856)"
+                    placeholder="Type Member ID (e.g., DMC-LA-000004) or Phone (+856)"
                     required
                     className="w-full bg-white border border-slate-400 rounded pl-9 pr-3 py-2.5 text-sm font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#6B0816] focus:ring-1 focus:ring-[#6B0816] shadow-inner"
                   />

@@ -33,7 +33,7 @@ import {
   KeyRound,
   FileSpreadsheet,
 } from 'lucide-react';
-import { DmcOfficialLogo } from './DmcLogo';
+import { DmcOfficialLogo, DMC_OFFICIAL_LOGO_DATA_URL } from './DmcLogo';
 import { downloadExcelWorkbook, ExcelSheetData } from '../../utils/excelExport';
 
 interface DownlineOrganizeTreeProps {
@@ -168,7 +168,8 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
   const selectedDownlines = getDownlines(selectedMember.memberId);
 
   const getAvatar = (m: Member, fallbackIdx = 0) => {
-    if (m.avatarUrl && !m.avatarUrl.startsWith('data:image/svg+xml')) return m.avatarUrl;
+    if (m.avatarUrl) return m.avatarUrl;
+    if (m.sponsorId) return DMC_OFFICIAL_LOGO_DATA_URL;
     return PRESET_PORTRAITS[fallbackIdx % PRESET_PORTRAITS.length];
   };
 
@@ -1212,7 +1213,7 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
                       disabled={!isAdmin}
                       value={editMemberId}
                       onChange={(e) => setEditMemberId(e.target.value)}
-                      placeholder="e.g. DMC-LA-00303"
+                      placeholder="e.g. DMC-LA-000004"
                       className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none ${
                         isAdmin
                           ? 'bg-slate-900 border-slate-700 text-amber-300 focus:border-amber-400'

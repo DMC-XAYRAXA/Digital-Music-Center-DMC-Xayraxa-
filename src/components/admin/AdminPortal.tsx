@@ -212,7 +212,7 @@ export const AdminPortal: React.FC = () => {
   const [adminFormCarrier, setAdminFormCarrier] = useState(superAdminProfile.telecomCarrier);
   const [adminFormPin, setAdminFormPin] = useState(superAdminProfile.passwordPin);
   const [adminSmsTarget, setAdminSmsTarget] = useState<'SUPER_ADMIN' | 'MEMBER'>('SUPER_ADMIN');
-  const [adminSmsMemberId, setAdminSmsMemberId] = useState(allMembers[0]?.memberId || 'DMC000101');
+  const [adminSmsMemberId, setAdminSmsMemberId] = useState(allMembers[0]?.memberId || 'DMC-LA-000004');
   const [adminSmsNewPass, setAdminSmsNewPass] = useState('');
   const [adminSmsOtpInput, setAdminSmsOtpInput] = useState('');
   const [isSendingAdminEmailCode, setIsSendingAdminEmailCode] = useState(false);
@@ -229,7 +229,7 @@ export const AdminPortal: React.FC = () => {
 
   // Administrator Master User Profile & Password Manager State (1/ User Member • 2/ User Singer • 3/ User Customer)
   const [adminMasterRoleTarget, setAdminMasterRoleTarget] = useState<'MEMBER' | 'SINGER' | 'CUSTOMER'>('MEMBER');
-  const [adminMasterMemberId, setAdminMasterMemberId] = useState<string>(allMembers[0]?.memberId || 'DMC000101');
+  const [adminMasterMemberId, setAdminMasterMemberId] = useState<string>(allMembers[0]?.memberId || 'DMC-LA-000004');
   const selectedMasterMember = allMembers.find((m) => m.memberId === adminMasterMemberId) || allMembers[0];
   const selectedMasterSinger =
     singerProfiles.find((s) => s.memberId?.toUpperCase() === (selectedMasterMember?.memberId || '').toUpperCase()) ||
@@ -390,16 +390,16 @@ export const AdminPortal: React.FC = () => {
 
   const handleRestoreDemoMembersPrompt = () => {
     setPendingConfirmModal({
-      title: 'Restore Default Root Member (DMC000101)?',
+      title: 'Restore Default Organize Tree (22 Members)?',
       message:
-        'This will restore the 1 default Organize Head (Root) member account (DMC-Xayraxa • DMC000101) and clear the deleted members list.',
-      confirmLabel: 'Confirm Restore Default Root',
+        'This will restore the default 3-Level Organize Tree (DMC XAYRAXA 4 • DMC-LA-000004 Root + 21 Lao Regional & Provincial Hubs) and clear the deleted members list.',
+      confirmLabel: 'Confirm Restore Default Tree',
       tone: 'success',
       onConfirm: () => {
         adminRestoreDefaultMembers();
         setHasUnsavedMemberConfirmation(false);
         setLastMembersConfirmedAt(new Date().toISOString());
-        showNotification('Restored default Organize Head Root member (DMC000101).');
+        showNotification('Restored default 22-member Organize Tree (Root: DMC-LA-000004).');
       },
     });
   };
@@ -503,7 +503,7 @@ export const AdminPortal: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   const [newOrderForm, setNewOrderForm] = useState({
-    buyerMemberId: allMembers[0]?.memberId || 'DMC000101',
+    buyerMemberId: allMembers[0]?.memberId || 'DMC-LA-000004',
     sku: 'GTR-DMC-ACOUSTIC-01',
     quantity: 1,
     paymentMethod: 'BCEL_ONE' as Order['paymentMethod'],
@@ -678,7 +678,7 @@ export const AdminPortal: React.FC = () => {
   const [editingSong, setEditingSong] = useState<SongProductionProject | null>(null);
 
   const [newSongForm, setNewSongForm] = useState({
-    memberId: allMembers[0]?.memberId || 'DMC000101',
+    memberId: allMembers[0]?.memberId || 'DMC-LA-000004',
     title: '',
     genre: 'Lao Modern Pop',
     tempo: '90 BPM',
@@ -1478,7 +1478,7 @@ export const AdminPortal: React.FC = () => {
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Restore Default Root (DMC000101)</span>
+                <span>Restore Default Tree (22)</span>
               </button>
             )}
           </div>

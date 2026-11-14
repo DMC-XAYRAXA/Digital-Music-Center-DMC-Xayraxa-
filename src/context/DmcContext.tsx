@@ -78,6 +78,7 @@ import {
   sendPasswordResetConfirmationEmail,
   verifyEmailResetCode,
 } from '../utils/emailVerificationService';
+import { DMC_OFFICIAL_LOGO_DATA_URL } from '../components/common/DmcLogo';
 
 export const TWELVE_HOURS_INACTIVITY_MS = 12 * 60 * 60 * 1000; // 12 Hours (43,200,000 ms)
 export const FOUR_HOURS_INACTIVITY_MS = TWELVE_HOURS_INACTIVITY_MS;
@@ -88,7 +89,7 @@ const LEDGER_ENTRIES_STORAGE_KEY = 'dmc_rev26_ledger_entries_v1';
 const AWARDS_STORAGE_KEY = 'dmc_rev26_awards_v1';
 const SUPER_ADMIN_STORAGE_KEY = 'dmc_rev26_super_admin_v1';
 const CLOUD_PUBLIC_DIRECTORY_CACHE_KEY = 'dmc_rev26_cloud_public_dir_v1';
-const SINGLE_ROOT_MIGRATION_KEY = 'dmc_rev26_single_root_v1';
+const PROVINCE_TREE_MIGRATION_KEY = 'dmc_rev26_province_tree_22_v1';
 
 const LEGACY_DEMO_MEMBER_IDS = new Set<string>([
   'DMC-LA-00101',
@@ -109,6 +110,31 @@ const LEGACY_DEMO_MEMBER_IDS = new Set<string>([
   'DMC-LA-00704',
 ]);
 
+const DEFAULT_TREE_MEMBER_IDS = new Set<string>([
+  'DMC-LA-000004',
+  'DMC-LA-00109',
+  'DMC-LA-00110',
+  'DMC-LA-00111',
+  'DMC-LA-00112',
+  'DMC-LA-00113',
+  'DMC-LA-00114',
+  'DMC-LA-00115',
+  'DMC-LA-00116',
+  'DMC-LA-00117',
+  'DMC-LA-00118',
+  'DMC-LA-00119',
+  'DMC-LA-00120',
+  'DMC-LA-00121',
+  'DMC-LA-00122',
+  'DMC-LA-00123',
+  'DMC-LA-00124',
+  'DMC-LA-00125',
+  'DMC-LA-00126',
+  'DMC-LA-00127',
+  'DMC-LA-00128',
+  'DMC-LA-00129',
+]);
+
 function loadDeletedMemberIdsFromStorage(): string[] {
   try {
     const raw = localStorage.getItem(DELETED_MEMBER_IDS_STORAGE_KEY);
@@ -118,9 +144,14 @@ function loadDeletedMemberIdsFromStorage(): string[] {
         const cleaned = parsed
           .map((id) => String(id).trim().toUpperCase())
           .filter(Boolean);
-        // On first migration to single-root default, drop legacy demo tombstones so Deleted count starts clean
-        if (!localStorage.getItem(SINGLE_ROOT_MIGRATION_KEY)) {
-          return cleaned.filter((id) => !LEGACY_DEMO_MEMBER_IDS.has(id));
+        // On first migration to the 22-member Lao Province Organize Tree default, drop old tombstones
+        if (!localStorage.getItem(PROVINCE_TREE_MIGRATION_KEY)) {
+          return cleaned.filter(
+            (id) =>
+              !LEGACY_DEMO_MEMBER_IDS.has(id) &&
+              !DEFAULT_TREE_MEMBER_IDS.has(id) &&
+              id !== 'DMC000101'
+          );
         }
         return cleaned;
       }
@@ -196,7 +227,7 @@ function loadInitialActiveSession(): {
   const now = Date.now();
   const defaultSession: StoredActiveSession = {
     isLoggedOut: true,
-    currentMemberId: 'DMC000101',
+    currentMemberId: 'DMC-LA-000004',
     isAdminMode: false,
     isAdminAuthenticated: false,
     lastActivityAt: now,
@@ -207,7 +238,9 @@ function loadInitialActiveSession(): {
     const parsed = JSON.parse(raw) as Partial<StoredActiveSession>;
     const normalizedParsedId = (parsed.currentMemberId || '').trim().toUpperCase();
     const safeMemberId =
-      normalizedParsedId && !LEGACY_DEMO_MEMBER_IDS.has(normalizedParsedId)
+      normalizedParsedId &&
+      !LEGACY_DEMO_MEMBER_IDS.has(normalizedParsedId) &&
+      normalizedParsedId !== 'DMC000101'
         ? parsed.currentMemberId!
         : defaultSession.currentMemberId;
     if (parsed.isLoggedOut !== false) {
@@ -227,7 +260,7 @@ function loadInitialActiveSession(): {
     return {
       session: {
         isLoggedOut: false,
-        currentMemberId: parsed.currentMemberId || 'DMC000101',
+        currentMemberId: safeMemberId,
         isAdminMode: Boolean(parsed.isAdminMode),
         isAdminAuthenticated: Boolean(parsed.isAdminAuthenticated),
         lastActivityAt: lastTs,
@@ -671,24 +704,37 @@ interface DmcContextType {
 
 const DmcContext = createContext<DmcContextType | null>(null);
 
-// Initial Seed Members: 1 Default User Member & Organize Head (Root)
-const INITIAL_MEMBERS: Member[] = [
-  {
-    id: 'usr-dmc000101',
-    memberId: 'DMC000101',
-    name: 'DMC-Xayraxa',
-    phone: '+856 20 55414965',
-    email: 'xay.raxa@gmail.com',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-    language: 'en',
+function buildDefaultTreeMember(params: {
+  memberId: string;
+  name: string;
+  sponsorId: string | null;
+  phone: string;
+  email?: string;
+  avatarUrl?: string;
+  province?: string;
+}): Member {
+  return {
+    id: `usr-${params.memberId.toLowerCase()}`,
+    memberId: params.memberId,
+    name: params.name,
+    phone: params.phone,
+    email: params.email || `${params.memberId.toLowerCase()}@dmcxayraxa.music`,
+    avatarUrl: params.avatarUrl ?? DMC_OFFICIAL_LOGO_DATA_URL,
+    language: 'lo',
     membershipState: 'ACTIVE_LIFETIME_MEMBER',
-    sponsorId: null,
+    sponsorId: params.sponsorId,
     createdAt: '2026-10-01T08:00:00Z',
     activatedAt: '2026-10-01T08:00:00Z',
     activationMethod: 'DIRECT_CASH',
     isAutomaticAffiliate: true,
-    autoAffiliateCode: 'AFF-DMC000101',
+    autoAffiliateCode: `AFF-${params.memberId}`,
+    deliveryAddress: params.province
+      ? {
+          province: params.province,
+          district: params.province,
+          village: 'DMC Hub Center',
+        }
+      : undefined,
     consents: {
       termsAccepted: true,
       termsVersion: 'v2.6',
@@ -702,12 +748,181 @@ const INITIAL_MEMBERS: Member[] = [
       bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
       bankCode: 'BCEL',
       accountNumber: '010-12-00088910-001',
-      accountName: 'DMC-XAYRAXA',
+      accountName: params.name.toUpperCase(),
       branch: 'Head Office Vientiane',
       isDefault: true,
     },
-  },
+  };
+}
+
+// Initial Seed Members: 1 Organize Head (Root) + 3 Regional L1 + 6 Provincial L2 + 12 Provincial L3 = 22 Members
+const INITIAL_MEMBERS: Member[] = [
+  // Level 0: Organize Head (Root)
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-000004',
+    name: 'DMC XAYRAXA 4',
+    sponsorId: null,
+    phone: '+856 20 55414965',
+    email: 'xay.raxa@gmail.com',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
+    province: 'Vientiane Capital',
+  }),
+  // Level 1 (L1): 3 Regional Heads
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00109',
+    name: 'DMC XAYRAXA 5 ໃຕ້',
+    sponsorId: 'DMC-LA-000004',
+    phone: '+856 20 5500 0109',
+    province: 'Southern Region Hub',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00110',
+    name: 'DMC XAYRAXA 6 ກາງ',
+    sponsorId: 'DMC-LA-000004',
+    phone: '+856 20 5500 0110',
+    province: 'Central Region Hub',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00111',
+    name: 'DMC XAYRAXA 7 ເໜືອ',
+    sponsorId: 'DMC-LA-000004',
+    phone: '+856 20 5500 0111',
+    province: 'Northern Region Hub',
+  }),
+  // Level 2 (L2): 6 Provincial Hubs (2 per L1)
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00112',
+    name: '02-ຈຳປາສັກ',
+    sponsorId: 'DMC-LA-00109',
+    phone: '+856 20 5500 0112',
+    province: 'Champasak',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00113',
+    name: '04-ສາລະວັນ',
+    sponsorId: 'DMC-LA-00109',
+    phone: '+856 20 5500 0113',
+    province: 'Salavan',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00114',
+    name: '06-ນະຄອນຫຼວງວຽງຈັນ',
+    sponsorId: 'DMC-LA-00110',
+    phone: '+856 20 5500 0114',
+    province: 'Vientiane Capital',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00115',
+    name: '08-ສະຫວັນນະເຂດ',
+    sponsorId: 'DMC-LA-00110',
+    phone: '+856 20 5500 0115',
+    province: 'Savannakhet',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00116',
+    name: '10-ຫຼວງພະບາງ',
+    sponsorId: 'DMC-LA-00111',
+    phone: '+856 20 5500 0116',
+    province: 'Luang Prabang',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00117',
+    name: '12-ອຸດົມໄຊ',
+    sponsorId: 'DMC-LA-00111',
+    phone: '+856 20 5500 0117',
+    province: 'Oudomxay',
+  }),
+  // Level 3 (L3): 12 Provincial Hubs (2 per L2)
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00118',
+    name: '14-ອັດຕະປື',
+    sponsorId: 'DMC-LA-00112',
+    phone: '+856 20 5500 0118',
+    province: 'Attapeu',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00119',
+    name: '16-ເຊກອງ',
+    sponsorId: 'DMC-LA-00112',
+    phone: '+856 20 5500 0119',
+    province: 'Sekong',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00120',
+    name: '18-ຄຳມ່ວນ',
+    sponsorId: 'DMC-LA-00113',
+    phone: '+856 20 5500 0120',
+    province: 'Khammouane',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00121',
+    name: '20-ເຂດພິເສດພາກໃຕ້',
+    sponsorId: 'DMC-LA-00113',
+    phone: '+856 20 5500 0121',
+    province: 'Southern Special Zone',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00122',
+    name: '22-ແຂວງວຽງຈັນ',
+    sponsorId: 'DMC-LA-00114',
+    phone: '+856 20 5500 0122',
+    province: 'Vientiane Province',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00123',
+    name: '24-ໄຊສົມບູນ',
+    sponsorId: 'DMC-LA-00114',
+    phone: '+856 20 5500 0123',
+    province: 'Xaisomboun',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00124',
+    name: '26-ບໍລິຄຳໄຊ',
+    sponsorId: 'DMC-LA-00115',
+    phone: '+856 20 5500 0124',
+    province: 'Bolikhamxai',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00125',
+    name: '28-ຊຽງຂວາງ',
+    sponsorId: 'DMC-LA-00115',
+    phone: '+856 20 5500 0125',
+    province: 'Xiangkhouang',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00126',
+    name: '30-ໄຊຍະບູລີ',
+    sponsorId: 'DMC-LA-00116',
+    phone: '+856 20 5500 0126',
+    province: 'Sainyabuli',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00127',
+    name: '32-ຫົວພັນ',
+    sponsorId: 'DMC-LA-00116',
+    phone: '+856 20 5500 0127',
+    province: 'Houaphanh',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00128',
+    name: '34-ຫຼວງນ້ຳທາ',
+    sponsorId: 'DMC-LA-00117',
+    phone: '+856 20 5500 0128',
+    province: 'Luang Namtha',
+  }),
+  buildDefaultTreeMember({
+    memberId: 'DMC-LA-00129',
+    name: '36-ບໍ່ແກ້ວ-ຜົ້ງສາລີ',
+    sponsorId: 'DMC-LA-00117',
+    phone: '+856 20 5500 0129',
+    province: 'Bokeo - Phongsaly',
+  }),
 ];
+
+const INITIAL_MEMBERS_BY_ID = new Map<string, Member>(
+  INITIAL_MEMBERS.map((m) => [m.memberId.trim().toUpperCase(), m])
+);
 
 // Official Default LAO QR Code Image & Beneficiary Name
 export const DEFAULT_DMC_QR_CODE_IMAGE = '/assets/aistudio/SAYSAVANG_RAXA_2264abce.png';
@@ -1568,7 +1783,7 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     singerFullName: 'Khamla Phommavong',
     singerAvatarUrl:
       'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80',
-    customerMemberId: 'DMC000101',
+    customerMemberId: 'DMC-LA-000004',
     customerName: 'Souksavanh Grand Hotel Event',
     customerPhone: '+856 20 5588 3322',
     partyEventName: 'Music Cain VIP Anniversary Gala Party',
@@ -1576,9 +1791,9 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     bookingDate: '2026-11-15',
     bookingTimeSlot: '18:30 - 22:30 (Evening Party Set)',
     autoAffiliateActivated: true,
-    autoAffiliateCode: 'AFF-DMC000101',
+    autoAffiliateCode: 'AFF-DMC-LA-000004',
     autoAffiliateLink:
-      'https://dmcxayraxa.music/register?ref=DMC000101&aff=AFF-DMC000101&singer=DMC-SNG-001',
+      'https://dmcxayraxa.music/register?ref=DMC-LA-000004&aff=AFF-DMC-LA-000004&singer=DMC-SNG-001',
     startSingerPriceLak: 5000000,
     packagePartyPriceLak: 8300000,
     singerPriceTier: 'MEDIUM',
@@ -1611,7 +1826,7 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     singerFullName: 'Somphone Xayraxa',
     singerAvatarUrl:
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=320&q=80',
-    customerMemberId: 'DMC000101',
+    customerMemberId: 'DMC-LA-000004',
     customerName: 'Chanthabouly Wedding & Festival Host',
     customerPhone: '+856 20 9977 1122',
     partyEventName: 'Traditional Baci & Music Cain Concert Night',
@@ -1619,9 +1834,9 @@ const INITIAL_SINGER_BOOKINGS: DmcSingerPartyBooking[] = [
     bookingDate: '2026-11-22',
     bookingTimeSlot: '17:00 - 21:30 (Festival Party Set)',
     autoAffiliateActivated: true,
-    autoAffiliateCode: 'AFF-DMC000101',
+    autoAffiliateCode: 'AFF-DMC-LA-000004',
     autoAffiliateLink:
-      'https://dmcxayraxa.music/register?ref=DMC000101&aff=AFF-DMC000101&singer=DMC-SNG-002',
+      'https://dmcxayraxa.music/register?ref=DMC-LA-000004&aff=AFF-DMC-LA-000004&singer=DMC-SNG-002',
     startSingerPriceLak: 10000000,
     packagePartyPriceLak: 4700000,
     singerPriceTier: 'EXPENSIVE',
@@ -1756,11 +1971,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [members, setMembers] = useState<Member[]>(() => {
     const initialDeleted = new Set(loadDeletedMemberIdsFromStorage());
-    let migratedSingleRoot = false;
+    let migratedProvinceTree = false;
     try {
-      migratedSingleRoot = Boolean(localStorage.getItem(SINGLE_ROOT_MIGRATION_KEY));
+      migratedProvinceTree = Boolean(localStorage.getItem(PROVINCE_TREE_MIGRATION_KEY));
     } catch {
-      migratedSingleRoot = false;
+      migratedProvinceTree = false;
     }
 
     try {
@@ -1768,19 +1983,25 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          let filtered = parsed.filter(
+          const filtered = parsed.filter(
             (m: Member) =>
               !initialDeleted.has(String(m.memberId || '').trim().toUpperCase())
           );
-          if (!migratedSingleRoot) {
-            filtered = filtered.filter(
-              (m: Member) =>
-                !LEGACY_DEMO_MEMBER_IDS.has(
-                  String(m.memberId || '').trim().toUpperCase()
-                )
-            );
+          if (!migratedProvinceTree) {
+            // Preserve custom user-registered accounts while replacing old demo/single-root placeholders with the 22-member Organize Tree
+            const customUsers = filtered.filter((m: Member) => {
+              const up = String(m.memberId || '').trim().toUpperCase();
+              return (
+                Boolean(up) &&
+                !LEGACY_DEMO_MEMBER_IDS.has(up) &&
+                !DEFAULT_TREE_MEMBER_IDS.has(up) &&
+                up !== 'DMC000101'
+              );
+            });
+            const seeded = [...INITIAL_MEMBERS, ...customUsers];
             try {
-              localStorage.setItem(SINGLE_ROOT_MIGRATION_KEY, '1');
+              localStorage.setItem(PROVINCE_TREE_MIGRATION_KEY, '1');
+              localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(seeded));
               localStorage.setItem(
                 DELETED_MEMBER_IDS_STORAGE_KEY,
                 JSON.stringify(Array.from(initialDeleted))
@@ -1788,6 +2009,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } catch {
               // ignore
             }
+            return seeded;
           }
           if (filtered.length > 0) {
             return filtered;
@@ -1799,7 +2021,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      localStorage.setItem(SINGLE_ROOT_MIGRATION_KEY, '1');
+      localStorage.setItem(PROVINCE_TREE_MIGRATION_KEY, '1');
     } catch {
       // ignore
     }
@@ -2070,12 +2292,13 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const nextList: Member[] = [];
       const seenIds = new Set<string>();
 
-      // If Cloud has an active roster, include every active cloud member first (preserving any rich local fields)
+      // If Cloud has an active roster, include every active cloud member first (preserving any rich local fields & default tree sponsor/logo)
       for (const sid of dirState.activeSponsorIds) {
         const upperSid = sid.trim().toUpperCase();
         if (!upperSid || cloudDeletedSet.has(upperSid) || seenIds.has(upperSid)) continue;
         seenIds.add(upperSid);
         const localMatch = prevById.get(upperSid);
+        const defaultTreeMatch = INITIAL_MEMBERS_BY_ID.get(upperSid);
         nextList.push(
           localMatch
             ? {
@@ -2083,24 +2306,32 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 name: dirState.activeSponsorNames[upperSid] || localMatch.name,
                 membershipState:
                   dirState.memberStates[upperSid] || localMatch.membershipState,
+                avatarUrl: localMatch.avatarUrl || defaultTreeMatch?.avatarUrl || '',
+                sponsorId: localMatch.sponsorId ?? defaultTreeMatch?.sponsorId ?? null,
               }
             : {
-                id: `usr-cloud-${upperSid.toLowerCase()}`,
+                ...(defaultTreeMatch || {
+                  id: `usr-cloud-${upperSid.toLowerCase()}`,
+                  memberId: upperSid,
+                  phone: '',
+                  email: '',
+                  language: 'en' as const,
+                  sponsorId: null,
+                  createdAt: dirState.updatedAtIso || new Date().toISOString(),
+                  consents: {
+                    termsAccepted: true,
+                    termsVersion: 'v2.6',
+                    autoRedeemConsent: true,
+                    autoRedeemVersion: 'v2.6',
+                  },
+                  kycStatus: 'VERIFIED' as const,
+                }),
                 memberId: upperSid,
-                name: dirState.activeSponsorNames[upperSid] || upperSid,
-                phone: '',
-                email: '',
-                language: 'en',
-                membershipState: dirState.memberStates[upperSid] || 'FREE_MEMBER',
-                sponsorId: null,
-                createdAt: dirState.updatedAtIso || new Date().toISOString(),
-                consents: {
-                  termsAccepted: true,
-                  termsVersion: 'v2.6',
-                  autoRedeemConsent: true,
-                  autoRedeemVersion: 'v2.6',
-                },
-                kycStatus: 'VERIFIED',
+                name: dirState.activeSponsorNames[upperSid] || defaultTreeMatch?.name || upperSid,
+                membershipState:
+                  dirState.memberStates[upperSid] ||
+                  defaultTreeMatch?.membershipState ||
+                  'FREE_MEMBER',
               }
         );
       }
@@ -2240,8 +2471,9 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (deletedSet.has(up) || seen.has(up)) continue;
             seen.add(up);
             const existing = prevById.get(up);
+            const defaultTreeMatch = INITIAL_MEMBERS_BY_ID.get(up);
             next.push({
-              ...(existing || {
+              ...(existing || defaultTreeMatch || {
                 id: `usr-${up.toLowerCase()}`,
                 memberId: up,
                 createdAt: new Date().toISOString(),
@@ -2253,14 +2485,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 },
               }),
               memberId: up,
-              name: cm.name || existing?.name || up,
-              phone: cm.phone || existing?.phone || '',
-              email: cm.email || existing?.email || '',
+              name: cm.name || existing?.name || defaultTreeMatch?.name || up,
+              phone: cm.phone || existing?.phone || defaultTreeMatch?.phone || '',
+              email: cm.email || existing?.email || defaultTreeMatch?.email || '',
               membershipState: cm.membershipState,
-              sponsorId: cm.sponsorId ? cm.sponsorId : null,
+              sponsorId: cm.sponsorId ? cm.sponsorId : defaultTreeMatch?.sponsorId ?? null,
               kycStatus: cm.kycStatus,
-              avatarUrl: existing?.avatarUrl || cm.avatarUrl || '',
-              language: cm.language || existing?.language || 'en',
+              avatarUrl:
+                existing?.avatarUrl ||
+                cm.avatarUrl ||
+                defaultTreeMatch?.avatarUrl ||
+                '',
+              language: cm.language || existing?.language || defaultTreeMatch?.language || 'en',
               isAutomaticAffiliate: cm.isAutomaticAffiliate ?? existing?.isAutomaticAffiliate,
               autoAffiliateCode: cm.autoAffiliateCode || existing?.autoAffiliateCode,
             });
@@ -2424,8 +2660,9 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const up = cm.memberId.trim().toUpperCase();
               if (deletedSet.has(up)) continue;
               const existing = prevById.get(up);
+              const defaultTreeMatch = INITIAL_MEMBERS_BY_ID.get(up);
               syncedList.push({
-                ...(existing || {
+                ...(existing || defaultTreeMatch || {
                   id: `usr-${up.toLowerCase()}`,
                   memberId: up,
                   createdAt: new Date().toISOString(),
@@ -2437,14 +2674,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   },
                 }),
                 memberId: up,
-                name: cm.name || existing?.name || up,
-                phone: cm.phone || existing?.phone || '',
-                email: cm.email || existing?.email || '',
+                name: cm.name || existing?.name || defaultTreeMatch?.name || up,
+                phone: cm.phone || existing?.phone || defaultTreeMatch?.phone || '',
+                email: cm.email || existing?.email || defaultTreeMatch?.email || '',
                 membershipState: cm.membershipState,
-                sponsorId: cm.sponsorId ? cm.sponsorId : null,
+                sponsorId: cm.sponsorId ? cm.sponsorId : defaultTreeMatch?.sponsorId ?? null,
                 kycStatus: cm.kycStatus,
-                avatarUrl: existing?.avatarUrl || cm.avatarUrl || '',
-                language: cm.language || existing?.language || 'en',
+                avatarUrl:
+                  existing?.avatarUrl ||
+                  cm.avatarUrl ||
+                  defaultTreeMatch?.avatarUrl ||
+                  '',
+                language: cm.language || existing?.language || defaultTreeMatch?.language || 'en',
                 isAutomaticAffiliate: cm.isAutomaticAffiliate ?? existing?.isAutomaticAffiliate,
                 autoAffiliateCode: cm.autoAffiliateCode || existing?.autoAffiliateCode,
               });
@@ -2818,7 +3059,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedLink = b.autoAffiliateLink
         ? b.autoAffiliateLink
             .replace(/https?:\/\/dmc-?xayraxa\.la/gi, 'https://dmcxayraxa.music')
-        : `https://dmcxayraxa.music/register?ref=${b.customerMemberId || 'DMC000101'}&aff=${b.autoAffiliateCode || 'AFF-DMC000101'}&singer=${b.singerCode}`;
+        : `https://dmcxayraxa.music/register?ref=${b.customerMemberId || 'DMC-LA-000004'}&aff=${b.autoAffiliateCode || 'AFF-DMC-LA-000004'}&singer=${b.singerCode}`;
 
       if (
         b.startSingerPriceLak !== 0 ||
@@ -2911,7 +3152,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const missingSingerMembers: Member[] = [];
-    // Do not auto-inject legacy seed singer/booking demo members into Members CRUD (keep 1 default Root Member DMC000101)
+    // Do not auto-inject legacy seed singer/booking demo members into Members CRUD (keep 22-member Lao Province Organize Tree)
     singerProfiles.forEach((sng, idx) => {
       if (sng.id.startsWith('sng-prof-')) return;
       const targetMemberId =
@@ -2942,7 +3183,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           password: '123456',
           avatarUrl: sng.avatarUrl,
           language: 'en',
-          sponsorId: membersRef.current[0]?.memberId || 'DMC000101',
+          sponsorId: membersRef.current[0]?.memberId || 'DMC-LA-000004',
           membershipState: 'ACTIVE_LIFETIME_MEMBER',
           createdAt: sng.appliedAt || new Date().toISOString(),
           activatedAt: sng.appliedAt || new Date().toISOString(),
@@ -3004,7 +3245,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           password: '123456',
           avatarUrl:
             'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
-          sponsorId: membersRef.current[0]?.memberId || 'DMC000101',
+          sponsorId: membersRef.current[0]?.memberId || 'DMC-LA-000004',
           language: 'en',
           membershipState: 'ACTIVE_LIFETIME_MEMBER',
           createdAt: bk.createdAt || new Date().toISOString(),
@@ -3395,7 +3636,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Withdrawals
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
 
-  // Immutable Ledger Entries (clean default 0 LAK for single root DMC000101)
+  // Immutable Ledger Entries (clean default 0 LAK for Organize Tree)
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(() => {
     try {
       const saved = localStorage.getItem(LEDGER_ENTRIES_STORAGE_KEY);
@@ -6519,7 +6760,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         members.find(
           m =>
             m.memberId.toUpperCase() ===
-            (data.sponsorMemberId || members[0]?.memberId || 'DMC000101').trim().toUpperCase()
+            (data.sponsorMemberId || members[0]?.memberId || 'DMC-LA-000004').trim().toUpperCase()
         ) || members[0];
 
       const newGeneralMember: Member = {
@@ -6712,15 +6953,15 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       singerStageName: cleanStage,
       singerFullName: data.fullName.trim(),
       singerAvatarUrl: resolvedAvatar,
-      customerMemberId: members[0]?.memberId || 'DMC000101',
+      customerMemberId: members[0]?.memberId || 'DMC-LA-000004',
       customerName: 'Thippavanh Keomany (VIP Party Host)',
       customerPhone: '+856 20 7788 3344',
       autoAffiliateActivated: true,
-      autoAffiliateCode: `AFF-${members[0]?.memberId || 'DMC000101'}`,
+      autoAffiliateCode: `AFF-${members[0]?.memberId || 'DMC-LA-000004'}`,
       autoAffiliateLink: `https://dmcxayraxa.music/register?ref=${encodeURIComponent(
-        members[0]?.memberId || 'DMC000101'
+        members[0]?.memberId || 'DMC-LA-000004'
       )}&aff=AFF-${encodeURIComponent(
-        members[0]?.memberId || 'DMC000101'
+        members[0]?.memberId || 'DMC-LA-000004'
       )}&singer=${encodeURIComponent(singerCode)}`,
       partyEventName: `${cleanStage} Debut Music Cain Party Set Night`,
       eventLocation: data.province.trim() || 'Vientiane Capital Grand Hall',
@@ -8067,7 +8308,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
         language: 'lo',
         membershipState: 'ACTIVE_LIFETIME_MEMBER',
-        sponsorId: singer.memberId || membersRef.current[0]?.memberId || 'DMC000101',
+        sponsorId: singer.memberId || membersRef.current[0]?.memberId || 'DMC-LA-000004',
         createdAt: nowIso,
         activatedAt: nowIso,
         activationMethod: 'DIRECT_CASH',
@@ -8196,7 +8437,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Resolve L1, L2, L3 Upline Sponsors for Customer Booking Member Activation (L1: 400,000 • L2: 200,000 • L3: 100,000 LAK)
-    const l1SponsorId = singer.memberId || membersRef.current[0]?.memberId || 'DMC000101';
+    const l1SponsorId = singer.memberId || membersRef.current[0]?.memberId || 'DMC-LA-000004';
     const l1SponsorMember = members.find(m => m.memberId === l1SponsorId) || null;
     const l2SponsorMember = l1SponsorMember?.sponsorId
       ? members.find(m => m.memberId === l1SponsorMember.sponsorId) || null
@@ -8555,7 +8796,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [customerAffiliateCommissionPool, setCustomerAffiliateCommissionPool] =
     useState<Record<string, number>>(() => {
     const defaults: Record<string, number> = {
-      'DMC000101': 0,
+      'DMC-LA-000004': 0,
     };
     try {
       const raw = localStorage.getItem(
@@ -10120,7 +10361,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ]);
 
   const runAllUatTests = () => {
-    const rootId = members[0]?.memberId || 'DMC000101';
+    const rootId = members[0]?.memberId || 'DMC-LA-000004';
     const rootBalances = getMemberBalances(rootId);
     const rootRemaining = Math.max(0, 1600000 - rootBalances.heldForQualification);
     const rootPercent = Math.min(100, Math.floor((rootBalances.heldForQualification / 1600000) * 100));
