@@ -136,8 +136,16 @@ export const AdminPortal: React.FC = () => {
     updateMemberBankAccount,
     superAdminProfile,
     updateSuperAdminProfile,
-    sendSmsRecoveryOtp,
-    resetPasswordWithSmsOtp,
+    sendEmailResetConfirmation,
+    verifyAndResetPasswordByEmailCode,
+    firebaseUser,
+    isFirebaseAdmin,
+    cloudSyncStatus,
+    cloudSyncError,
+    lastCloudSyncAt,
+    connectGoogleCloudSync,
+    disconnectGoogleCloudSync,
+    forceCloudPushAllMembers,
     eventPosts,
     adminAddEventPost,
     adminUpdateEventPost,
@@ -204,9 +212,11 @@ export const AdminPortal: React.FC = () => {
   const [adminFormCarrier, setAdminFormCarrier] = useState(superAdminProfile.telecomCarrier);
   const [adminFormPin, setAdminFormPin] = useState(superAdminProfile.passwordPin);
   const [adminSmsTarget, setAdminSmsTarget] = useState<'SUPER_ADMIN' | 'MEMBER'>('SUPER_ADMIN');
-  const [adminSmsMemberId, setAdminSmsMemberId] = useState('DMC-LA-00404');
-  const [adminSmsNewPass, setAdminSmsNewPass] = useState('888888');
+  const [adminSmsMemberId, setAdminSmsMemberId] = useState(allMembers[0]?.memberId || 'DMC-LA-00404');
+  const [adminSmsNewPass, setAdminSmsNewPass] = useState('');
   const [adminSmsOtpInput, setAdminSmsOtpInput] = useState('');
+  const [isSendingAdminEmailCode, setIsSendingAdminEmailCode] = useState(false);
+  const [adminEmailNeedsActivation, setAdminEmailNeedsActivation] = useState(false);
   const [adminDispatchedSms, setAdminDispatchedSms] = useState<{
     otpCode: string;
     phone: string;
@@ -356,12 +366,25 @@ export const AdminPortal: React.FC = () => {
     });
   };
 
-  const handleConfirmSaveAllMembers = () => {
+  const handleConfirmSaveAllMembers = async () => {
     const snap = adminSaveAndConfirmMembers();
     setHasUnsavedMemberConfirmation(false);
     setLastMembersConfirmedAt(snap.savedAt);
+    if (isFirebaseAdmin) {
+      const pushRes = await forceCloudPushAllMembers();
+      if (pushRes.success) {
+        showNotification(
+          `Confirmed, Saved & Synced to Cloud! ${snap.memberCount} active member(s) and ${snap.deletedCount} deleted record(s) now updated on all computers & phones.`
+        );
+        return;
+      }
+      showNotification(
+        `Saved locally (${snap.memberCount} active, ${snap.deletedCount} deleted). Cloud sync note: ${pushRes.error || 'retry shortly'}`
+      );
+      return;
+    }
     showNotification(
-      `Confirmed & Saved! ${snap.memberCount} active member(s) and ${snap.deletedCount} deleted record(s) saved permanently.`
+      `Confirmed & Saved locally! ${snap.memberCount} active member(s) and ${snap.deletedCount} deleted record(s). Connect Google Cloud Sync above to sync across other computers & QR scanners.`
     );
   };
 
@@ -897,6 +920,92 @@ export const AdminPortal: React.FC = () => {
           <span className="font-semibold">{successBanner}</span>
         </div>
       )}
+
+      {/* Multi-Device Real-Time Cloud Sync Bar (Syncs Deleted Demo Members, Password Hashes & QR Directory Across All Devices) */}
+      <div className="p-3.5 rounded-2xl bg-slate-900 border border-emerald-500/35 flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+        <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+          <div
+            className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 sm:mt-0 ${
+              isFirebaseAdmin
+                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
+                : 'bg-amber-400'
+            }`}
+          />
+          <div className="min-w-0">
+            <div className="font-bold text-white flex flex-wrap items-center gap-2">
+              <span>Multi-Device Cloud Sync (Firestore)</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                  isFirebaseAdmin
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                }`}
+              >
+                {isFirebaseAdmin
+                  ? `CONNECTED • ${firebaseUser?.email || 'xay.raxa@gmail.com'}`
+                  : cloudSyncStatus}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
+              {isFirebaseAdmin
+                ? `Deleted demo accounts, password changes, and referral QR members automatically sync across all computers & phones${
+                    lastCloudSyncAt ? ` (Last sync: ${new Date(lastCloudSyncAt).toLocaleTimeString()})` : ''
+                  }.`
+                : 'Sign in with Google (xay.raxa@gmail.com) once so deletions & Super Admin password updates propagate across all computers and referral QR phones.'}
+            </p>
+            {cloudSyncError && (
+              <p className="text-[11px] text-rose-400 font-semibold mt-1">
+                {cloudSyncError}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {!isFirebaseAdmin ? (
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await connectGoogleCloudSync();
+                if (res.success) {
+                  showNotification('Google Cloud Sync connected & all active/deleted members synced across devices!');
+                } else if (res.error) {
+                  showNotification(res.error);
+                }
+              }}
+              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Connect Google Cloud Sync</span>
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await forceCloudPushAllMembers();
+                  if (res.success) {
+                    showNotification('Synced all members, deletions & Admin security hash to Cloud!');
+                  } else if (res.error) {
+                    showNotification(res.error);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Sync Now</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void disconnectGoogleCloudSync()}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-semibold text-xs cursor-pointer"
+              >
+                Disconnect
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto text-xs">
@@ -3126,7 +3235,7 @@ export const AdminPortal: React.FC = () => {
             </form>
           </div>
 
-          {/* Card 2: Email Verification & Password Recovery Hub (Super Admin & All Members — No OTP Required) */}
+          {/* Card 2: Real Email Confirmation & Password Recovery Center */}
           <div className="bg-slate-900 border border-sky-500/30 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -3135,15 +3244,15 @@ export const AdminPortal: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Email Verification & Password Recovery Center
+                    Email Verification &amp; Password Recovery Center
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Verify by Email Address to recover or update Super Admin or Member password (No OTP required)
+                    Sends a real 6-digit confirmation code to your email inbox before resetting Super Admin or Member password
                   </p>
                 </div>
               </div>
               <span className="px-2.5 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10px] font-mono font-bold">
-                EMAIL VERIFIED ✓
+                INBOX 6-DIGIT CODE
               </span>
             </div>
 
@@ -3154,6 +3263,8 @@ export const AdminPortal: React.FC = () => {
                   onClick={() => {
                     setAdminSmsTarget('SUPER_ADMIN');
                     setAdminDispatchedSms(null);
+                    setAdminEmailNeedsActivation(false);
+                    setAdminSmsOtpInput('');
                   }}
                   className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 border cursor-pointer ${
                     adminSmsTarget === 'SUPER_ADMIN'
@@ -3169,6 +3280,8 @@ export const AdminPortal: React.FC = () => {
                   onClick={() => {
                     setAdminSmsTarget('MEMBER');
                     setAdminDispatchedSms(null);
+                    setAdminEmailNeedsActivation(false);
+                    setAdminSmsOtpInput('');
                   }}
                   className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 border cursor-pointer ${
                     adminSmsTarget === 'MEMBER'
@@ -3202,93 +3315,143 @@ export const AdminPortal: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => {
+                disabled={isSendingAdminEmailCode}
+                onClick={async () => {
                   const targetMemberObj = allMembers.find((m) => m.memberId === adminSmsMemberId);
                   const targetEmail =
                     adminSmsTarget === 'SUPER_ADMIN'
                       ? adminFormEmail || 'xay.raxa@gmail.com'
                       : targetMemberObj?.email || `${adminSmsMemberId.toLowerCase()}@dmcxayraxa.com`;
-                  const res = sendSmsRecoveryOtp(adminSmsTarget, targetEmail);
+                  setIsSendingAdminEmailCode(true);
+                  setAdminEmailNeedsActivation(false);
+                  const res = await sendEmailResetConfirmation({
+                    targetRole: adminSmsTarget,
+                    targetEmail,
+                    accountId:
+                      adminSmsTarget === 'SUPER_ADMIN'
+                        ? superAdminProfile.operatorId
+                        : adminSmsMemberId,
+                    accountName:
+                      adminSmsTarget === 'SUPER_ADMIN'
+                        ? adminFormName
+                        : targetMemberObj?.name || adminSmsMemberId,
+                  });
+                  setIsSendingAdminEmailCode(false);
+                  if (res.needsActivation) {
+                    setAdminEmailNeedsActivation(true);
+                  }
                   if (res.success) {
                     setAdminDispatchedSms({
-                      otpCode: 'EMAIL-VERIFIED',
+                      otpCode: '',
                       phone: targetEmail,
-                      matchedId: res.matchedId || adminSmsMemberId,
-                      matchedName: res.matchedName || adminFormName,
-                      carrier: 'Email Verification',
+                      matchedId:
+                        adminSmsTarget === 'SUPER_ADMIN'
+                          ? superAdminProfile.operatorId
+                          : adminSmsMemberId,
+                      matchedName:
+                        adminSmsTarget === 'SUPER_ADMIN'
+                          ? adminFormName
+                          : targetMemberObj?.name || adminSmsMemberId,
+                      carrier: 'Gmail / Inbox Confirmation',
                     });
-                    setAdminSmsOtpInput('EMAIL-VERIFIED');
-                    showNotification(
-                      `Email Verified (${targetEmail}) for ${res.matchedName || adminFormName}!`
-                    );
                   }
+                  showNotification(res.message);
                 }}
-                className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow cursor-pointer"
               >
                 <Send className="w-4 h-4" />
                 <span>
-                  1. Verify Email for{' '}
-                  {adminSmsTarget === 'SUPER_ADMIN'
-                    ? `Super Admin (${adminFormEmail || 'xay.raxa@gmail.com'})`
-                    : `Member (${adminSmsMemberId})`}
+                  {isSendingAdminEmailCode
+                    ? 'Sending 6-Digit Code to Inbox...'
+                    : `1. Send 6-Digit Confirmation Code to ${
+                        adminSmsTarget === 'SUPER_ADMIN'
+                          ? adminFormEmail || 'xay.raxa@gmail.com'
+                          : allMembers.find((m) => m.memberId === adminSmsMemberId)?.email ||
+                            `${adminSmsMemberId.toLowerCase()}@dmcxayraxa.com`
+                      }`}
                 </span>
               </button>
+
+              {adminEmailNeedsActivation && (
+                <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-400/60 text-amber-200 text-[11px] font-semibold leading-snug">
+                  First-time inbox activation: Open your Gmail inbox, click <strong>Activate Form</strong> in the FormSubmit email, then click Step 1 again to receive your 6-digit confirmation code.
+                </div>
+              )}
 
               {adminDispatchedSms && (
                 <div className="p-3.5 rounded-2xl bg-slate-950 border-2 border-emerald-400/60 space-y-2 animate-in fade-in">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-black text-emerald-400">
-                      EMAIL VERIFICATION • CONFIRMED ✓
+                      6-DIGIT CODE SENT TO INBOX ✓
                     </span>
                     <span className="font-mono text-slate-400">Email: {adminDispatchedSms.phone}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 font-mono text-slate-200 text-xs">
-                    [DMC XAYRAXA EMAIL] Identity verified for{' '}
-                    <strong className="text-amber-300">{adminDispatchedSms.matchedName}</strong> via{' '}
-                    <strong className="text-emerald-400 font-black px-1.5 py-0.5 bg-emerald-500/20 rounded">
-                      {adminDispatchedSms.phone}
-                    </strong>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs">
+                    Check <strong>{adminDispatchedSms.phone}</strong> inbox (or Spam) and enter the 6-digit confirmation code below.
                   </div>
                 </div>
               )}
 
               <div className="pt-1">
-                <label className="text-amber-300 font-bold block mb-1">New Password / PIN</label>
+                <label className="text-sky-300 font-bold block mb-1">
+                  2. Enter 6-Digit Code from Email Inbox *
+                </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={adminSmsOtpInput}
+                  onChange={(e) => setAdminSmsOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Enter 6-digit code from email"
+                  className="w-full bg-slate-950 border border-sky-500/50 rounded-xl p-2.5 text-white font-mono tracking-widest"
+                />
+              </div>
+
+              <div className="pt-1">
+                <label className="text-amber-300 font-bold block mb-1">3. New Password / PIN *</label>
+                <input
+                  type="password"
                   value={adminSmsNewPass}
                   onChange={(e) => setAdminSmsNewPass(e.target.value)}
-                  placeholder="New password or PIN"
+                  placeholder="Enter new password or PIN"
                   className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-2.5 text-white font-mono"
                 />
               </div>
 
               <button
                 type="button"
-                onClick={() => {
+                disabled={adminSmsOtpInput.trim().length !== 6 || adminSmsNewPass.trim().length < 4}
+                onClick={async () => {
+                  const targetMemberObj = allMembers.find((m) => m.memberId === adminSmsMemberId);
                   const targetId =
                     adminSmsTarget === 'SUPER_ADMIN'
                       ? superAdminProfile.operatorId
                       : adminSmsMemberId;
-                  const result = resetPasswordWithSmsOtp(
-                    adminSmsTarget,
-                    targetId,
-                    'EMAIL-VERIFIED',
-                    adminSmsNewPass.trim() || '123456'
-                  );
+                  const targetEmail =
+                    adminSmsTarget === 'SUPER_ADMIN'
+                      ? adminFormEmail || 'xay.raxa@gmail.com'
+                      : targetMemberObj?.email || `${adminSmsMemberId.toLowerCase()}@dmcxayraxa.com`;
+                  const result = await verifyAndResetPasswordByEmailCode({
+                    targetRole: adminSmsTarget,
+                    accountId: targetId,
+                    targetEmail,
+                    confirmationCode: adminSmsOtpInput.trim(),
+                    newPassword: adminSmsNewPass.trim(),
+                  });
                   if (result.success) {
                     if (adminSmsTarget === 'SUPER_ADMIN') {
-                      setAdminFormPin(adminSmsNewPass.trim() || '888888');
+                      setAdminFormPin(adminSmsNewPass.trim());
                     }
-                    showNotification(result.message);
-                  } else {
-                    showNotification(result.message);
+                    setAdminSmsOtpInput('');
+                    setAdminSmsNewPass('');
+                    setAdminDispatchedSms(null);
                   }
+                  showNotification(result.message);
                 }}
-                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>2. Verify Email & Reset Password Now</span>
+                <span>Confirm Code &amp; Reset Password Now</span>
               </button>
             </div>
           </div>
@@ -3873,20 +4036,21 @@ export const AdminPortal: React.FC = () => {
                     />
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const targetEmail =
                           editingMember.email || `${editingMember.memberId.toLowerCase()}@dmcxayraxa.com`;
-                        const res = sendSmsRecoveryOtp('MEMBER', targetEmail);
-                        if (res.success) {
-                          showNotification(
-                            `Email Verification confirmed for ${editingMember.name} (${targetEmail})!`
-                          );
-                        }
+                        const res = await sendEmailResetConfirmation({
+                          targetRole: 'MEMBER',
+                          targetEmail,
+                          accountId: editingMember.memberId,
+                          accountName: editingMember.name,
+                        });
+                        showNotification(res.message);
                       }}
                       className="px-2.5 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-[10px] shrink-0 cursor-pointer"
-                      title="Verify Member by Email Address"
+                      title="Send Confirmation Code to Member Email Inbox"
                     >
-                      Verify Email
+                      Send Inbox Code
                     </button>
                   </div>
                 </div>

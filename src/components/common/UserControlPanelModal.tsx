@@ -82,8 +82,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
     getMemberSongs,
     superAdminProfile,
     updateSuperAdminProfile,
-    sendSmsRecoveryOtp,
-    resetPasswordWithSmsOtp,
+    sendEmailResetConfirmation,
+    verifyAndResetPasswordByEmailCode,
     shippingCarriers,
     singerProfiles,
     updateSingerProfile,
@@ -118,13 +118,8 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
   const [profilePhoneInput, setProfilePhoneInput] = useState(currentMember.phone);
   const [profileEmailInput, setProfileEmailInput] = useState(currentMember.email || '');
   const [profilePasswordInput, setProfilePasswordInput] = useState(currentMember.password || '123456');
-  const [smsOtpInfo, setSmsOtpInfo] = useState<{
-    otpCode: string;
-    phone: string;
-    matchedId: string;
-    matchedName: string;
-    carrier: string;
-  } | null>(null);
+  const [isSendingProfileEmailCode, setIsSendingProfileEmailCode] = useState(false);
+  const [profileEmailCodeSentMsg, setProfileEmailCodeSentMsg] = useState('');
   const [smsOtpEntered, setSmsOtpEntered] = useState('');
   const [profileUpdateNotice, setProfileUpdateNotice] = useState('');
   const [profileUpdateError, setProfileUpdateError] = useState('');
@@ -251,7 +246,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
       );
       setProfileAvatarInput(currentMember.avatarUrl || '');
     }
-    setSmsOtpInfo(null);
+    setProfileEmailCodeSentMsg('');
     setSmsOtpEntered('');
   }, [currentMember, profileRoleTarget, superAdminProfile, matchedSinger]);
 
@@ -1100,17 +1095,19 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   </div>
                 </div>
 
-                {/* Email Verification & Password Recovery Box (No OTP Required) */}
+                {/* Real Email Inbox Confirmation & Password Recovery Box */}
                 <div className="p-3 rounded-xl bg-slate-900/90 border border-sky-500/30 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
                       <Mail className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Recover / Verify Password by Email</span>
+                      <span>Recover / Verify Password via Email Inbox (6-Digit Code)</span>
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
+                      disabled={isSendingProfileEmailCode}
+                      onClick={async () => {
                         setProfileUpdateError('');
+                        setProfileEmailCodeSentMsg('');
                         const targetEmail =
                           profileEmailInput.trim() ||
                           (profileRoleTarget === 'SUPER_ADMIN'
@@ -1121,32 +1118,91 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                           profileRoleTarget === 'SUPER_ADMIN'
                             ? superAdminProfile.operatorId
                             : currentMember.memberId;
-                        const out = resetPasswordWithSmsOtp(
-                          otpRole,
-                          matchedId,
-                          'EMAIL-VERIFIED',
-                          profilePasswordInput || '123456',
-                          {
+                        setIsSendingProfileEmailCode(true);
+                        const dispatchRes = await sendEmailResetConfirmation({
+                          targetRole: otpRole,
+                          targetEmail,
+                          accountId: matchedId,
+                          accountName: profileNameInput.trim() || matchedId,
+                        });
+                        setIsSendingProfileEmailCode(false);
+                        if (dispatchRes.success) {
+                          setProfileEmailCodeSentMsg(dispatchRes.message);
+                        } else {
+                          setProfileUpdateError(dispatchRes.message);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-950 font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>
+                        {isSendingProfileEmailCode
+                          ? 'Sending...'
+                          : `1. Send Code to ${profileEmailInput || 'xay.raxa@gmail.com'}`}
+                      </span>
+                    </button>
+                  </div>
+
+                  {profileEmailCodeSentMsg && (
+                    <div className="text-[11px] text-emerald-300 font-semibold">
+                      {profileEmailCodeSentMsg}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={smsOtpEntered}
+                      onChange={(e) => setSmsOtpEntered(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter 6-digit code from email inbox"
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white tracking-widest"
+                    />
+                    <button
+                      type="button"
+                      disabled={smsOtpEntered.trim().length !== 6}
+                      onClick={async () => {
+                        setProfileUpdateError('');
+                        if (profileRoleTarget === 'SUPER_ADMIN' && !isAdminAuthenticated && !isAdminMode) {
+                          setProfileUpdateError('Only Administrator can change Super Admin password.');
+                          return;
+                        }
+                        const targetEmail =
+                          profileEmailInput.trim() ||
+                          (profileRoleTarget === 'SUPER_ADMIN'
+                            ? superAdminProfile.email || 'xay.raxa@gmail.com'
+                            : `${currentMember.memberId.toLowerCase()}@dmcxayraxa.com`);
+                        const otpRole = profileRoleTarget === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'MEMBER';
+                        const matchedId =
+                          profileRoleTarget === 'SUPER_ADMIN'
+                            ? superAdminProfile.operatorId
+                            : currentMember.memberId;
+                        const out = await verifyAndResetPasswordByEmailCode({
+                          targetRole: otpRole,
+                          accountId: matchedId,
+                          targetEmail,
+                          confirmationCode: smsOtpEntered.trim(),
+                          newPassword: profilePasswordInput.trim(),
+                          profileUpdates: {
                             name: profileNameInput.trim(),
                             phone: profilePhoneInput.trim(),
                             email: targetEmail,
-                          }
-                        );
+                          },
+                        });
                         if (out.success) {
-                          setProfileUpdateNotice(
-                            `Email Verified (${targetEmail})! ${out.message}`
-                          );
+                          setProfileUpdateNotice(out.message);
                           setProfileUpdateError('');
+                          setSmsOtpEntered('');
+                          setProfileEmailCodeSentMsg('');
                         } else {
                           setProfileUpdateError(out.message);
                         }
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] flex items-center gap-1.5 cursor-pointer shadow"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-[11px] flex items-center justify-center gap-1 cursor-pointer shrink-0"
                     >
-                      <Mail className="w-3 h-3" />
-                      <span>
-                        Verify by Email ({profileEmailInput || 'xay.raxa@gmail.com'}) & Reset Password
-                      </span>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>2. Confirm Code &amp; Save</span>
                     </button>
                   </div>
                 </div>

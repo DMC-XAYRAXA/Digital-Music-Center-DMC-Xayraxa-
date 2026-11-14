@@ -1,0 +1,257 @@
+{
+  "entities": {
+    "PublicDirectoryState": {
+      "title": "PublicDirectoryState",
+      "description": "Public non-PII synchronization state for active referral sponsor directory, deleted member tombstones, and cryptographic password verification hashes across all devices.",
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "description": "Schema version integer"
+        },
+        "adminOperatorId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Operator ID for Super Admin login"
+        },
+        "adminPasswordHash": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Salted SHA-256 hex digest of Super Admin credentials (never plaintext)"
+        },
+        "adminPasswordUpdatedAt": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "ISO timestamp of last Super Admin password change"
+        },
+        "deletedMemberIds": {
+          "type": "array",
+          "description": "Bounded list of permanently deleted member IDs synced across all computers and mobile devices"
+        },
+        "activeSponsorIds": {
+          "type": "array",
+          "description": "Bounded list of active non-deleted member IDs available as referral sponsors"
+        },
+        "activeSponsorNames": {
+          "type": "object",
+          "description": "Map of active sponsor memberId to public display name (no PII)"
+        },
+        "memberAuthHashes": {
+          "type": "object",
+          "description": "Map of memberId to SHA-256 password hash (no plaintext passwords)"
+        },
+        "memberStates": {
+          "type": "object",
+          "description": "Map of memberId to membershipState"
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Admin UID who updated the directory"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest cloud sync"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "adminOperatorId",
+        "adminPasswordHash",
+        "adminPasswordUpdatedAt",
+        "deletedMemberIds",
+        "activeSponsorIds",
+        "activeSponsorNames",
+        "memberAuthHashes",
+        "memberStates",
+        "ownerUid",
+        "updatedAt"
+      ]
+    },
+    "AdminVaultConfig": {
+      "title": "AdminVaultConfig",
+      "description": "Protected Super Administrator profile and security configuration stored exclusively for verified Admin.",
+      "type": "object",
+      "properties": {
+        "operatorId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "roleTitle": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "passwordHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastPasswordUpdatedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "operatorId",
+        "name",
+        "phone",
+        "email",
+        "roleTitle",
+        "passwordHash",
+        "lastPasswordUpdatedAt",
+        "ownerUid",
+        "updatedAt"
+      ]
+    },
+    "MemberRecord": {
+      "title": "MemberRecord",
+      "description": "PII-protected member profile record isolated to Admin and the owning verified user.",
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "passwordHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "membershipState": {
+          "type": "string",
+          "enum": ["FREE_MEMBER", "ACTIVE_LIFETIME_MEMBER"]
+        },
+        "sponsorId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "kycStatus": {
+          "type": "string",
+          "enum": ["UNVERIFIED", "PENDING", "VERIFIED"]
+        },
+        "avatarUrl": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "language": {
+          "type": "string",
+          "enum": ["en", "lo", "th", "vi", "zh", "ko"]
+        },
+        "isAutomaticAffiliate": {
+          "type": "boolean"
+        },
+        "autoAffiliateCode": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "bankSummary": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "memberId",
+        "name",
+        "phone",
+        "email",
+        "passwordHash",
+        "membershipState",
+        "sponsorId",
+        "kycStatus",
+        "avatarUrl",
+        "language",
+        "ownerUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminRegistry": {
+      "title": "AdminRegistry",
+      "description": "Trusted administrator lookup document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["SUPER_ADMIN"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/public_directory/{docId}": {
+      "schema": { "$ref": "#/entities/PublicDirectoryState" },
+      "description": "Public non-PII directory state containing deletedMemberIds tombstones, active sponsor labels, and cryptographic password hashes."
+    },
+    "/admin_vault/{docId}": {
+      "schema": { "$ref": "#/entities/AdminVaultConfig" },
+      "description": "Admin-only Super Administrator configuration and profile."
+    },
+    "/members/{memberId}": {
+      "schema": { "$ref": "#/entities/MemberRecord" },
+      "description": "PII-protected member records accessible only to Admin or the verified owner."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminRegistry" },
+      "description": "Admin UID registry."
+    }
+  }
+}

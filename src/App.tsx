@@ -27,7 +27,25 @@ function AppContent() {
   const [showSpecDeck, setShowSpecDeck] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>('MEMBER');
+
+  const initialQrRoute = React.useMemo(() => {
+    if (typeof window === 'undefined') {
+      return { mode: 'MEMBER' as const, refCode: '' };
+    }
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = (params.get('ref') || '').trim().toUpperCase();
+      const isRegisterPath = window.location.pathname.toLowerCase().includes('/register');
+      if (refCode || isRegisterPath) {
+        return { mode: 'REGISTER' as const, refCode };
+      }
+    } catch {
+      // ignore URL parse errors
+    }
+    return { mode: 'MEMBER' as const, refCode: '' };
+  }, []);
+
+  const [authModalMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>(initialQrRoute.mode);
 
   // Default Startup Gate & 12-Hour Active Session Automatic Sign-Out Gate:
   // Users and Administrators stay signed in for 12 hours of active use and sign out automatically after 12 hours of inactivity.
@@ -35,7 +53,11 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center font-sans selection:bg-amber-500/30 selection:text-amber-900">
         <AutoLanguageDomTranslator />
-        <AuthPortalModal isOpen={true} initialMode="MEMBER" />
+        <AuthPortalModal
+          isOpen={true}
+          initialMode={initialQrRoute.mode}
+          initialRefCode={initialQrRoute.refCode}
+        />
       </div>
     );
   }

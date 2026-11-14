@@ -164,9 +164,12 @@ export const LoanWalletAndSingerBookingHub: React.FC<
     setTimeout(() => setBannerNotice(null), 6500);
   };
 
-  // Switch directly to full Administrator Portal
+  // Switch to full Administrator Portal ONLY if already authenticated as Administrator
   const handleGoToAdministratorPanel = () => {
-    setIsAdminAuthenticated(true);
+    if (!isAdminAuthenticated && !isAdminMode) {
+      showBanner('Administrator Sign-In Required: Please sign in as Super Administrator first.', 'ERROR');
+      return;
+    }
     setIsAdminMode(true);
     if (onOpenAdminPanel) {
       onOpenAdminPanel();

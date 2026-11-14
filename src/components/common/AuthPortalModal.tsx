@@ -36,16 +36,19 @@ interface AuthPortalModalProps {
   isOpen?: boolean;
   onClose?: () => void;
   initialMode?: 'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER';
+  initialRefCode?: string;
 }
 
 export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   isOpen = true,
   onClose,
   initialMode = 'MEMBER',
+  initialRefCode = '',
 }) => {
   const {
     currentMember,
     allMembers,
+    deletedMemberIds,
     setCurrentMemberId,
     getMemberBalances,
     isAdminMode,
@@ -59,18 +62,27 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     superAdminProfile,
     updateSuperAdminProfile,
     adminUpdateMember,
-    sendSmsRecoveryOtp,
-    resetPasswordWithSmsOtp,
+    sendEmailResetConfirmation,
+    verifyAndResetPasswordByEmailCode,
+    verifyAccountPasswordWithCloud,
     registerMember,
     singerProfiles,
     singerBookings,
     sessionExpiredNotice,
     setSessionExpiredNotice,
+    isFirebaseAdmin,
+    cloudSyncStatus,
+    cloudSyncError,
+    connectGoogleCloudSync,
   } = useDmc();
 
   const [loginMode, setLoginMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>(initialMode);
   const [userRoleType, setUserRoleType] = useState<'USER_MEMBER' | 'USER_SINGER' | 'USER_CUSTOMER'>('USER_MEMBER');
-  const [identifier, setIdentifier] = useState(currentMember.memberId || 'DMC-LA-00404');
+  const [identifier, setIdentifier] = useState(
+    allMembers.find((m) => m.memberId === currentMember.memberId)?.memberId ||
+      allMembers[0]?.memberId ||
+      ''
+  );
   const [password, setPassword] = useState('');
   const [showMemberPassword, setShowMemberPassword] = useState(false);
   const [rememberMember, setRememberMember] = useState(true);
@@ -88,39 +100,46 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('+856 20 ');
   const [regEmail, setRegEmail] = useState('');
-  const [regPassword, setRegPassword] = useState('123456');
-  const [regSponsorCode, setRegSponsorCode] = useState(currentMember.memberId || 'DMC-LA-00404');
+  const [regPassword, setRegPassword] = useState('');
+  const [regSponsorCode, setRegSponsorCode] = useState(() => {
+    const cleanRef = initialRefCode.trim().toUpperCase();
+    const deletedSet = new Set(deletedMemberIds.map((d) => d.trim().toUpperCase()));
+    if (cleanRef && !deletedSet.has(cleanRef)) {
+      const match = allMembers.find((m) => m.memberId.trim().toUpperCase() === cleanRef);
+      if (match) return match.memberId;
+    }
+    return allMembers[0]?.memberId || '';
+  });
   const [regTermsConsent, setRegTermsConsent] = useState(true);
   const [regAutoRedeemConsent, setRegAutoRedeemConsent] = useState(true);
   const [regOtpStep, setRegOtpStep] = useState(false);
-  const [regGeneratedOtp, setRegGeneratedOtp] = useState('482910');
-  const [regOtpInput, setRegOtpInput] = useState('482910');
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPublicSingerModal, setShowPublicSingerModal] = useState(false);
   const [publicSingerModalTab, setPublicSingerModalTab] = useState<
     'APPLY' | 'DASHBOARD' | 'BOOKING_PARTY'
   >('APPLY');
 
-  // Profile Update & Phone SMS Recovery State
+  // Profile Update & Real Email Confirmation Recovery State
   const [recoveryTarget, setRecoveryTarget] = useState<'MEMBER' | 'SUPER_ADMIN'>('MEMBER');
   const [recoveryMethod, setRecoveryMethod] = useState<'SMS_OTP' | 'DIRECT_UPDATE'>('SMS_OTP');
-  const [selectedMemberId, setSelectedMemberId] = useState<string>(currentMember.memberId);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(
+    allMembers[0]?.memberId || currentMember.memberId
+  );
 
-  // Editable Profile & Password fields
+  // Editable Profile & New Password fields (never pre-fill old/current password)
   const [editName, setEditName] = useState(currentMember.name);
   const [editPhone, setEditPhone] = useState(currentMember.phone);
   const [editEmail, setEditEmail] = useState(currentMember.email || '');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
-  // SMS OTP Flow state
-  const [smsLookupInput, setSmsLookupInput] = useState(currentMember.phone);
-  const [smsDispatchedInfo, setSmsDispatchedInfo] = useState<{
-    otpCode: string;
-    phone: string;
-    matchedId: string;
-    matchedName: string;
-    carrier: string;
+  // Real Email Inbox Confirmation Flow State
+  const [smsLookupInput, setSmsLookupInput] = useState(currentMember.email || '');
+  const [isSendingEmailCode, setIsSendingEmailCode] = useState(false);
+  const [emailCodeNeedsActivation, setEmailCodeNeedsActivation] = useState(false);
+  const [emailCodeSentInfo, setEmailCodeSentInfo] = useState<{
+    email: string;
+    message: string;
   } | null>(null);
   const [enteredOtp, setEnteredOtp] = useState('');
 
@@ -130,33 +149,64 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
       setEditPhone(superAdminProfile.phone);
       setEditEmail(superAdminProfile.email || 'xay.raxa@gmail.com');
       setSmsLookupInput(superAdminProfile.email || 'xay.raxa@gmail.com');
-      setNewPasswordInput(superAdminProfile.passwordPin);
-      setConfirmPasswordInput(superAdminProfile.passwordPin);
     } else {
-      const m = allMembers.find((item) => item.memberId === selectedMemberId) || currentMember;
+      const m = allMembers.find((item) => item.memberId === selectedMemberId) || allMembers[0] || currentMember;
       const defaultEmail = m.email || `${m.memberId.toLowerCase()}@dmcxayraxa.com`;
       setEditName(m.name);
       setEditPhone(m.phone);
       setEditEmail(defaultEmail);
       setSmsLookupInput(defaultEmail);
-      setNewPasswordInput(m.password || '123456');
-      setConfirmPasswordInput(m.password || '123456');
     }
-    setSmsDispatchedInfo(null);
+    setNewPasswordInput('');
+    setConfirmPasswordInput('');
+    setEmailCodeSentInfo(null);
+    setEmailCodeNeedsActivation(false);
     setEnteredOtp('');
-  }, [recoveryTarget, selectedMemberId, superAdminProfile, allMembers, currentMember]);
+  }, [recoveryTarget, selectedMemberId, superAdminProfile.name, superAdminProfile.phone, superAdminProfile.email, allMembers, currentMember]);
 
   useEffect(() => {
     setLoginMode(initialMode);
   }, [initialMode]);
 
+  // Ensure QR registration sponsor selection & login identifier automatically drop deleted demo members
   useEffect(() => {
-    if (currentMember?.memberId) {
-      setIdentifier(currentMember.memberId);
+    const deletedSet = new Set(deletedMemberIds.map((d) => d.trim().toUpperCase()));
+    const cleanRef = initialRefCode.trim().toUpperCase();
+    if (cleanRef && !deletedSet.has(cleanRef)) {
+      const refMatch = allMembers.find((m) => m.memberId.trim().toUpperCase() === cleanRef);
+      if (refMatch) {
+        setRegSponsorCode(refMatch.memberId);
+      }
+    } else if (
+      regSponsorCode &&
+      (deletedSet.has(regSponsorCode.trim().toUpperCase()) ||
+        !allMembers.some((m) => m.memberId.trim().toUpperCase() === regSponsorCode.trim().toUpperCase()))
+    ) {
+      setRegSponsorCode(allMembers[0]?.memberId || '');
+    }
+
+    if (
+      identifier &&
+      deletedSet.has(identifier.trim().toUpperCase())
+    ) {
+      setIdentifier(allMembers[0]?.memberId || '');
+    }
+  }, [allMembers, deletedMemberIds, initialRefCode]);
+
+  useEffect(() => {
+    setAdminUser(superAdminProfile.operatorId);
+  }, [superAdminProfile.operatorId]);
+
+  useEffect(() => {
+    const activeMatch = allMembers.find((m) => m.memberId === currentMember?.memberId);
+    if (activeMatch) {
+      setIdentifier(activeMatch.memberId);
+    } else if (allMembers[0]?.memberId) {
+      setIdentifier(allMembers[0].memberId);
     }
     setPassword('');
     setAdminPin('');
-  }, [currentMember?.memberId, isOpen, isLoggedOut]);
+  }, [currentMember?.memberId, isOpen, isLoggedOut, allMembers]);
 
   if (!isOpen && !isLoggedOut) return null;
 
@@ -206,13 +256,13 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         ? allMembers.find((m) => m.memberId === matchedCustomerBooking.customerMemberId)
         : undefined);
 
-    // If signing in under 3/ User Customer with a new Free Customer ID or phone not yet in allMembers, auto-create a Free User Customer account so any Free or Active Customer can login
+    // If signing in under 3/ User Customer with a new Free Customer ID or phone not yet in allMembers, auto-create a Free User Customer account
     if (!matchedMember && !matchedSingerExplicit && !matchedCustomerBooking && userRoleType === 'USER_CUSTOMER' && raw.length >= 3) {
       const regRes = await registerMember({
         name: raw.startsWith('DMC-') ? `Customer ${raw}` : raw,
         phone: cleanPhone.length >= 6 ? raw : '+856 20 5588 9900',
         password: password.trim() || '123456',
-        sponsorCode: 'DMC-LA-00404',
+        sponsorCode: allMembers[0]?.memberId || '',
         termsConsent: true,
         autoRedeemConsent: true,
       });
@@ -223,7 +273,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
 
     if (!matchedMember && !matchedSingerExplicit && !matchedCustomerBooking) {
       setErrorMsg(
-        `Account "${identifier}" not found. Enter your Member ID (e.g. DMC-LA-00404), Singer Code, or Customer Phone (+856).`
+        `Account "${identifier}" not found or has been deleted. Enter an active Member ID, Singer Code, or Phone (+856).`
       );
       return;
     }
@@ -233,21 +283,27 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
       return;
     }
 
-    const expectedPassword = (
-      matchedMember?.password ||
-      matchedSingerExplicit?.password ||
-      '123456'
-    ).trim();
-
-    if (password.trim() !== expectedPassword) {
-      setErrorMsg(
-        `Invalid password for ${
-          matchedMember?.name || matchedSingerExplicit?.stageName || identifier
-        } (${
-          matchedMember?.memberId || matchedSingerExplicit?.singerCode || identifier
-        }). Please enter your current password.`
+    if (matchedMember) {
+      const pwCheck = await verifyAccountPasswordWithCloud(
+        'MEMBER',
+        matchedMember.memberId,
+        password.trim()
       );
-      return;
+      if (!pwCheck.valid) {
+        setErrorMsg(
+          pwCheck.reason ||
+            `Invalid password for ${matchedMember.name} (${matchedMember.memberId}).`
+        );
+        return;
+      }
+    } else if (matchedSingerExplicit) {
+      const expectedPassword = (matchedSingerExplicit.password || '123456').trim();
+      if (password.trim() !== expectedPassword) {
+        setErrorMsg(
+          `Invalid password for ${matchedSingerExplicit.stageName} (${matchedSingerExplicit.singerCode}). Please enter your current password.`
+        );
+        return;
+      }
     }
 
     const resolvedMemberId =
@@ -327,16 +383,22 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     setErrorMsg('');
   };
 
-  const handleSuperAdminSignIn = (e: React.FormEvent, openFullPortal = false) => {
+  const handleSuperAdminSignIn = async (e: React.FormEvent, openFullPortal = false) => {
     e.preventDefault();
     setErrorMsg('');
     if (!adminPin.trim()) {
       setErrorMsg('Please enter the Administrator Password / PIN.');
       return;
     }
-    if (adminPin.trim() !== superAdminProfile.passwordPin.trim()) {
+    const adminCheck = await verifyAccountPasswordWithCloud(
+      'SUPER_ADMIN',
+      adminUser,
+      adminPin
+    );
+    if (!adminCheck.valid) {
       setErrorMsg(
-        `Invalid Administrator Password / PIN. Please check your credentials or use Email Recovery.`
+        adminCheck.reason ||
+          'Invalid Administrator Password / PIN. Please check your credentials or use Email Recovery.'
       );
       return;
     }
@@ -354,39 +416,60 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     }, 500);
   };
 
-  const handleSendSmsOtp = () => {
+  const handleSendEmailConfirmationCode = async () => {
     setErrorMsg('');
     setSuccessMsg('');
     const targetEmail = (editEmail || smsLookupInput).trim();
     if (!targetEmail || !targetEmail.includes('@')) {
-      setErrorMsg('Please enter a valid Email Address (e.g., name@gmail.com) to verify.');
+      setErrorMsg('Please enter a valid Email Address (e.g., xay.raxa@gmail.com) to receive your confirmation code.');
       return;
     }
-    const res = sendSmsRecoveryOtp(recoveryTarget, targetEmail);
-    setSmsDispatchedInfo({
-      otpCode: 'EMAIL-VERIFIED',
-      phone: targetEmail,
-      matchedId: res.matchedId || selectedMemberId,
-      matchedName: res.matchedName || editName,
-      carrier: 'Email Verification',
+    setIsSendingEmailCode(true);
+    setEmailCodeNeedsActivation(false);
+    const dispatchRes = await sendEmailResetConfirmation({
+      targetRole: recoveryTarget,
+      targetEmail,
+      accountId:
+        recoveryTarget === 'SUPER_ADMIN'
+          ? superAdminProfile.operatorId
+          : selectedMemberId,
+      accountName: editName,
     });
-    setEnteredOtp('EMAIL-VERIFIED');
-    setSuccessMsg(`Email verified successfully (${targetEmail})!`);
+    setIsSendingEmailCode(false);
+
+    if (!dispatchRes.success) {
+      if (dispatchRes.needsActivation) {
+        setEmailCodeNeedsActivation(true);
+      }
+      setErrorMsg(dispatchRes.message);
+      return;
+    }
+
+    setEmailCodeSentInfo({
+      email: dispatchRes.email,
+      message: dispatchRes.message,
+    });
+    setSuccessMsg(dispatchRes.message);
   };
 
-  const handleCompleteSmsRecoveryOrUpdate = (e: React.FormEvent) => {
+  const handleCompleteEmailCodeReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
     const targetEmail = (editEmail || smsLookupInput).trim();
     if (!targetEmail || !targetEmail.includes('@')) {
-      setErrorMsg('Please enter a valid Email Address to verify your account.');
+      setErrorMsg('Please enter your valid Email Address first.');
       return;
     }
-
-    if (!newPasswordInput.trim()) {
-      setErrorMsg('Please enter a new Password / PIN.');
+    if (!enteredOtp.trim() || !/^\d{6}$/.test(enteredOtp.trim())) {
+      setErrorMsg(
+        'Please click "1. Send Code to Email Inbox", check your email inbox (e.g., xay.raxa@gmail.com), and enter the 6-digit confirmation code.'
+      );
+      return;
+    }
+    if (!newPasswordInput.trim() || newPasswordInput.trim().length < 4) {
+      setErrorMsg('Please enter a new Password / PIN (at least 4 characters).');
       return;
     }
     if (newPasswordInput.trim() !== confirmPasswordInput.trim()) {
@@ -394,30 +477,34 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
       return;
     }
 
-    if (recoveryTarget === 'SUPER_ADMIN') {
-      updateSuperAdminProfile({
+    const res = await verifyAndResetPasswordByEmailCode({
+      targetRole: recoveryTarget,
+      accountId:
+        recoveryTarget === 'SUPER_ADMIN'
+          ? superAdminProfile.operatorId
+          : selectedMemberId,
+      targetEmail,
+      confirmationCode: enteredOtp.trim(),
+      newPassword: newPasswordInput.trim(),
+      profileUpdates: {
         name: editName.trim(),
         phone: editPhone.trim(),
         email: targetEmail,
-        passwordPin: newPasswordInput.trim(),
-      });
-      setAdminPin('');
-      setSuccessMsg(
-        `Verified by Email (${targetEmail})! Updated Administrator (${superAdminProfile.operatorId}) profile and password. Please sign in with your new password.`
-      );
-    } else {
-      adminUpdateMember(selectedMemberId, {
-        name: editName.trim(),
-        phone: editPhone.trim(),
-        email: targetEmail,
-        password: newPasswordInput.trim(),
-        lastPasswordUpdatedAt: new Date().toISOString(),
-      });
-      setPassword('');
-      setSuccessMsg(
-        `Verified by Email (${targetEmail})! Updated Member ${editName.trim()} (${selectedMemberId}) profile and password. Please sign in with your new password.`
-      );
+      },
+    });
+
+    if (!res.success) {
+      setErrorMsg(res.message);
+      return;
     }
+
+    setAdminPin('');
+    setPassword('');
+    setEnteredOtp('');
+    setNewPasswordInput('');
+    setConfirmPasswordInput('');
+    setEmailCodeSentInfo(null);
+    setSuccessMsg(res.message);
   };
 
   return (
@@ -1042,26 +1129,59 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
              ========================================================= */}
           {loginMode === 'ADMIN' && (
             <form onSubmit={handleSuperAdminSignIn} className="space-y-4">
-              {/* Classic Administrator Notice Banner */}
-              <div className="p-3 rounded bg-[#EBF5F0] border border-[#94C9B3] flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-bold text-[#065F46] uppercase tracking-wider">
-                    Super Administrator Access
+              {/* Classic Administrator Notice & Multi-Device Cloud Sync Status Banner */}
+              <div className="p-3 rounded bg-[#EBF5F0] border border-[#94C9B3] space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-[#065F46] uppercase tracking-wider">
+                      Super Administrator Access
+                    </div>
+                    <div className="text-slate-700 text-[11px]">
+                      ID: <span className="font-mono font-bold">{superAdminProfile.operatorId}</span>
+                    </div>
                   </div>
-                  <div className="text-slate-700 text-[11px]">
-                    ID: <span className="font-mono font-bold">{superAdminProfile.operatorId}</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdminUser(superAdminProfile.operatorId);
+                      setAdminPin('');
+                    }}
+                    className="px-2.5 py-1 rounded bg-white hover:bg-emerald-50 text-[#065F46] border border-[#065F46]/40 text-[11px] font-bold cursor-pointer"
+                  >
+                    Auto-Fill ID
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdminUser(superAdminProfile.operatorId);
-                    setAdminPin('');
-                  }}
-                  className="px-2.5 py-1 rounded bg-white hover:bg-emerald-50 text-[#065F46] border border-[#065F46]/40 text-[11px] font-bold cursor-pointer"
-                >
-                  Auto-Fill ID
-                </button>
+
+                <div className="pt-1.5 border-t border-[#94C9B3]/60 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[10px] font-semibold text-slate-700">
+                    Cloud Multi-Device Sync:{' '}
+                    <strong className={isFirebaseAdmin ? 'text-emerald-700' : 'text-amber-700'}>
+                      {isFirebaseAdmin ? 'Connected (xay.raxa@gmail.com)' : cloudSyncStatus}
+                    </strong>
+                  </span>
+                  {!isFirebaseAdmin && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setErrorMsg('');
+                        const res = await connectGoogleCloudSync();
+                        if (!res.success && res.error) {
+                          setErrorMsg(res.error);
+                        } else if (res.success) {
+                          setSuccessMsg('Google Cloud Sync connected! All devices now sync in real time.');
+                        }
+                      }}
+                      className="px-2 py-1 rounded bg-[#065F46] hover:bg-[#077355] text-white text-[10px] font-bold cursor-pointer"
+                    >
+                      Connect Google Sync
+                    </button>
+                  )}
+                </div>
+                {cloudSyncError && (
+                  <div className="text-[10px] text-rose-700 font-semibold leading-tight">
+                    {cloudSyncError}
+                  </div>
+                )}
               </div>
 
               {/* Administrator Username / Operator ID */}
@@ -1308,6 +1428,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                       onChange={(e) => setRegSponsorCode(e.target.value)}
                       className="w-full bg-white border border-slate-400 rounded px-2.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-[#6B0816]"
                     >
+                      <option value="">Direct Registration (DMC Xayraxa)</option>
                       {allMembers.map((m) => (
                         <option key={m.id} value={m.memberId}>
                           {m.memberId} — {m.name}
@@ -1360,37 +1481,35 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
           )}
 
           {/* =========================================================
-              TAB 4: CLASSIC PASSWORD RECOVERY & PROFILE UPDATE
+              TAB 4: REAL EMAIL CONFIRMATION PASSWORD RECOVERY & PROFILE
              ========================================================= */}
           {loginMode === 'RECOVERY' && (
-            <form onSubmit={handleCompleteSmsRecoveryOrUpdate} className="space-y-3.5">
-              {/* Target Selector: Member vs Admin (Admin option only shown when Admin is authenticated or recovering Admin password) */}
-              {(isAdminAuthenticated || isAdminMode) && (
-                <div className="grid grid-cols-2 gap-2 p-1 bg-[#E8E2D5] rounded border border-[#C8BFA8]">
-                  <button
-                    type="button"
-                    onClick={() => setRecoveryTarget('MEMBER')}
-                    className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
-                      recoveryTarget === 'MEMBER'
-                        ? 'bg-[#6B0816] text-white'
-                        : 'text-slate-700 hover:bg-white/50'
-                    }`}
-                  >
-                    Member User
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRecoveryTarget('SUPER_ADMIN')}
-                    className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
-                      recoveryTarget === 'SUPER_ADMIN'
-                        ? 'bg-[#065F46] text-white'
-                        : 'text-slate-700 hover:bg-white/50'
-                    }`}
-                  >
-                    Administrator
-                  </button>
-                </div>
-              )}
+            <form onSubmit={handleCompleteEmailCodeReset} className="space-y-3.5">
+              {/* Target Selector: Member vs Admin */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-[#E8E2D5] rounded border border-[#C8BFA8]">
+                <button
+                  type="button"
+                  onClick={() => setRecoveryTarget('MEMBER')}
+                  className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
+                    recoveryTarget === 'MEMBER'
+                      ? 'bg-[#6B0816] text-white'
+                      : 'text-slate-700 hover:bg-white/50'
+                  }`}
+                >
+                  Member User
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRecoveryTarget('SUPER_ADMIN')}
+                  className={`py-1.5 px-2 rounded text-xs font-bold cursor-pointer ${
+                    recoveryTarget === 'SUPER_ADMIN'
+                      ? 'bg-[#065F46] text-white'
+                      : 'text-slate-700 hover:bg-white/50'
+                  }`}
+                >
+                  Administrator
+                </button>
+              </div>
 
               {recoveryTarget === 'MEMBER' && (
                 <div className="space-y-3">
@@ -1467,13 +1586,13 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                 </div>
               )}
 
-              {/* Email Verification Box (No OTP Required) */}
-              <div className="p-3 rounded bg-[#F2EFE9] border border-[#D5CFC0] space-y-2">
+              {/* Step 1 & Step 2: Real Email Inbox 6-Digit Confirmation Box */}
+              <div className="p-3 rounded bg-[#F2EFE9] border border-[#D5CFC0] space-y-2.5">
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-[#6B0816]" />
-                  <span>Step 1: Verify by Email Address</span>
+                  <span>Step 1: Send 6-Digit Confirmation Code to Email Inbox</span>
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="email"
                     value={editEmail}
@@ -1481,26 +1600,49 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                       setEditEmail(e.target.value);
                       setSmsLookupInput(e.target.value);
                     }}
-                    placeholder="yourname@gmail.com"
+                    placeholder="xay.raxa@gmail.com"
                     required
                     className="flex-1 bg-white border border-slate-400 rounded px-3 py-1.5 text-xs text-slate-900"
                   />
                   <button
                     type="button"
-                    onClick={handleSendSmsOtp}
-                    className="px-3 py-1.5 rounded bg-[#6B0816] hover:bg-[#850A1C] text-[#F9E498] font-bold text-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                    disabled={isSendingEmailCode}
+                    onClick={() => void handleSendEmailConfirmationCode()}
+                    className="px-3 py-1.5 rounded bg-[#6B0816] hover:bg-[#850A1C] disabled:opacity-50 text-[#F9E498] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
                   >
-                    <Mail className="w-3 h-3" />
-                    <span>Verify Email</span>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{isSendingEmailCode ? 'Sending to Inbox...' : 'Send Code to Inbox'}</span>
                   </button>
                 </div>
 
-                {smsDispatchedInfo && (
-                  <div className="pt-1 flex items-center gap-1.5 text-[11px] text-emerald-800 font-bold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Email Verified: {smsDispatchedInfo.phone}</span>
+                {emailCodeNeedsActivation && (
+                  <div className="p-2.5 rounded bg-amber-50 border border-amber-400 text-[11px] text-amber-950 font-semibold leading-snug">
+                    One-time Gmail Inbox activation required: Open <strong>{editEmail}</strong>, click <strong>Activate Form</strong> in the FormSubmit email, then click <strong>Send Code to Inbox</strong> again.
                   </div>
                 )}
+
+                {emailCodeSentInfo && (
+                  <div className="pt-1 flex items-start gap-1.5 text-[11px] text-emerald-800 font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{emailCodeSentInfo.message}</span>
+                  </div>
+                )}
+
+                <div className="pt-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-800 mb-1">
+                    Step 2: Enter 6-Digit Confirmation Code from Email Inbox *
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={enteredOtp}
+                    onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit code from your Gmail inbox"
+                    required
+                    className="w-full bg-white border border-slate-400 rounded px-3 py-2 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:border-[#6B0816]"
+                  />
+                </div>
               </div>
 
               {/* Profile & New Password Fields */}
@@ -1532,23 +1674,27 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-slate-700 mb-1">
-                    New Password / PIN
+                    New Password / PIN *
                   </label>
                   <input
-                    type="text"
+                    type="password"
                     value={newPasswordInput}
                     onChange={(e) => setNewPasswordInput(e.target.value)}
+                    placeholder="Enter new password"
+                    required
                     className="w-full bg-white border border-slate-400 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900"
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-slate-700 mb-1">
-                    Confirm Password
+                    Confirm Password *
                   </label>
                   <input
-                    type="text"
+                    type="password"
                     value={confirmPasswordInput}
                     onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                    placeholder="Re-enter new password"
+                    required
                     className="w-full bg-white border border-slate-400 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900"
                   />
                 </div>
@@ -1556,9 +1702,10 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] text-[#F9E498] font-bold text-xs uppercase tracking-wider border border-[#C5A059] shadow cursor-pointer"
+                disabled={enteredOtp.trim().length !== 6}
+                className="w-full py-2.5 px-4 rounded bg-gradient-to-b from-[#7C0A1B] to-[#510510] disabled:opacity-50 text-[#F9E498] font-bold text-xs uppercase tracking-wider border border-[#C5A059] shadow cursor-pointer"
               >
-                Verify Email & Save New Password
+                Confirm Inbox Code &amp; Save New Password
               </button>
             </form>
           )}

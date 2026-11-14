@@ -1,0 +1,243 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Security Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'xay.raxa@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Strict Validation Helpers
+    function isValidPublicDirectory(data) {
+      return data.keys().hasAll([
+        'schemaVersion',
+        'adminOperatorId',
+        'adminPasswordHash',
+        'adminPasswordUpdatedAt',
+        'deletedMemberIds',
+        'activeSponsorIds',
+        'activeSponsorNames',
+        'memberAuthHashes',
+        'memberStates',
+        'ownerUid',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'schemaVersion',
+        'adminOperatorId',
+        'adminPasswordHash',
+        'adminPasswordUpdatedAt',
+        'deletedMemberIds',
+        'activeSponsorIds',
+        'activeSponsorNames',
+        'memberAuthHashes',
+        'memberStates',
+        'ownerUid',
+        'updatedAt'
+      ])
+      && data.schemaVersion is int
+      && data.adminOperatorId is string && data.adminOperatorId.size() >= 1 && data.adminOperatorId.size() <= 64 && data.adminOperatorId.matches('^[a-zA-Z0-9_\\-]+$')
+      && data.adminPasswordHash is string && data.adminPasswordHash.size() >= 32 && data.adminPasswordHash.size() <= 128
+      && data.adminPasswordUpdatedAt is string && data.adminPasswordUpdatedAt.size() <= 64
+      && data.deletedMemberIds is list && data.deletedMemberIds.size() <= 200
+      && (data.deletedMemberIds.size() == 0 || (data.deletedMemberIds[0] is string && data.deletedMemberIds[0].size() <= 64))
+      && data.activeSponsorIds is list && data.activeSponsorIds.size() <= 200
+      && (data.activeSponsorIds.size() == 0 || (data.activeSponsorIds[0] is string && data.activeSponsorIds[0].size() <= 64))
+      && data.activeSponsorNames is map && data.activeSponsorNames.size() <= 200
+      && data.memberAuthHashes is map && data.memberAuthHashes.size() <= 200
+      && data.memberStates is map && data.memberStates.size() <= 200
+      && data.ownerUid is string && data.ownerUid.size() <= 128 && data.ownerUid == request.auth.uid
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminVault(data) {
+      return data.keys().hasAll([
+        'operatorId',
+        'name',
+        'phone',
+        'email',
+        'roleTitle',
+        'passwordHash',
+        'lastPasswordUpdatedAt',
+        'ownerUid',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'operatorId',
+        'name',
+        'phone',
+        'email',
+        'roleTitle',
+        'passwordHash',
+        'lastPasswordUpdatedAt',
+        'ownerUid',
+        'updatedAt'
+      ])
+      && data.operatorId is string && data.operatorId.size() >= 1 && data.operatorId.size() <= 64 && data.operatorId.matches('^[a-zA-Z0-9_\\-]+$')
+      && data.name is string && data.name.size() <= 120
+      && data.phone is string && data.phone.size() <= 40
+      && data.email is string && data.email.size() <= 120
+      && data.roleTitle is string && data.roleTitle.size() <= 120
+      && data.passwordHash is string && data.passwordHash.size() >= 32 && data.passwordHash.size() <= 128
+      && data.lastPasswordUpdatedAt is string && data.lastPasswordUpdatedAt.size() <= 64
+      && data.ownerUid is string && data.ownerUid.size() <= 128 && data.ownerUid == request.auth.uid
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidMemberDoc(data) {
+      return data.keys().hasAll([
+        'memberId',
+        'name',
+        'phone',
+        'email',
+        'passwordHash',
+        'membershipState',
+        'sponsorId',
+        'kycStatus',
+        'avatarUrl',
+        'language',
+        'ownerUid',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'memberId',
+        'name',
+        'phone',
+        'email',
+        'passwordHash',
+        'membershipState',
+        'sponsorId',
+        'kycStatus',
+        'avatarUrl',
+        'language',
+        'isAutomaticAffiliate',
+        'autoAffiliateCode',
+        'bankSummary',
+        'ownerUid',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.memberId is string && data.memberId.size() >= 1 && data.memberId.size() <= 64 && data.memberId.matches('^[a-zA-Z0-9_\\-]+$')
+      && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+      && data.phone is string && data.phone.size() <= 40
+      && data.email is string && data.email.size() <= 120
+      && data.passwordHash is string && data.passwordHash.size() >= 32 && data.passwordHash.size() <= 128
+      && data.membershipState in ['FREE_MEMBER', 'ACTIVE_LIFETIME_MEMBER']
+      && data.sponsorId is string && data.sponsorId.size() <= 64
+      && data.kycStatus in ['UNVERIFIED', 'PENDING', 'VERIFIED']
+      && data.avatarUrl is string && data.avatarUrl.size() <= 2048
+      && data.language in ['en', 'lo', 'th', 'vi', 'zh', 'ko']
+      && (!('isAutomaticAffiliate' in data) || data.isAutomaticAffiliate is bool)
+      && (!('autoAffiliateCode' in data) || (data.autoAffiliateCode is string && data.autoAffiliateCode.size() <= 64))
+      && (!('bankSummary' in data) || (data.bankSummary is string && data.bankSummary.size() <= 200))
+      && data.ownerUid is string && data.ownerUid.size() <= 128
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    // 1. Public Non-PII Directory State (synced to QR scanners & sign-in screens)
+    match /public_directory/{docId} {
+      allow get: if isValidId(docId) && docId == 'state';
+      allow list: if false;
+      allow create, update: if isValidId(docId)
+        && docId == 'state'
+        && isAdmin()
+        && isValidPublicDirectory(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // 2. Super Admin Vault (Strictly Admin Only)
+    match /admin_vault/{docId} {
+      allow get: if isValidId(docId) && docId == 'super_admin_config' && isAdmin();
+      allow list, delete: if false;
+      allow create, update: if isValidId(docId)
+        && docId == 'super_admin_config'
+        && isAdmin()
+        && isValidAdminVault(incoming())
+        && incoming().updatedAt == request.time;
+    }
+
+    // 3. Members Directory (PII Isolated to Admin or Verified Owner)
+    match /members/{memberId} {
+      allow get: if isValidId(memberId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().ownerUid == request.auth.uid)
+      );
+      allow list: if isAdmin() || (
+        isVerifiedUser() && resource.data.ownerUid == request.auth.uid
+      );
+      allow create: if isValidId(memberId)
+        && isValidMemberDoc(incoming())
+        && incoming().memberId == memberId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isVerifiedUser()
+            && incoming().ownerUid == request.auth.uid
+            && incoming().membershipState == 'FREE_MEMBER'
+            && incoming().kycStatus == 'UNVERIFIED'
+          )
+        );
+      allow update: if isValidId(memberId)
+        && isValidMemberDoc(incoming())
+        && incoming().memberId == memberId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'phone', 'email', 'passwordHash', 'membershipState', 'sponsorId',
+            'kycStatus', 'avatarUrl', 'language', 'isAutomaticAffiliate', 'autoAffiliateCode',
+            'bankSummary', 'ownerUid', 'updatedAt'
+          ])) ||
+          (
+            isVerifiedUser()
+            && existing().ownerUid == request.auth.uid
+            && incoming().ownerUid == existing().ownerUid
+            && incoming().membershipState == existing().membershipState
+            && incoming().kycStatus == existing().kycStatus
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'phone', 'email', 'passwordHash', 'avatarUrl', 'language', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(memberId) && isAdmin();
+    }
+
+    // 4. Admin Role Registry
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isAdmin() || (isVerifiedUser() && request.auth.uid == uid));
+      allow list, create, update, delete: if false;
+    }
+  }
+}

@@ -50,6 +50,31 @@ import {
   DmcLoanWalletTransaction,
   DmcAdminPanelBookingReport,
 } from '../types/dmc';
+import {
+  auth,
+  AUTHORIZED_ADMIN_EMAIL,
+  FirebaseUser,
+} from '../firebase';
+import {
+  CloudAdminVaultConfig,
+  CloudMemberRecord,
+  CloudPublicDirectoryState,
+  listenToAdminVaultConfig,
+  listenToCloudMembers,
+  listenToPublicDirectoryState,
+  pushCloudDirectoryAndAdminState,
+  pushNewMemberBySignedInUser,
+  pushSingleDeletedMemberToCloud,
+  signInAdminWithGoogle,
+  signOutFirebaseCloud,
+  subscribeToFirebaseAuth,
+} from '../services/firebaseSyncService';
+import {
+  DispatchEmailResetResult,
+  hashAccountPassword,
+  sendPasswordResetConfirmationEmail,
+  verifyEmailResetCode,
+} from '../utils/emailVerificationService';
 
 export const TWELVE_HOURS_INACTIVITY_MS = 12 * 60 * 60 * 1000; // 12 Hours (43,200,000 ms)
 export const FOUR_HOURS_INACTIVITY_MS = TWELVE_HOURS_INACTIVITY_MS;
@@ -59,6 +84,7 @@ const DELETED_MEMBER_IDS_STORAGE_KEY = 'dmc_rev26_deleted_member_ids_v1';
 const LEDGER_ENTRIES_STORAGE_KEY = 'dmc_rev26_ledger_entries_v1';
 const AWARDS_STORAGE_KEY = 'dmc_rev26_awards_v1';
 const SUPER_ADMIN_STORAGE_KEY = 'dmc_rev26_super_admin_v1';
+const CLOUD_PUBLIC_DIRECTORY_CACHE_KEY = 'dmc_rev26_cloud_public_dir_v1';
 
 function loadDeletedMemberIdsFromStorage(): string[] {
   try {
@@ -228,6 +254,38 @@ interface DmcContextType {
     newPassword: string,
     profileUpdates?: { name?: string; phone?: string; email?: string }
   ) => { success: boolean; message: string };
+  sendEmailResetConfirmation: (params: {
+    targetRole: 'MEMBER' | 'SUPER_ADMIN';
+    targetEmail: string;
+    accountId?: string;
+    accountName?: string;
+  }) => Promise<DispatchEmailResetResult>;
+  verifyAndResetPasswordByEmailCode: (params: {
+    targetRole: 'MEMBER' | 'SUPER_ADMIN';
+    accountId: string;
+    targetEmail: string;
+    confirmationCode: string;
+    newPassword: string;
+    profileUpdates?: { name?: string; phone?: string; email?: string };
+  }) => Promise<{ success: boolean; message: string }>;
+  verifyAccountPasswordWithCloud: (
+    accountType: 'SUPER_ADMIN' | 'MEMBER',
+    accountIdOrOperator: string,
+    enteredPassword: string
+  ) => Promise<{ valid: boolean; reason?: string }>;
+  firebaseUser: FirebaseUser | null;
+  isFirebaseAdmin: boolean;
+  cloudSyncStatus: 'DISCONNECTED' | 'SYNCING' | 'CONNECTED' | 'ERROR';
+  cloudSyncError: string | null;
+  cloudDirectoryState: CloudPublicDirectoryState | null;
+  lastCloudSyncAt: string | null;
+  connectGoogleCloudSync: () => Promise<{ success: boolean; error?: string }>;
+  disconnectGoogleCloudSync: () => Promise<void>;
+  forceCloudPushAllMembers: (overrideParams?: {
+    members?: Member[];
+    deletedMemberIds?: string[];
+    superAdminProfile?: SuperAdminProfile;
+  }) => Promise<{ success: boolean; error?: string }>;
   
   // Balances & Ledger
   getMemberBalances: (memberId: string) => MemberBalances;
@@ -2046,17 +2104,28 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const [members, setMembers] = useState<Member[]>(() => {
+    const initialDeleted = new Set(loadDeletedMemberIdsFromStorage());
     try {
       const saved = localStorage.getItem(MEMBERS_STORAGE_KEY);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (m: Member) => !initialDeleted.has(String(m.memberId || '').trim().toUpperCase())
+          );
+        }
       }
     } catch {
       // ignore storage errors
     }
-    return INITIAL_MEMBERS;
+    return INITIAL_MEMBERS.filter(
+      (m) => !initialDeleted.has(m.memberId.trim().toUpperCase())
+    );
   });
+  const membersRef = useRef<Member[]>(members);
+  useEffect(() => {
+    membersRef.current = members;
+  }, [members]);
   const initialSessionState = useMemo(() => loadInitialActiveSession(), []);
   const [currentMemberId, setCurrentMemberId] = useState<string>(
     initialSessionState.session.currentMemberId
@@ -2242,7 +2311,385 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // ignore storage errors
     }
+    superAdminProfileRef.current = superAdminProfile;
   }, [superAdminProfile]);
+
+  const superAdminProfileRef = useRef<SuperAdminProfile>(superAdminProfile);
+
+  // Firebase Auth & Firestore Multi-Device Cloud Sync State
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isFirebaseAdmin, setIsFirebaseAdmin] = useState<boolean>(false);
+  const isFirebaseAdminRef = useRef<boolean>(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<
+    'DISCONNECTED' | 'SYNCING' | 'CONNECTED' | 'ERROR'
+  >('DISCONNECTED');
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
+  const [cloudDirectoryState, setCloudDirectoryState] = useState<CloudPublicDirectoryState | null>(
+    () => {
+      try {
+        const cached = localStorage.getItem(CLOUD_PUBLIC_DIRECTORY_CACHE_KEY);
+        if (cached) return JSON.parse(cached) as CloudPublicDirectoryState;
+      } catch {
+        // ignore
+      }
+      return null;
+    }
+  );
+  const cloudDirectoryStateRef = useRef<CloudPublicDirectoryState | null>(cloudDirectoryState);
+
+  const applyPublicDirectoryToDevice = (dirState: CloudPublicDirectoryState) => {
+    cloudDirectoryStateRef.current = dirState;
+    setCloudDirectoryState(dirState);
+    setLastCloudSyncAt(dirState.updatedAtIso || new Date().toISOString());
+    try {
+      localStorage.setItem(CLOUD_PUBLIC_DIRECTORY_CACHE_KEY, JSON.stringify(dirState));
+    } catch {
+      // ignore
+    }
+
+    // 1. Apply cloud deletedMemberIds tombstones across all devices & QR scanners
+    const cloudDeletedSet = new Set(
+      dirState.deletedMemberIds.map((id) => id.trim().toUpperCase()).filter(Boolean)
+    );
+    deletedMemberIdsRef.current = cloudDeletedSet;
+    const deletedList = Array.from(cloudDeletedSet);
+    setDeletedMemberIds(deletedList);
+    try {
+      localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(deletedList));
+    } catch {
+      // ignore
+    }
+
+    // 2. Purge any deleted demo/member accounts and merge cloud active sponsors cleanly
+    setMembers((prev) => {
+      const kept = prev.filter(
+        (m) => !cloudDeletedSet.has(m.memberId.trim().toUpperCase())
+      );
+      const existingIds = new Set(kept.map((m) => m.memberId.trim().toUpperCase()));
+      const extraCloudSponsors: Member[] = [];
+      for (const sid of dirState.activeSponsorIds) {
+        const upperSid = sid.trim().toUpperCase();
+        if (!cloudDeletedSet.has(upperSid) && !existingIds.has(upperSid)) {
+          existingIds.add(upperSid);
+          extraCloudSponsors.push({
+            id: `usr-cloud-${upperSid.toLowerCase()}`,
+            memberId: upperSid,
+            name: dirState.activeSponsorNames[upperSid] || upperSid,
+            phone: '',
+            email: '',
+            language: 'en',
+            membershipState: dirState.memberStates[upperSid] || 'FREE_MEMBER',
+            sponsorId: null,
+            createdAt: dirState.updatedAtIso || new Date().toISOString(),
+            consents: {
+              termsAccepted: true,
+              termsVersion: 'v2.6',
+              autoRedeemConsent: true,
+              autoRedeemVersion: 'v2.6',
+            },
+            kycStatus: 'VERIFIED',
+          });
+        }
+      }
+      const next = [...extraCloudSponsors, ...kept];
+      membersRef.current = next;
+      try {
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 3. Sync Super Admin operatorId & detect remote password updates (invalidate old default '888888')
+    if (dirState.adminOperatorId || dirState.adminPasswordUpdatedAt) {
+      setSuperAdminProfile((prev) => {
+        const remoteNewer =
+          Boolean(dirState.adminPasswordUpdatedAt) &&
+          dirState.adminPasswordUpdatedAt !== prev.lastPasswordUpdatedAt;
+        const next: SuperAdminProfile = {
+          ...prev,
+          operatorId: dirState.adminOperatorId || prev.operatorId,
+          ...(remoteNewer
+            ? { lastPasswordUpdatedAt: dirState.adminPasswordUpdatedAt }
+            : {}),
+        };
+        superAdminProfileRef.current = next;
+        return next;
+      });
+    }
+  };
+
+  // Subscribe to Firebase Auth & Public Non-PII Cloud Directory on boot (works on all devices & QR scanners)
+  useEffect(() => {
+    const unsubAuth = subscribeToFirebaseAuth((user, isAdmin) => {
+      setFirebaseUser(user);
+      setIsFirebaseAdmin(isAdmin);
+      isFirebaseAdminRef.current = isAdmin;
+      if (isAdmin) {
+        setCloudSyncStatus('CONNECTED');
+        setCloudSyncError(null);
+      } else {
+        setCloudSyncStatus('DISCONNECTED');
+      }
+    });
+
+    const unsubPublicDir = listenToPublicDirectoryState(
+      (dirState) => {
+        if (dirState) {
+          applyPublicDirectoryToDevice(dirState);
+        }
+      },
+      (err) => {
+        setCloudSyncError(err.message);
+      }
+    );
+
+    return () => {
+      unsubAuth();
+      unsubPublicDir();
+    };
+  }, []);
+
+  // Subscribe to PII Admin Vault & Full Members collection ONLY when signed in as verified Google Admin
+  useEffect(() => {
+    if (!isFirebaseAdmin) return;
+
+    const unsubVault = listenToAdminVaultConfig(
+      (vault: CloudAdminVaultConfig | null) => {
+        if (!vault) return;
+        setSuperAdminProfile((prev) => {
+          const next: SuperAdminProfile = {
+            ...prev,
+            operatorId: vault.operatorId || prev.operatorId,
+            name: vault.name || prev.name,
+            phone: vault.phone || prev.phone,
+            email: vault.email || prev.email,
+            roleTitle: vault.roleTitle || prev.roleTitle,
+            lastPasswordUpdatedAt: vault.lastPasswordUpdatedAt || prev.lastPasswordUpdatedAt,
+          };
+          superAdminProfileRef.current = next;
+          return next;
+        });
+      },
+      (err) => {
+        setCloudSyncStatus('ERROR');
+        setCloudSyncError(err.message);
+      }
+    );
+
+    const unsubMembers = listenToCloudMembers(
+      (cloudList: CloudMemberRecord[]) => {
+        if (cloudList.length === 0) return;
+        const deletedSet = deletedMemberIdsRef.current;
+        setMembers((prev) => {
+          const byId = new Map<string, Member>();
+          for (const m of prev) {
+            const up = m.memberId.trim().toUpperCase();
+            if (!deletedSet.has(up)) byId.set(up, m);
+          }
+          for (const cm of cloudList) {
+            const up = cm.memberId.trim().toUpperCase();
+            if (deletedSet.has(up)) continue;
+            const existing = byId.get(up);
+            byId.set(up, {
+              ...(existing || {
+                id: `usr-${up.toLowerCase()}`,
+                memberId: up,
+                createdAt: new Date().toISOString(),
+                consents: {
+                  termsAccepted: true,
+                  termsVersion: 'v2.6',
+                  autoRedeemConsent: true,
+                  autoRedeemVersion: 'v2.6',
+                },
+              }),
+              memberId: up,
+              name: cm.name || existing?.name || up,
+              phone: cm.phone || existing?.phone || '',
+              email: cm.email || existing?.email || '',
+              membershipState: cm.membershipState,
+              sponsorId: cm.sponsorId ? cm.sponsorId : null,
+              kycStatus: cm.kycStatus,
+              avatarUrl: existing?.avatarUrl || cm.avatarUrl || '',
+              language: cm.language || existing?.language || 'en',
+              isAutomaticAffiliate: cm.isAutomaticAffiliate ?? existing?.isAutomaticAffiliate,
+              autoAffiliateCode: cm.autoAffiliateCode || existing?.autoAffiliateCode,
+            });
+          }
+          const next = Array.from(byId.values());
+          membersRef.current = next;
+          try {
+            localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+      },
+      (err) => {
+        setCloudSyncStatus('ERROR');
+        setCloudSyncError(err.message);
+      }
+    );
+
+    return () => {
+      unsubVault();
+      unsubMembers();
+    };
+  }, [isFirebaseAdmin]);
+
+  const forceCloudPushAllMembers = async (overrideParams?: {
+    members?: Member[];
+    deletedMemberIds?: string[];
+    superAdminProfile?: SuperAdminProfile;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!isFirebaseAdminRef.current) {
+      return {
+        success: false,
+        error: `Connect Google Cloud Sync (${AUTHORIZED_ADMIN_EMAIL}) in Admin Portal to sync across all computers and phones.`,
+      };
+    }
+    setCloudSyncStatus('SYNCING');
+    setCloudSyncError(null);
+    try {
+      const updatedDir = await pushCloudDirectoryAndAdminState({
+        superAdminProfile: overrideParams?.superAdminProfile || superAdminProfileRef.current,
+        members: overrideParams?.members || membersRef.current,
+        deletedMemberIds:
+          overrideParams?.deletedMemberIds || Array.from(deletedMemberIdsRef.current),
+        existingCloudHashes: cloudDirectoryStateRef.current?.memberAuthHashes,
+        existingCloudAdminHash: cloudDirectoryStateRef.current?.adminPasswordHash,
+        syncMemberDocs: true,
+      });
+      cloudDirectoryStateRef.current = updatedDir;
+      setCloudDirectoryState(updatedDir);
+      setLastCloudSyncAt(updatedDir.updatedAtIso || new Date().toISOString());
+      setCloudSyncStatus('CONNECTED');
+      try {
+        localStorage.setItem(CLOUD_PUBLIC_DIRECTORY_CACHE_KEY, JSON.stringify(updatedDir));
+      } catch {
+        // ignore
+      }
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCloudSyncStatus('ERROR');
+      setCloudSyncError(msg);
+      return { success: false, error: msg };
+    }
+  };
+
+  const connectGoogleCloudSync = async (): Promise<{ success: boolean; error?: string }> => {
+    setCloudSyncStatus('SYNCING');
+    setCloudSyncError(null);
+    const res = await signInAdminWithGoogle();
+    if (!res.isAdmin) {
+      setCloudSyncStatus('DISCONNECTED');
+      setCloudSyncError(res.error || 'Google Cloud Sync not authorized.');
+      return { success: false, error: res.error };
+    }
+    isFirebaseAdminRef.current = true;
+    setFirebaseUser(res.user);
+    setIsFirebaseAdmin(true);
+    setCloudSyncStatus('CONNECTED');
+    // Immediately synchronize current local deletions, members & Super Admin hash with cloud
+    const pushRes = await forceCloudPushAllMembers();
+    return pushRes.success ? { success: true } : pushRes;
+  };
+
+  const disconnectGoogleCloudSync = async (): Promise<void> => {
+    await signOutFirebaseCloud();
+    isFirebaseAdminRef.current = false;
+    setFirebaseUser(null);
+    setIsFirebaseAdmin(false);
+    setCloudSyncStatus('DISCONNECTED');
+  };
+
+  const verifyAccountPasswordWithCloud = async (
+    accountType: 'SUPER_ADMIN' | 'MEMBER',
+    accountIdOrOperator: string,
+    enteredPassword: string
+  ): Promise<{ valid: boolean; reason?: string }> => {
+    const cleanPw = enteredPassword.trim();
+    if (!cleanPw) {
+      return { valid: false, reason: 'Please enter your Password / PIN.' };
+    }
+
+    const dirState = cloudDirectoryStateRef.current;
+
+    if (accountType === 'SUPER_ADMIN') {
+      const operatorId = (
+        dirState?.adminOperatorId ||
+        superAdminProfileRef.current.operatorId ||
+        'SUPER-ADMIN-LAO'
+      )
+        .trim()
+        .toUpperCase();
+      const enteredOp = accountIdOrOperator.trim().toUpperCase();
+      const adminEmailUpper = (
+        superAdminProfileRef.current.email || AUTHORIZED_ADMIN_EMAIL
+      )
+        .trim()
+        .toUpperCase();
+
+      if (enteredOp && enteredOp !== operatorId && enteredOp !== adminEmailUpper) {
+        return {
+          valid: false,
+          reason: `Administrator Username / ID "${accountIdOrOperator}" does not match "${operatorId}".`,
+        };
+      }
+
+      if (dirState?.adminPasswordHash) {
+        const candidateHash = await hashAccountPassword(operatorId, cleanPw);
+        if (candidateHash !== dirState.adminPasswordHash) {
+          return {
+            valid: false,
+            reason:
+              'Invalid Administrator Password / PIN (old/default PIN rejected by synced cloud credentials). Use Email Recovery with your Gmail inbox code if forgotten.',
+          };
+        }
+        return { valid: true };
+      }
+
+      const localPin = superAdminProfileRef.current.passwordPin.trim();
+      if (!localPin || cleanPw !== localPin) {
+        return {
+          valid: false,
+          reason:
+            'Invalid Administrator Password / PIN. Please check your password or use Email Recovery.',
+        };
+      }
+      return { valid: true };
+    }
+
+    // MEMBER password verification (Member ID, Singer Code, or Customer)
+    const upperId = accountIdOrOperator.trim().toUpperCase();
+    const matchedMember = membersRef.current.find(
+      (m) => m.memberId.trim().toUpperCase() === upperId
+    );
+    const cloudHash = dirState?.memberAuthHashes?.[upperId];
+    if (cloudHash) {
+      const candidateHash = await hashAccountPassword(upperId, cleanPw);
+      if (candidateHash !== cloudHash) {
+        return {
+          valid: false,
+          reason: `Invalid password for ${matchedMember?.name || upperId} (${upperId}). Old passwords are no longer accepted once updated.`,
+        };
+      }
+      return { valid: true };
+    }
+
+    const expectedPassword = (matchedMember?.password || '123456').trim();
+    if (cleanPw !== expectedPassword) {
+      return {
+        valid: false,
+        reason: `Invalid password for ${matchedMember?.name || upperId} (${upperId}). Please enter your current password.`,
+      };
+    }
+    return { valid: true };
+  };
   const [activeSmsOtps, setActiveSmsOtps] = useState<Record<string, string>>({});
   const [products, setProducts] = useState<ProductSKU[]>(() => {
     try {
@@ -3486,6 +3933,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setMembers(prev => {
       const next = [newMember, ...prev];
+      membersRef.current = next;
       try {
         localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -3493,6 +3941,13 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return next;
     });
+    const nextMembersSnapshot = [newMember, ...membersRef.current.filter(m => m.memberId !== newMember.memberId)];
+    membersRef.current = nextMembersSnapshot;
+    if (isFirebaseAdminRef.current) {
+      void forceCloudPushAllMembers({ members: nextMembersSnapshot });
+    } else if (auth.currentUser?.emailVerified) {
+      void pushNewMemberBySignedInUser(newMember).catch(() => {});
+    }
     setCurrentMemberId(newMemberId);
     setIsAdminMode(false);
     setIsLoggedOut(false);
@@ -4587,6 +5042,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setMembers(prev => {
       const next = [newMember, ...prev];
+      membersRef.current = next;
       try {
         localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -4594,6 +5050,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return next;
     });
+    const nextSnapshot = [newMember, ...membersRef.current.filter(m => m.memberId !== newMember.memberId)];
+    membersRef.current = nextSnapshot;
+    if (isFirebaseAdminRef.current) {
+      void forceCloudPushAllMembers({ members: nextSnapshot });
+    }
 
     // Initial balances if specified
     const newEntries: LedgerEntry[] = [];
@@ -4662,8 +5123,8 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newId = canAdminChangeSponsor ? updates.memberId?.trim() : undefined;
     const cleanedPassword =
       updates.password !== undefined ? updates.password.trim() : undefined;
-    setMembers(prev => {
-      const next = prev.map(m => {
+    const computeNextMembers = (list: Member[]) =>
+      list.map(m => {
         if (m.memberId.trim().toUpperCase() === targetUpper) {
           const safeSponsorId =
             canAdminChangeSponsor && updates.sponsorId !== undefined
@@ -4687,6 +5148,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return m;
       });
+    const updatedSnapshot = computeNextMembers(membersRef.current);
+    membersRef.current = updatedSnapshot;
+    setMembers(prev => {
+      const next = computeNextMembers(prev);
+      membersRef.current = next;
       try {
         localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -4694,6 +5160,24 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return next;
     });
+    if (isFirebaseAdminRef.current) {
+      void forceCloudPushAllMembers({ members: updatedSnapshot });
+    } else if (cleanedPassword) {
+      // Update cached local hash on this device immediately if password changed
+      void hashAccountPassword(newId || targetUpper, cleanedPassword).then(newHash => {
+        if (cloudDirectoryStateRef.current) {
+          const nextDir = {
+            ...cloudDirectoryStateRef.current,
+            memberAuthHashes: {
+              ...cloudDirectoryStateRef.current.memberAuthHashes,
+              [newId ? newId.toUpperCase() : targetUpper]: newHash,
+            },
+          };
+          cloudDirectoryStateRef.current = nextDir;
+          setCloudDirectoryState(nextDir);
+        }
+      });
+    }
 
     // Sync any linked Singer Profile (2/ User Singer)
     setSingerProfiles(prev => {
@@ -4770,11 +5254,32 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSuperAdminProfile = (updates: Partial<SuperAdminProfile>) => {
-    setSuperAdminProfile(prev => ({
-      ...prev,
+    const nextAdminProfile: SuperAdminProfile = {
+      ...superAdminProfileRef.current,
       ...updates,
-      lastPasswordUpdatedAt: updates.passwordPin ? new Date().toISOString() : prev.lastPasswordUpdatedAt,
-    }));
+      lastPasswordUpdatedAt: updates.passwordPin
+        ? new Date().toISOString()
+        : superAdminProfileRef.current.lastPasswordUpdatedAt,
+    };
+    superAdminProfileRef.current = nextAdminProfile;
+    setSuperAdminProfile(nextAdminProfile);
+    if (isFirebaseAdminRef.current) {
+      void forceCloudPushAllMembers({ superAdminProfile: nextAdminProfile });
+    } else if (updates.passwordPin) {
+      void hashAccountPassword(nextAdminProfile.operatorId, updates.passwordPin).then(newHash => {
+        if (cloudDirectoryStateRef.current) {
+          const nextDir = {
+            ...cloudDirectoryStateRef.current,
+            adminOperatorId: nextAdminProfile.operatorId,
+            adminPasswordHash: newHash,
+            adminPasswordUpdatedAt:
+              nextAdminProfile.lastPasswordUpdatedAt || new Date().toISOString(),
+          };
+          cloudDirectoryStateRef.current = nextDir;
+          setCloudDirectoryState(nextDir);
+        }
+      });
+    }
     setAuditLogs(prev => [
       {
         id: `aud-sa-${Date.now()}`,
@@ -4987,42 +5492,237 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  const sendEmailResetConfirmation = async (params: {
+    targetRole: 'MEMBER' | 'SUPER_ADMIN';
+    targetEmail: string;
+    accountId?: string;
+    accountName?: string;
+  }): Promise<DispatchEmailResetResult> => {
+    const cleanEmail = params.targetEmail.trim();
+    const resolvedId =
+      params.targetRole === 'SUPER_ADMIN'
+        ? superAdminProfileRef.current.operatorId
+        : params.accountId || currentMemberId;
+    const resolvedName =
+      params.targetRole === 'SUPER_ADMIN'
+        ? params.accountName || superAdminProfileRef.current.name
+        : params.accountName ||
+          membersRef.current.find(m => m.memberId.toUpperCase() === resolvedId.toUpperCase())
+            ?.name ||
+          resolvedId;
+
+    const result = await sendPasswordResetConfirmationEmail({
+      targetEmail: cleanEmail,
+      targetRole: params.targetRole,
+      accountId: resolvedId,
+      accountName: resolvedName,
+    });
+
+    if (result.success) {
+      setAuditLogs(prev => [
+        {
+          id: `aud-email-code-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          actor: resolvedId,
+          action: 'EMAIL_RESET_CONFIRMATION_CODE_SENT',
+          entityType: params.targetRole,
+          entityId: resolvedId,
+          details: { email: cleanEmail },
+        },
+        ...prev,
+      ]);
+    }
+    return result;
+  };
+
+  const verifyAndResetPasswordByEmailCode = async (params: {
+    targetRole: 'MEMBER' | 'SUPER_ADMIN';
+    accountId: string;
+    targetEmail: string;
+    confirmationCode: string;
+    newPassword: string;
+    profileUpdates?: { name?: string; phone?: string; email?: string };
+  }): Promise<{ success: boolean; message: string }> => {
+    const cleanNewPw = params.newPassword.trim();
+    if (!cleanNewPw || cleanNewPw.length < 4) {
+      return {
+        success: false,
+        message: 'New Password / PIN must be at least 4 characters.',
+      };
+    }
+
+    const check = await verifyEmailResetCode(params.targetEmail, params.confirmationCode);
+    if (!check.valid) {
+      return {
+        success: false,
+        message: check.error || 'Invalid confirmation code from email inbox.',
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    const verifiedEmail = params.targetEmail.trim();
+
+    if (params.targetRole === 'SUPER_ADMIN') {
+      const nextAdminProfile: SuperAdminProfile = {
+        ...superAdminProfileRef.current,
+        ...(params.profileUpdates?.name ? { name: params.profileUpdates.name } : {}),
+        ...(params.profileUpdates?.phone ? { phone: params.profileUpdates.phone } : {}),
+        email: verifiedEmail || superAdminProfileRef.current.email,
+        passwordPin: cleanNewPw,
+        lastPasswordUpdatedAt: nowIso,
+        lastRecoverySmsAt: nowIso,
+      };
+      superAdminProfileRef.current = nextAdminProfile;
+      setSuperAdminProfile(nextAdminProfile);
+      try {
+        localStorage.setItem(SUPER_ADMIN_STORAGE_KEY, JSON.stringify(nextAdminProfile));
+      } catch {
+        // ignore
+      }
+      if (isFirebaseAdminRef.current) {
+        await forceCloudPushAllMembers({ superAdminProfile: nextAdminProfile });
+      }
+      setAuditLogs(prev => [
+        {
+          id: `aud-email-reset-sa-${Date.now()}`,
+          timestamp: nowIso,
+          actor: 'SUPER_ADMIN',
+          action: 'EMAIL_INBOX_CODE_PASSWORD_RESET',
+          entityType: 'SUPER_ADMIN',
+          entityId: nextAdminProfile.operatorId,
+          details: { email: verifiedEmail, syncedToCloud: isFirebaseAdminRef.current },
+        },
+        ...prev,
+      ]);
+      return {
+        success: true,
+        message: isFirebaseAdminRef.current
+          ? `Confirmed by Gmail (${verifiedEmail}) & synced to Cloud! Super Admin password updated across all devices.`
+          : `Confirmed by Gmail (${verifiedEmail})! Super Admin password updated. Connect Google Cloud Sync in Admin Portal to sync across other computers.`,
+      };
+    }
+
+    const targetUpper = params.accountId.trim().toUpperCase();
+    const updatedMembers = membersRef.current.map(m =>
+      m.memberId.trim().toUpperCase() === targetUpper
+        ? {
+            ...m,
+            ...(params.profileUpdates?.name ? { name: params.profileUpdates.name } : {}),
+            ...(params.profileUpdates?.phone ? { phone: params.profileUpdates.phone } : {}),
+            email: verifiedEmail || m.email,
+            password: cleanNewPw,
+            lastPasswordUpdatedAt: nowIso,
+            lastRecoverySmsAt: nowIso,
+          }
+        : m
+    );
+    membersRef.current = updatedMembers;
+    setMembers(updatedMembers);
+    try {
+      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(updatedMembers));
+    } catch {
+      // ignore
+    }
+
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(s => {
+        if (s.memberId?.trim().toUpperCase() === targetUpper) {
+          changed = true;
+          return {
+            ...s,
+            ...(params.profileUpdates?.name ? { fullName: params.profileUpdates.name } : {}),
+            ...(params.profileUpdates?.phone ? { phone: params.profileUpdates.phone } : {}),
+            email: verifiedEmail || s.email,
+            password: cleanNewPw,
+          };
+        }
+        return s;
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    if (isFirebaseAdminRef.current) {
+      await forceCloudPushAllMembers({ members: updatedMembers });
+    }
+
+    const targetMem = updatedMembers.find(m => m.memberId.trim().toUpperCase() === targetUpper);
+    setAuditLogs(prev => [
+      {
+        id: `aud-email-reset-mem-${Date.now()}`,
+        timestamp: nowIso,
+        actor: targetUpper,
+        action: 'EMAIL_INBOX_CODE_PASSWORD_RESET',
+        entityType: 'MEMBER',
+        entityId: targetUpper,
+        details: { email: verifiedEmail },
+      },
+      ...prev,
+    ]);
+    return {
+      success: true,
+      message: `Confirmed by Gmail (${verifiedEmail})! Updated password for ${targetMem?.name || targetUpper} (${targetUpper}).`,
+    };
+  };
+
   const adminDeleteMember = (memberId: string): boolean => {
     const cleanId = memberId.trim();
     const upperId = cleanId.toUpperCase();
-    const target = members.find(m => m.memberId.toUpperCase() === upperId);
+    const target = membersRef.current.find(m => m.memberId.toUpperCase() === upperId);
     const parentSponsorId = target ? target.sponsorId : null;
 
-    // Record permanent deletion tombstone so demo reconciliation NEVER re-injects this member on Admin sign-in or reload
+    // Record permanent deletion tombstone so demo reconciliation NEVER re-injects this member
     deletedMemberIdsRef.current.add(upperId);
-    setDeletedMemberIds(prev => {
-      const next = Array.from(new Set([...prev.map(id => id.toUpperCase()), upperId]));
-      try {
-        localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore quota errors
-      }
-      return next;
-    });
+    const nextDeleted = Array.from(deletedMemberIdsRef.current);
+    setDeletedMemberIds(nextDeleted);
+    try {
+      localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(nextDeleted));
+    } catch {
+      // ignore quota errors
+    }
 
-    setMembers(prev => {
-      const remaining = prev
-        .filter(m => m.memberId.toUpperCase() !== upperId)
-        .map(m =>
-          m.sponsorId && m.sponsorId.toUpperCase() === upperId
-            ? { ...m, sponsorId: parentSponsorId }
-            : m
-        );
-      try {
-        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(remaining));
-      } catch {
-        // ignore quota errors
-      }
-      if (currentMemberId.toUpperCase() === upperId) {
-        setCurrentMemberId(remaining[0]?.memberId || '');
-      }
-      return remaining;
-    });
+    const remainingMembers = membersRef.current
+      .filter(m => m.memberId.toUpperCase() !== upperId)
+      .map(m =>
+        m.sponsorId && m.sponsorId.toUpperCase() === upperId
+          ? { ...m, sponsorId: parentSponsorId }
+          : m
+      );
+    membersRef.current = remainingMembers;
+    setMembers(remainingMembers);
+    try {
+      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(remainingMembers));
+    } catch {
+      // ignore quota errors
+    }
+    if (currentMemberId.toUpperCase() === upperId) {
+      setCurrentMemberId(remainingMembers[0]?.memberId || '');
+    }
+
+    if (isFirebaseAdminRef.current) {
+      void pushSingleDeletedMemberToCloud(upperId, {
+        superAdminProfile: superAdminProfileRef.current,
+        members: remainingMembers,
+        deletedMemberIds: nextDeleted,
+        existingCloudHashes: cloudDirectoryStateRef.current?.memberAuthHashes,
+        existingCloudAdminHash: cloudDirectoryStateRef.current?.adminPasswordHash,
+      })
+        .then(updatedDir => {
+          cloudDirectoryStateRef.current = updatedDir;
+          setCloudDirectoryState(updatedDir);
+          setLastCloudSyncAt(updatedDir.updatedAtIso || new Date().toISOString());
+        })
+        .catch(err => {
+          setCloudSyncError(err instanceof Error ? err.message : String(err));
+        });
+    }
 
     setAuditLogs(prev => [
       {
@@ -5032,7 +5732,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         action: 'ADMIN_DELETE_MEMBER',
         entityType: 'MEMBER',
         entityId: cleanId,
-        details: { deletedAt: new Date().toISOString(), reattachedChildrenTo: parentSponsorId },
+        details: {
+          deletedAt: new Date().toISOString(),
+          reattachedChildrenTo: parentSponsorId,
+          syncedToCloud: isFirebaseAdminRef.current,
+        },
       },
       ...prev,
     ]);
@@ -5042,12 +5746,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const adminSaveAndConfirmMembers = () => {
     const savedAt = new Date().toISOString();
     try {
-      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
-      localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(deletedMemberIds));
+      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(membersRef.current));
+      localStorage.setItem(
+        DELETED_MEMBER_IDS_STORAGE_KEY,
+        JSON.stringify(Array.from(deletedMemberIdsRef.current))
+      );
       localStorage.setItem(LEDGER_ENTRIES_STORAGE_KEY, JSON.stringify(ledgerEntries));
       localStorage.setItem(AWARDS_STORAGE_KEY, JSON.stringify(awards));
     } catch {
       // ignore quota errors
+    }
+    if (isFirebaseAdminRef.current) {
+      void forceCloudPushAllMembers();
     }
     setAuditLogs(prev => [
       {
@@ -5058,16 +5768,17 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         entityType: 'MEMBER_DIRECTORY',
         entityId: 'MEMBERS_STORE',
         details: {
-          activeMemberCount: members.length,
-          permanentlyDeletedCount: deletedMemberIds.length,
+          activeMemberCount: membersRef.current.length,
+          permanentlyDeletedCount: deletedMemberIdsRef.current.size,
           savedAt,
+          syncedToCloud: isFirebaseAdminRef.current,
         },
       },
       ...prev,
     ]);
     return {
-      memberCount: members.length,
-      deletedCount: deletedMemberIds.length,
+      memberCount: membersRef.current.length,
+      deletedCount: deletedMemberIdsRef.current.size,
       savedAt,
     };
   };
@@ -5075,12 +5786,19 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const adminRestoreDefaultMembers = () => {
     deletedMemberIdsRef.current.clear();
     setDeletedMemberIds([]);
+    membersRef.current = INITIAL_MEMBERS;
     setMembers(INITIAL_MEMBERS);
     try {
       localStorage.removeItem(DELETED_MEMBER_IDS_STORAGE_KEY);
       localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(INITIAL_MEMBERS));
     } catch {
       // ignore quota errors
+    }
+    if (isFirebaseAdminRef.current) {
+      void forceCloudPushAllMembers({
+        members: INITIAL_MEMBERS,
+        deletedMemberIds: [],
+      });
     }
     setAuditLogs(prev => [
       {
@@ -9794,6 +10512,18 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSuperAdminProfile,
         sendSmsRecoveryOtp,
         resetPasswordWithSmsOtp,
+        sendEmailResetConfirmation,
+        verifyAndResetPasswordByEmailCode,
+        verifyAccountPasswordWithCloud,
+        firebaseUser,
+        isFirebaseAdmin,
+        cloudSyncStatus,
+        cloudSyncError,
+        cloudDirectoryState,
+        lastCloudSyncAt,
+        connectGoogleCloudSync,
+        disconnectGoogleCloudSync,
+        forceCloudPushAllMembers,
         getMemberBalances,
         getMemberLedger,
         allLedgerEntries: ledgerEntries,
