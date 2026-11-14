@@ -71,12 +71,12 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   const [loginMode, setLoginMode] = useState<'MEMBER' | 'ADMIN' | 'RECOVERY' | 'REGISTER'>(initialMode);
   const [userRoleType, setUserRoleType] = useState<'USER_MEMBER' | 'USER_SINGER' | 'USER_CUSTOMER'>('USER_MEMBER');
   const [identifier, setIdentifier] = useState(currentMember.memberId || 'DMC-LA-00404');
-  const [password, setPassword] = useState(currentMember.password || '123456');
+  const [password, setPassword] = useState('');
   const [showMemberPassword, setShowMemberPassword] = useState(false);
   const [rememberMember, setRememberMember] = useState(true);
 
   const [adminUser, setAdminUser] = useState(superAdminProfile.operatorId);
-  const [adminPin, setAdminPin] = useState(superAdminProfile.passwordPin);
+  const [adminPin, setAdminPin] = useState('');
   const [showAdminPin, setShowAdminPin] = useState(false);
   const [rememberAdmin, setRememberAdmin] = useState(true);
   const [adminDepartment, setAdminDepartment] = useState('EXECUTIVE_GOVERNANCE');
@@ -153,9 +153,10 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
   useEffect(() => {
     if (currentMember?.memberId) {
       setIdentifier(currentMember.memberId);
-      setPassword(currentMember.password || '123456');
     }
-  }, [currentMember?.memberId]);
+    setPassword('');
+    setAdminPin('');
+  }, [currentMember?.memberId, isOpen, isLoggedOut]);
 
   if (!isOpen && !isLoggedOut) return null;
 
@@ -232,13 +233,19 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
       return;
     }
 
-    if (
-      matchedMember?.password &&
-      password.trim() !== matchedMember.password &&
-      password.trim() !== '123456'
-    ) {
+    const expectedPassword = (
+      matchedMember?.password ||
+      matchedSingerExplicit?.password ||
+      '123456'
+    ).trim();
+
+    if (password.trim() !== expectedPassword) {
       setErrorMsg(
-        `Invalid password for ${matchedMember.name} (${matchedMember.memberId}).`
+        `Invalid password for ${
+          matchedMember?.name || matchedSingerExplicit?.stageName || identifier
+        } (${
+          matchedMember?.memberId || matchedSingerExplicit?.singerCode || identifier
+        }). Please enter your current password.`
       );
       return;
     }
@@ -316,18 +323,18 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
     const matched = allMembers.find((m) => m.memberId === memberId);
     if (!matched) return;
     setIdentifier(matched.memberId);
-    setPassword(matched.password || '123456');
+    setPassword('');
     setErrorMsg('');
   };
 
   const handleSuperAdminSignIn = (e: React.FormEvent, openFullPortal = false) => {
     e.preventDefault();
     setErrorMsg('');
-    if (
-      adminPin.trim() !== '' &&
-      adminPin.trim() !== superAdminProfile.passwordPin &&
-      adminPin.trim() !== '888888'
-    ) {
+    if (!adminPin.trim()) {
+      setErrorMsg('Please enter the Administrator Password / PIN.');
+      return;
+    }
+    if (adminPin.trim() !== superAdminProfile.passwordPin.trim()) {
       setErrorMsg(
         `Invalid Administrator Password / PIN. Please check your credentials or use Email Recovery.`
       );
@@ -394,9 +401,9 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         email: targetEmail,
         passwordPin: newPasswordInput.trim(),
       });
-      setAdminPin(newPasswordInput.trim());
+      setAdminPin('');
       setSuccessMsg(
-        `Verified by Email (${targetEmail})! Updated Administrator (${superAdminProfile.operatorId}) profile and password.`
+        `Verified by Email (${targetEmail})! Updated Administrator (${superAdminProfile.operatorId}) profile and password. Please sign in with your new password.`
       );
     } else {
       adminUpdateMember(selectedMemberId, {
@@ -406,9 +413,9 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
         password: newPasswordInput.trim(),
         lastPasswordUpdatedAt: new Date().toISOString(),
       });
-      setPassword(newPasswordInput.trim());
+      setPassword('');
       setSuccessMsg(
-        `Verified by Email (${targetEmail})! Updated Member ${editName.trim()} (${selectedMemberId}) profile and password.`
+        `Verified by Email (${targetEmail})! Updated Member ${editName.trim()} (${selectedMemberId}) profile and password. Please sign in with your new password.`
       );
     }
   };
@@ -817,7 +824,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setUserRoleType('USER_MEMBER');
                     setErrorMsg('');
                     setIdentifier('DMC-LA-00404');
-                    setPassword('123456');
+                    setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                     userRoleType === 'USER_MEMBER'
@@ -836,7 +843,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setIdentifier(
                       firstSinger?.memberId || firstSinger?.singerCode || 'DMC-LA-00421'
                     );
-                    setPassword('123456');
+                    setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                     userRoleType === 'USER_SINGER'
@@ -853,7 +860,7 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     setErrorMsg('');
                     const latestBooking = singerBookings[0];
                     setIdentifier(latestBooking?.customerMemberId || 'DMC-LA-00303');
-                    setPassword('123456');
+                    setPassword('');
                   }}
                   className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                     userRoleType === 'USER_CUSTOMER'
@@ -1042,19 +1049,18 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                     Super Administrator Access
                   </div>
                   <div className="text-slate-700 text-[11px]">
-                    ID: <span className="font-mono font-bold">{superAdminProfile.operatorId}</span> · PIN:{' '}
-                    <span className="font-mono font-bold">{superAdminProfile.passwordPin}</span>
+                    ID: <span className="font-mono font-bold">{superAdminProfile.operatorId}</span>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     setAdminUser(superAdminProfile.operatorId);
-                    setAdminPin(superAdminProfile.passwordPin);
+                    setAdminPin('');
                   }}
                   className="px-2.5 py-1 rounded bg-white hover:bg-emerald-50 text-[#065F46] border border-[#065F46]/40 text-[11px] font-bold cursor-pointer"
                 >
-                  Auto-Fill
+                  Auto-Fill ID
                 </button>
               </div>
 
@@ -1082,9 +1088,6 @@ export const AuthPortalModal: React.FC<AuthPortalModalProps> = ({
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
                     Administrator Password / Master PIN
                   </label>
-                  <span className="text-[11px] font-mono text-slate-600">
-                    Default: <strong>{superAdminProfile.passwordPin}</strong>
-                  </span>
                 </div>
                 <div className="relative">
                   <KeyRound className="w-4 h-4 text-[#065F46] absolute left-3 top-1/2 -translate-y-1/2" />

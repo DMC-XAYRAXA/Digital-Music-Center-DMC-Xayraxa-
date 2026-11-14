@@ -4658,10 +4658,13 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const adminUpdateMember = (memberId: string, updates: Partial<Member>) => {
     const canAdminChangeSponsor = isAdminMode || isAdminAuthenticated;
+    const targetUpper = memberId.trim().toUpperCase();
     const newId = canAdminChangeSponsor ? updates.memberId?.trim() : undefined;
+    const cleanedPassword =
+      updates.password !== undefined ? updates.password.trim() : undefined;
     setMembers(prev => {
       const next = prev.map(m => {
-        if (m.memberId === memberId) {
+        if (m.memberId.trim().toUpperCase() === targetUpper) {
           const safeSponsorId =
             canAdminChangeSponsor && updates.sponsorId !== undefined
               ? updates.sponsorId
@@ -4669,17 +4672,23 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return {
             ...m,
             ...updates,
+            ...(cleanedPassword ? { password: cleanedPassword } : {}),
             memberId: newId || m.memberId,
             sponsorId: safeSponsorId,
           };
         }
-        if (canAdminChangeSponsor && newId && newId !== memberId && m.sponsorId === memberId) {
+        if (
+          canAdminChangeSponsor &&
+          newId &&
+          newId.toUpperCase() !== targetUpper &&
+          m.sponsorId?.trim().toUpperCase() === targetUpper
+        ) {
           return { ...m, sponsorId: newId };
         }
         return m;
       });
       try {
-        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -4903,15 +4912,17 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const nowIso = new Date().toISOString();
+    const targetUpper = matchedId.trim().toUpperCase();
+    const cleanedNewPassword = newPassword.trim();
     setMembers(prev => {
       const next = prev.map(m =>
-        m.memberId === matchedId
+        m.memberId.trim().toUpperCase() === targetUpper
           ? {
               ...m,
               ...(profileUpdates?.name ? { name: profileUpdates.name } : {}),
               ...(profileUpdates?.phone ? { phone: profileUpdates.phone } : {}),
               ...(profileUpdates?.email ? { email: profileUpdates.email } : {}),
-              password: newPassword,
+              password: cleanedNewPassword,
               lastPasswordUpdatedAt: nowIso,
               lastRecoverySmsAt: nowIso,
             }
@@ -4925,7 +4936,34 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
-    const targetMember = members.find(m => m.memberId === matchedId);
+    setSingerProfiles(prev => {
+      let changed = false;
+      const next = prev.map(s => {
+        if (s.memberId?.trim().toUpperCase() === targetUpper) {
+          changed = true;
+          return {
+            ...s,
+            ...(profileUpdates?.name ? { fullName: profileUpdates.name } : {}),
+            ...(profileUpdates?.phone ? { phone: profileUpdates.phone } : {}),
+            ...(profileUpdates?.email ? { email: profileUpdates.email } : {}),
+            password: cleanedNewPassword,
+          };
+        }
+        return s;
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('dmc_rev26_singers_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    const targetMember = members.find(
+      m => m.memberId.trim().toUpperCase() === targetUpper
+    );
     const verifiedEmail =
       profileUpdates?.email ||
       targetMember?.email ||

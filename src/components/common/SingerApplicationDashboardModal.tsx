@@ -117,7 +117,7 @@ export const SingerApplicationDashboardModal: React.FC<
   >(null);
   const [showSingerSignInBox, setShowSingerSignInBox] = useState<boolean>(true);
   const [singerLoginIdentifier, setSingerLoginIdentifier] = useState<string>('DMC-LA-00404');
-  const [singerLoginPassword, setSingerLoginPassword] = useState<string>('123456');
+  const [singerLoginPassword, setSingerLoginPassword] = useState<string>('');
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -732,14 +732,18 @@ export const SingerApplicationDashboardModal: React.FC<
         matched.memberId &&
         m.memberId.toUpperCase() === matched.memberId.toUpperCase()
     );
-    if (
-      linkedMember?.password &&
-      singerLoginPassword.trim() !== '' &&
-      singerLoginPassword.trim() !== linkedMember.password &&
-      singerLoginPassword.trim() !== '123456'
-    ) {
+    if (!singerLoginPassword.trim()) {
+      showNotice('Please enter your Singer Password / PIN to sign in.', 'ERROR');
+      return;
+    }
+    const expectedSingerPw = (
+      linkedMember?.password ||
+      matched.password ||
+      '123456'
+    ).trim();
+    if (singerLoginPassword.trim() !== expectedSingerPw) {
       showNotice(
-        `Invalid password for ${matched.stageName} (${matched.memberId}). Default password is 123456.`,
+        `Invalid password for ${matched.stageName} (${matched.memberId}). Please enter your current password.`,
         'ERROR'
       );
       return;

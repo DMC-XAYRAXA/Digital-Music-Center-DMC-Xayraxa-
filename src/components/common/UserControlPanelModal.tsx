@@ -270,20 +270,35 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
       m => m.memberId.toUpperCase() === trimmed || m.phone.includes(loginIdentifier.trim())
     );
 
-    if (found) {
-      setCurrentMemberId(found.memberId);
-      if (found.memberId !== 'DMC-LA-00001') {
-        setIsAdminMode(false);
-        setIsAdminAuthenticated(false);
-      }
-      setLoginSuccess(`Successfully authenticated as ${found.name} (${found.memberId})!`);
-      setTimeout(() => {
-        setLoginSuccess('');
-        setActiveTab('PROFILE');
-      }, 1000);
-    } else {
-      setLoginError(`No account found matching "${loginIdentifier}". Try selecting from the 1-Click Preset accounts below.`);
+    if (!found) {
+      setLoginError(`No account found matching "${loginIdentifier}".`);
+      return;
     }
+
+    if (!loginPassword.trim()) {
+      setLoginError('Please enter your Password / PIN.');
+      return;
+    }
+
+    const expectedPassword = (found.password || '123456').trim();
+    if (loginPassword.trim() !== expectedPassword) {
+      setLoginError(
+        `Invalid password for ${found.name} (${found.memberId}). Please enter your current password.`
+      );
+      return;
+    }
+
+    setCurrentMemberId(found.memberId);
+    if (found.memberId !== 'DMC-LA-00001') {
+      setIsAdminMode(false);
+      setIsAdminAuthenticated(false);
+    }
+    setLoginPassword('');
+    setLoginSuccess(`Successfully authenticated as ${found.name} (${found.memberId})!`);
+    setTimeout(() => {
+      setLoginSuccess('');
+      setActiveTab('PROFILE');
+    }, 1000);
   };
 
   const handleQuickLogin = (memberId: string) => {
@@ -2222,7 +2237,7 @@ export const UserControlPanelModal: React.FC<UserControlPanelModalProps> = ({
                   <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
                 </div>
                 <span className="text-[10px] text-slate-500">
-                  Demo mode: Any password accepted for verified accounts.
+                  Enter your current Member Password / PIN to sign in.
                 </span>
               </div>
 

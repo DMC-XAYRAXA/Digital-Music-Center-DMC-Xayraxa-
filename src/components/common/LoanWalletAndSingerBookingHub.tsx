@@ -887,7 +887,7 @@ export const LoanWalletAndSingerBookingHub: React.FC<
   const [customerLoginIdentifier, setCustomerLoginIdentifier] =
     useState<string>(currentMember?.memberId || 'DMC-LA-00303');
   const [customerLoginPassword, setCustomerLoginPassword] =
-    useState<string>('123456');
+    useState<string>('');
   const [showCustomerLoginPassword, setShowCustomerLoginPassword] =
     useState<boolean>(false);
   const [singerScheduleAlertBanner, setSingerScheduleAlertBanner] = useState<
@@ -1075,22 +1075,35 @@ export const LoanWalletAndSingerBookingHub: React.FC<
     if (found) {
       setCustomerName(found.name);
       setCustomerPhone(found.phone);
-      setCustomerPassword(found.password || '123456');
+      setCustomerPassword('');
       setCustomerLoginIdentifier(found.memberId);
-      setCustomerLoginPassword(found.password || '123456');
+      setCustomerLoginPassword('');
     }
   };
 
   const handleCustomerSignInAsMemberFreeActive = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanId = customerLoginIdentifier.trim().toUpperCase();
-    const cleanPw = customerLoginPassword.trim() || '123456';
+    const cleanPw = customerLoginPassword.trim();
+    if (!cleanPw) {
+      showBanner('Please enter your Customer Password / PIN to sign in.');
+      return;
+    }
     const matchedMember = allMembers.find(
       (m) =>
         m.memberId.toUpperCase() === cleanId ||
         m.phone.replace(/\s+/g, '') ===
           customerLoginIdentifier.trim().replace(/\s+/g, '')
     );
+    if (
+      matchedMember &&
+      cleanPw !== (matchedMember.password || '123456').trim()
+    ) {
+      showBanner(
+        `Invalid password for ${matchedMember.name} (${matchedMember.memberId}). Please enter your current password.`
+      );
+      return;
+    }
     const matchedBooking = singerBookings.find(
       (bk) =>
         (bk.customerMemberId &&

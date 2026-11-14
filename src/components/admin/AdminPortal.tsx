@@ -329,7 +329,7 @@ export const AdminPortal: React.FC = () => {
       name: editingMember.name,
       phone: editingMember.phone,
       email: editingMember.email,
-      password: editingMember.password || '123456',
+      password: (editingMember.password || '').trim() || '123456',
       sponsorId: editingMember.sponsorId || null,
       membershipState: editingMember.membershipState,
       kycStatus: editingMember.kycStatus,
@@ -1524,7 +1524,12 @@ export const AdminPortal: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => setEditingMember(member)}
+                        onClick={() =>
+                          setEditingMember({
+                            ...member,
+                            password: member.password || '123456',
+                          })
+                        }
                         className="px-2.5 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 font-semibold text-[11px] flex items-center gap-1 border border-sky-500/30"
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -3861,8 +3866,9 @@ export const AdminPortal: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <input
                       type="text"
-                      value={editingMember.password || '123456'}
+                      value={editingMember.password ?? ''}
                       onChange={e => setEditingMember({ ...editingMember, password: e.target.value })}
+                      placeholder="Enter new password / PIN"
                       className="w-full bg-slate-800 border border-amber-500/40 rounded-xl p-2.5 text-emerald-300 font-mono font-bold"
                     />
                     <button
