@@ -700,14 +700,6 @@ const PHRASE_DICTIONARY: TranslationEntry[] = [
     ko: '고객지원 및 지도',
   },
   {
-    en: 'Book',
-    lo: 'ຈອງ',
-    th: 'จอง',
-    vi: 'Đặt',
-    zh: '预订',
-    ko: '예약',
-  },
-  {
     en: 'Admin & User SMS Security',
     lo: 'ຄວາມປອດໄພ SMS ຜູ້ບໍລິຫານ & ຜູ້ໃຊ້',
     th: 'ความปลอดภัย SMS แอดมิน & ผู้ใช้',
@@ -1323,7 +1315,7 @@ const PHRASE_DICTIONARY: TranslationEntry[] = [
     en: 'Rewards follow verified sales.',
     lo: 'ລາງວັນຄອມມິດຊັ່ນຄິດໄລ່ຕາມຍອດຂາຍທີ່ຢືນຢັນແລ້ວ.',
     th: 'รางวัลคอมมิชชันคำนวณตามยอดขายที่ยืนยันแล้ว',
-    vi: 'Phần thưởng được tínhตาม doanh số đã xác minh.',
+    vi: 'Phần thưởng được tính theo doanh số đã xác minh.',
     zh: '奖励基于已核实的销售业绩计算。',
     ko: '리워드는 검증된 판매 실적에 따라 지급됩니다.',
   },
@@ -1331,7 +1323,7 @@ const PHRASE_DICTIONARY: TranslationEntry[] = [
     en: 'Withdrawals require admin approval.',
     lo: 'ການຖອນເງິນຕ້ອງຜ່ານການອະນຸມັດຈາກຜູ້ບໍລິຫານ.',
     th: 'การถอนเงินต้องได้รับการอนุมัติจากผู้ดูแลระบบ',
-    vi: 'การ rút tiền cần Quản trị viên phê duyệt.',
+    vi: 'Việc rút tiền cần Quản trị viên phê duyệt.',
     zh: '提现需经管理员审核批准。',
     ko: '출금은 관리자 승인이 필요합니다.',
   },
@@ -1531,13 +1523,893 @@ const PHRASE_DICTIONARY: TranslationEntry[] = [
     zh: '钱包',
     ko: '지갑',
   },
+
+  // ============================================================================
+  // 5. SIGN IN / REGISTRATION / RECOVERY PORTAL (AuthPortalModal)
+  // ============================================================================
+  {
+    en: '♫ Official Digital Music Ecosystem • Lao PDR ♫',
+    lo: '♫ ລະບົບນິເວດດົນຕີດິຈິຕອລທາງການ • ສປປ ລາວ ♫',
+    th: '♫ ระบบนิเวศดนตรีดิจิทัลอย่างเป็นทางการ • สปป. ลาว ♫',
+    vi: '♫ Hệ sinh thái Âm nhạc Số Chính thức • Lào ♫',
+    zh: '♫ 官方数字音乐生态系统 • 老挝 ♫',
+    ko: '♫ 공식 디지털 음악 생태계 • 라오스 ♫',
+  },
+  {
+    en: 'Official Digital Music Ecosystem • Lao PDR',
+    lo: 'ລະບົບນິເວດດົນຕີດິຈິຕອລທາງການ • ສປປ ລາວ',
+    th: 'ระบบนิเวศดนตรีดิจิทัลอย่างเป็นทางการ • สปป. ลาว',
+    vi: 'Hệ sinh thái Âm nhạc Số Chính thức • Lào',
+    zh: '官方数字音乐生态系统 • 老挝',
+    ko: '공식 디지털 음악 생태계 • 라오스',
+  },
+  {
+    en: 'Member User Sign In',
+    lo: 'ເຂົ້າສູ່ລະບົບສະມາຊິກຜູ້ໃຊ້',
+    th: 'เข้าสู่ระบบสมาชิกผู้ใช้',
+    vi: 'Đăng nhập Thành viên Người dùng',
+    zh: '会员用户登录',
+    ko: '회원 사용자 로그인',
+  },
+  {
+    en: 'Administrator Sign In',
+    lo: 'ເຂົ້າສູ່ລະບົບຜູ້ບໍລິຫານ',
+    th: 'เข้าสู่ระบบผู้ดูแลระบบ',
+    vi: 'Đăng nhập Quản trị viên',
+    zh: '管理员登录',
+    ko: '관리자 로그인',
+  },
+  {
+    en: 'New Member Registration',
+    lo: 'ລົງທະບຽນສະມາຊິກໃໝ່',
+    th: 'ลงทะเบียนสมาชิกใหม่',
+    vi: 'Đăng ký Thành viên Mới',
+    zh: '新会员注册',
+    ko: '신규 회원 가입',
+  },
+  {
+    en: 'Password Recovery & Profile',
+    lo: 'ກູ້ຄືນລະຫັດຜ່ານ & ໂປຣໄຟລ໌',
+    th: 'กู้คืนรหัสผ่าน & โปรไฟล์',
+    vi: 'Khôi phục Mật khẩu & Hồ sơ',
+    zh: '找回密码与个人资料',
+    ko: '비밀번호 복구 및 프로필',
+  },
+  {
+    en: 'User Sign In',
+    lo: 'ຜູ້ໃຊ້ເຂົ້າສູ່ລະບົບ',
+    th: 'ผู้ใช้เข้าสู่ระบบ',
+    vi: 'Người dùng Đăng nhập',
+    zh: '用户登录',
+    ko: '사용자 로그인',
+  },
+  {
+    en: '1/ User Member',
+    lo: '1/ ຜູ້ໃຊ້ສະມາຊິກ',
+    th: '1/ สมาชิกผู้ใช้',
+    vi: '1/ Thành viên',
+    zh: '1/ 普通会员',
+    ko: '1/ 일반 회원',
+  },
+  {
+    en: '2/ User Singer',
+    lo: '2/ ຜູ້ໃຊ້ນັກຮ້ອງ',
+    th: '2/ ผู้ใช้นักร้อง',
+    vi: '2/ Ca sĩ',
+    zh: '2/ 歌手会员',
+    ko: '2/ 가수 회원',
+  },
+  {
+    en: '3/ User Customer (Free & Active)',
+    lo: '3/ ລູກຄ້າທົ່ວໄປ (ຟຣີ & ເປີດໃຊ້)',
+    th: '3/ ลูกค้าทั่วไป (ฟรี & เปิดใช้งาน)',
+    vi: '3/ Khách hàng (Miễn phí & Kích hoạt)',
+    zh: '3/ 客户用户（免费与正式）',
+    ko: '3/ 고객 사용자 (무료 및 정회원)',
+  },
+  {
+    en: 'Member ID or Phone (+856)',
+    lo: 'ລະຫັດສະມາຊິກ ຫຼື ເບີໂທ (+856)',
+    th: 'รหัสสมาชิก หรือ เบอร์โทร (+856)',
+    vi: 'Mã thành viên hoặc SĐT (+856)',
+    zh: '会员 ID 或手机号 (+856)',
+    ko: '회원 ID 또는 전화번호 (+856)',
+  },
+  {
+    en: 'Singer Member ID or Phone (+856)',
+    lo: 'ລະຫັດສະມາຊິກນັກຮ້ອງ ຫຼື ເບີໂທ (+856)',
+    th: 'รหัสสมาชิกนักร้อง หรือ เบอร์โทร (+856)',
+    vi: 'Mã Ca sĩ hoặc SĐT (+856)',
+    zh: '歌手会员 ID 或手机号 (+856)',
+    ko: '가수 회원 ID 또는 전화번호 (+856)',
+  },
+  {
+    en: 'Customer Member ID or Phone (+856)',
+    lo: 'ລະຫັດລູກຄ້າ ຫຼື ເບີໂທ (+856)',
+    th: 'รหัสลูกค้า หรือ เบอร์โทร (+856)',
+    vi: 'Mã Khách hàng hoặc SĐT (+856)',
+    zh: '客户 ID 或手机号 (+856)',
+    ko: '고객 ID 또는 전화번호 (+856)',
+  },
+  {
+    en: 'Free User Customer & Active Can Login ✓',
+    lo: 'ລູກຄ້າຟຣີ & ລູກຄ້າເປີດໃຊ້ສາມາດເຂົ້າລະບົບໄດ້ ✓',
+    th: 'ลูกค้าฟรี & ลูกค้าที่เปิดใช้งานเข้าสู่ระบบได้ ✓',
+    vi: 'Khách hàng Miễn phí & Kích hoạt Đều Đăng nhập Được ✓',
+    zh: '免费及正式客户均可登录 ✓',
+    ko: '무료 및 정식 고객 모두 로그인 가능 ✓',
+  },
+  {
+    en: 'Singer Member ✓',
+    lo: 'ສະມາຊິກນັກຮ້ອງ ✓',
+    th: 'สมาชิกนักร้อง ✓',
+    vi: 'Thành viên Ca sĩ ✓',
+    zh: '歌手会员 ✓',
+    ko: '가수 회원 ✓',
+  },
+  {
+    en: 'Type Member ID (e.g., DMC-LA-00404) or Phone (+856)',
+    lo: 'ປ້ອນລະຫັດສະມາຊິກ (ເຊັ່ນ DMC-LA-00404) ຫຼື ເບີໂທ (+856)',
+    th: 'กรอกรหัสสมาชิก (เช่น DMC-LA-00404) หรือ เบอร์โทร (+856)',
+    vi: 'Nhập Mã thành viên (VD: DMC-LA-00404) hoặc SĐT (+856)',
+    zh: '输入会员 ID（如 DMC-LA-00404）或手机号 (+856)',
+    ko: '회원 ID (예: DMC-LA-00404) 또는 전화번호 (+856) 입력',
+  },
+  {
+    en: 'Password / PIN',
+    lo: 'ລະຫັດຜ່ານ / PIN',
+    th: 'รหัสผ่าน / PIN',
+    vi: 'Mật khẩu / Mã PIN',
+    zh: '密码 / PIN 码',
+    ko: '비밀번호 / PIN',
+  },
+  {
+    en: 'Enter your password',
+    lo: 'ປ້ອນລະຫັດຜ່ານຂອງທ່ານ',
+    th: 'กรอกรหัสผ่านของคุณ',
+    vi: 'Nhập mật khẩu của bạn',
+    zh: '请输入您的密码',
+    ko: '비밀번호를 입력하세요',
+  },
+  {
+    en: 'Show',
+    lo: 'ສະແດງ',
+    th: 'แสดง',
+    vi: 'Hiện',
+    zh: '显示',
+    ko: '보기',
+  },
+  {
+    en: 'Hide',
+    lo: 'ເຊື່ອງ',
+    th: 'ซ่อน',
+    vi: 'Ẩn',
+    zh: '隐藏',
+    ko: '숨기기',
+  },
+  {
+    en: 'Remember me',
+    lo: 'ຈື່ບັນຊີຂອງຂ້ອຍໄວ້',
+    th: 'จดจำฉันไว้ในระบบ',
+    vi: 'Ghi nhớ đăng nhập',
+    zh: '记住我',
+    ko: '로그인 상태 유지',
+  },
+  {
+    en: 'Forgot Password?',
+    lo: 'ລືມລະຫັດຜ່ານ?',
+    th: 'ลืมรหัสผ่าน?',
+    vi: 'Quên mật khẩu?',
+    zh: '忘记密码？',
+    ko: '비밀번호 찾기',
+  },
+  {
+    en: 'Create New Account (Register)',
+    lo: 'ສ້າງບັນຊີໃໝ່ (ລົງທະບຽນ)',
+    th: 'สร้างบัญชีใหม่ (ลงทะเบียน)',
+    vi: 'Tạo Tài khoản Mới (Đăng ký)',
+    zh: '创建新账户（注册）',
+    ko: '새 계정 만들기 (회원가입)',
+  },
+  {
+    en: 'Register New Singer (0 LAK)',
+    lo: 'ລົງທະບຽນນັກຮ້ອງໃໝ່ (0 ກີບ)',
+    th: 'ลงทะเบียนนักร้องใหม่ (0 กีบ)',
+    vi: 'Đăng ký Ca sĩ Mới (0 LAK)',
+    zh: '注册新歌手（0 基普）',
+    ko: '신규 가수 등록 (0 LAK)',
+  },
+  {
+    en: 'BOOKING FORM • CALENDAR PARTY SET',
+    lo: 'ແບບຟອມຈອງ • ປະຕິທິນຊຸດປາຕີ້',
+    th: 'แบบฟอร์มจอง • ปฏิทินชุดปาร์ตี้',
+    vi: 'PHIẾU ĐẶT LỊCH • LỊCH GÓI TIỆC',
+    zh: '预订表单 • 派对套餐日历',
+    ko: '예약 양식 • 파티 세트 일정',
+  },
+  {
+    en: 'Auto-Become Affiliate',
+    lo: 'ເປັນຕົວແທນອັດຕະໂນມັດ',
+    th: 'เป็นตัวแทนอัตโนมัติ',
+    vi: 'Tự động thành Cộng tác viên',
+    zh: '自动成为推广代理',
+    ko: '자동 제휴 파트너 전환',
+  },
+  {
+    en: 'Booking singer Music Cain party set package',
+    lo: 'ຈອງນັກຮ້ອງ ຊຸດປາຕີ້ດົນຕີ Music Cain',
+    th: 'จองนักร้อง ชุดปาร์ตี้ดนตรี Music Cain',
+    vi: 'Đặt Ca sĩ Gói Tiệc Âm Nhạc Music Cain',
+    zh: '预订歌手 Music Cain 派对套餐',
+    ko: '가수 Music Cain 파티 세트 패키지 예약',
+  },
+  {
+    en: 'General Member booking singer & become Automatic Affiliate • Select Singer • Calendar Party Date • 10% Cut to Loan Wallet',
+    lo: 'ສະມາຊິກທົ່ວໄປຈອງນັກຮ້ອງ & ເປັນຕົວແທນອັດຕະໂນມັດ • ເລືອກນັກຮ້ອງ • ເລືອກວັນທີຈັດງານ • ຫັກ 10% ເຂົ້າກະເປົາກູ້ຢືມ',
+    th: 'สมาชิกทั่วไปจองนักร้อง & เป็นตัวแทนอัตโนมัติ • เลือกนักร้อง • เลือกวันจัดงาน • หัก 10% เข้ากระเป๋าสินเชื่อ',
+    vi: 'Thành viên đặt ca sĩ & tự động thành Cộng tác viên • Chọn Ca sĩ • Chọn Ngày Tiệc • Trích 10% vào Ví Vay',
+    zh: '普通会员预订歌手并自动成为推广代理 • 选择歌手 • 选择派对日期 • 10% 划入贷款钱包',
+    ko: '일반 회원 가수 예약 및 자동 제휴 전환 • 가수 선택 • 파티 날짜 선택 • 10% 대출 지갑 적립',
+  },
+  {
+    en: 'Active:',
+    lo: 'ສະຖານະ:',
+    th: 'สถานะ:',
+    vi: 'Trạng thái:',
+    zh: '当前状态:',
+    ko: '현재 상태:',
+  },
+  {
+    en: 'Signed Out',
+    lo: 'ອອກຈາກລະບົບແລ້ວ',
+    th: 'ออกจากระบบแล้ว',
+    vi: 'Đã đăng xuất',
+    zh: '已退出登录',
+    ko: '로그아웃됨',
+  },
+  {
+    en: 'Active Session: 12 Hours (Auto Sign-Out when inactive)',
+    lo: 'ເຊສຊັນໃຊ້ງານ: 12 ຊົ່ວໂມງ (ອອກລະບົບອັດຕະໂນມັດເມື່ອບໍ່ມີການເຄື່ອນໄຫວ)',
+    th: 'เซสชันใช้งาน: 12 ชั่วโมง (ออกจากระบบอัตโนมัติเมื่อไม่ใช้งาน)',
+    vi: 'Phiên hoạt động: 12 Giờ (Tự động đăng xuất khi không hoạt động)',
+    zh: '有效会话：12 小时（无操作自动退出）',
+    ko: '활성 세션: 12시간 (비활성 시 자동 로그아웃)',
+  },
+  {
+    en: 'Sign Out',
+    lo: 'ອອກຈາກລະບົບ',
+    th: 'ออกจากระบบ',
+    vi: 'Đăng xuất',
+    zh: '退出登录',
+    ko: '로그아웃',
+  },
+  {
+    en: 'Super Administrator Access',
+    lo: 'ສິດການເຂົ້າເຖິງຜູ້ບໍລິຫານລະດັບສູງ',
+    th: 'สิทธิ์การเข้าถึงผู้ดูแลระบบสูงสุด',
+    vi: 'Quyền Truy cập Quản trị viên Cấp cao',
+    zh: '超级管理员访问权限',
+    ko: '최고 관리자 액세스',
+  },
+  {
+    en: 'Auto-Fill',
+    lo: 'ຕື່ມຂໍ້ມູນອັດຕະໂນມັດ',
+    th: 'กรอกอัตโนมัติ',
+    vi: 'Tự động điền',
+    zh: '自动填充',
+    ko: '자동 입력',
+  },
+  {
+    en: 'Administrator Username / ID',
+    lo: 'ຊື່ຜູ້ໃຊ້ / ລະຫັດຜູ້ບໍລິຫານ',
+    th: 'ชื่อผู้ใช้ / รหัสผู้ดูแลระบบ',
+    vi: 'Tên đăng nhập / ID Quản trị',
+    zh: '管理员用户名 / ID',
+    ko: '관리자 사용자명 / ID',
+  },
+  {
+    en: 'Administrator Password / Master PIN',
+    lo: 'ລະຫັດຜ່ານຜູ້ບໍລິຫານ / PIN ຫຼັກ',
+    th: 'รหัสผ่านผู้ดูแลระบบ / PIN หลัก',
+    vi: 'Mật khẩu Quản trị / Mã PIN Chính',
+    zh: '管理员密码 / 主 PIN 码',
+    ko: '관리자 비밀번호 / 마스터 PIN',
+  },
+  {
+    en: 'Enter Master Password / PIN',
+    lo: 'ປ້ອນລະຫັດຜ່ານຫຼັກ / PIN',
+    th: 'กรอกรหัสผ่านหลัก / PIN',
+    vi: 'Nhập Mật khẩu Chính / PIN',
+    zh: '输入主密码 / PIN 码',
+    ko: '마스터 비밀번호 / PIN 입력',
+  },
+  {
+    en: 'Remember Administrator',
+    lo: 'ຈື່ບັນຊີຜູ້ບໍລິຫານ',
+    th: 'จดจำผู้ดูแลระบบ',
+    vi: 'Ghi nhớ Quản trị viên',
+    zh: '记住管理员',
+    ko: '관리자 기억하기',
+  },
+  {
+    en: 'Forgot Admin Password?',
+    lo: 'ລືມລະຫັດຜ່ານຜູ້ບໍລິຫານ?',
+    th: 'ลืมรหัสผ่านผู้ดูแลระบบ?',
+    vi: 'Quên mật khẩu Quản trị?',
+    zh: '忘记管理员密码？',
+    ko: '관리자 비밀번호 찾기',
+  },
+  {
+    en: 'Sign In as Admin (Post Event & Activity on Home Screen)',
+    lo: 'ເຂົ້າລະບົບຜູ້ບໍລິຫານ (ໂພສອີເວັ້ນ & ກິດຈະກຳໜ້າຫຼັກ)',
+    th: 'เข้าสู่ระบบแอดมิน (โพสต์อีเวนต์ & กิจกรรมหน้าหลัก)',
+    vi: 'Đăng nhập Admin (Đăng Sự kiện & Hoạt động Trang chủ)',
+    zh: '以管理员身份登录（在首页发布活动与动态）',
+    ko: '관리자로 로그인 (홈 화면에 이벤트 및 활동 게시)',
+  },
+  {
+    en: 'Sign In & Open Full Web Admin Portal',
+    lo: 'ເຂົ້າລະບົບ & ເປີດໜ້າຜູ້ບໍລິຫານເຕັມຮູບແບບ',
+    th: 'เข้าสู่ระบบ & เปิดหน้าผู้ดูแลระบบเต็มรูปแบบ',
+    vi: 'Đăng nhập & Mở Cổng Quản trị Web Đầy đủ',
+    zh: '登录并打开完整网页管理后台',
+    ko: '로그인 및 전체 웹 관리자 포털 열기',
+  },
+  {
+    en: 'Switch to Member Sign In →',
+    lo: 'ສະຫຼັບໄປໜ້າເຂົ້າລະບົບສະມາຊິກ →',
+    th: 'สลับไปหน้าเข้าสู่ระบบสมาชิก →',
+    vi: 'Chuyển sang Đăng nhập Thành viên →',
+    zh: '切换至会员登录 →',
+    ko: '회원 로그인으로 전환 →',
+  },
+  {
+    en: 'Back to Sign In',
+    lo: 'ກັບຄືນສູ່ໜ້າເຂົ້າສູ່ລະບົບ',
+    th: 'กลับไปยังหน้าเข้าสู่ระบบ',
+    vi: 'Quay lại Đăng nhập',
+    zh: '返回登录',
+    ko: '로그인으로 돌아가기',
+  },
+  {
+    en: 'Free Member Sign Up (Email Verified)',
+    lo: 'ສະໝັກສະມາຊິກຟຣີ (ຢືນຢັນອີເມວ)',
+    th: 'สมัครสมาชิกฟรี (ยืนยันอีเมล)',
+    vi: 'Đăng ký Thành viên Miễn phí (Xác minh Email)',
+    zh: '免费会员注册（邮箱验证）',
+    ko: '무료 회원 가입 (이메일 인증)',
+  },
+  {
+    en: 'Email Verification & Profile',
+    lo: 'ຢືນຢັນອີເມວ & ໂປຣໄຟລ໌',
+    th: 'ยืนยันอีเมล & โปรไฟล์',
+    vi: 'Xác minh Email & Hồ sơ',
+    zh: '邮箱验证与个人资料',
+    ko: '이메일 인증 및 프로필',
+  },
+  {
+    en: 'General People: Register as Singer',
+    lo: 'ບຸກຄົນທົ່ວໄປ: ລົງທະບຽນເປັນນັກຮ້ອງ',
+    th: 'บุคคลทั่วไป: ลงทะเบียนเป็นนักร้อง',
+    vi: 'Công chúng: Đăng ký làm Ca sĩ',
+    zh: '大众用户：注册成为歌手',
+    ko: '일반인: 가수로 등록하기',
+  },
+  {
+    en: 'Get Singer Wallet, Affiliate Product Links & Bank QR Withdrawals',
+    lo: 'ຮັບກະເປົານັກຮ້ອງ, ລິ້ງແນະນຳສິນຄ້າ & ຖອນເງິນຜ່ານ QR ທະນາຄານ',
+    th: 'รับกระเป๋านักร้อง, ลิงก์แนะนำสินค้า & ถอนเงินผ่าน QR ธนาคาร',
+    vi: 'Nhận Ví Ca sĩ, Link Tiếp thị Sản phẩm & Rút tiền qua QR Ngân hàng',
+    zh: '获取歌手钱包、商品推广链接及银行二维码提现',
+    ko: '가수 지갑, 제휴 상품 링크 및 은행 QR 출금 이용',
+  },
+  {
+    en: 'Register Singer →',
+    lo: 'ລົງທະບຽນນັກຮ້ອງ →',
+    th: 'ลงทะเบียนนักร้อง →',
+    vi: 'Đăng ký Ca sĩ →',
+    zh: '注册歌手 →',
+    ko: '가수 등록 →',
+  },
+  {
+    en: 'Full Name *',
+    lo: 'ຊື່ ແລະ ນາມສະກຸນ *',
+    th: 'ชื่อ-นามสกุล *',
+    vi: 'Họ và Tên *',
+    zh: '姓名 *',
+    ko: '성명 *',
+  },
+  {
+    en: 'Full Name',
+    lo: 'ຊື່ ແລະ ນາມສະກຸນ',
+    th: 'ชื่อ-นามสกุล',
+    vi: 'Họ và Tên',
+    zh: '姓名',
+    ko: '성명',
+  },
+  {
+    en: 'Lao Mobile Phone (+856) *',
+    lo: 'ເບີໂທລະສັບລາວ (+856) *',
+    th: 'เบอร์โทรศัพท์ลาว (+856) *',
+    vi: 'Số điện thoại Lào (+856) *',
+    zh: '老挝手机号 (+856) *',
+    ko: '라오스 휴대폰 (+856) *',
+  },
+  {
+    en: 'Password / PIN *',
+    lo: 'ລະຫັດຜ່ານ / PIN *',
+    th: 'รหัสผ่าน / PIN *',
+    vi: 'Mật khẩu / PIN *',
+    zh: '密码 / PIN *',
+    ko: '비밀번호 / PIN *',
+  },
+  {
+    en: 'Sponsor Member ID',
+    lo: 'ລະຫັດສະມາຊິກຜູ້ແນະນຳ',
+    th: 'รหัสสมาชิกผู้แนะนำ',
+    vi: 'Mã Thành viên Người giới thiệu',
+    zh: '推荐人会员 ID',
+    ko: '추천인 회원 ID',
+  },
+  {
+    en: 'I agree to the',
+    lo: 'ຂ້ອຍຍອມຮັບ',
+    th: 'ฉันยอมรับ',
+    vi: 'Tôi đồng ý với',
+    zh: '我同意',
+    ko: '동의합니다:',
+  },
+  {
+    en: 'DMC XAYRAXA Membership Terms (Free 0 LAK Registration).',
+    lo: 'ຂໍ້ກຳນົດ ແລະ ເງື່ອນໄຂສະມາຊິກ DMC XAYRAXA (ລົງທະບຽນຟຣີ 0 ກີບ).',
+    th: 'ข้อกำหนดและเงื่อนไขสมาชิก DMC XAYRAXA (สมัครฟรี 0 กีบ)',
+    vi: 'Điều khoản Thành viên DMC XAYRAXA (Đăng ký Miễn phí 0 LAK).',
+    zh: 'DMC XAYRAXA 会员条款（免费 0 基普注册）。',
+    ko: 'DMC XAYRAXA 회원 약관 (무료 0 LAK 가입).',
+  },
+  {
+    en: 'Read Full Terms & Conditions',
+    lo: 'ອ່ານຂໍ້ກຳນົດ & ເງື່ອນໄຂສະບັບເຕັມ',
+    th: 'อ่านข้อกำหนด & เงื่อนไขฉบับเต็ม',
+    vi: 'Đọc Toàn bộ Điều khoản & Điều kiện',
+    zh: '阅读完整条款与条件',
+    ko: '전체 이용약관 읽기',
+  },
+  {
+    en: 'Member User',
+    lo: 'ບັນຊີສະມາຊິກ',
+    th: 'บัญชีสมาชิก',
+    vi: 'Tài khoản Thành viên',
+    zh: '会员账户',
+    ko: '회원 사용자',
+  },
+  {
+    en: 'Select Member Account',
+    lo: 'ເລືອກບັນຊີສະມາຊິກ',
+    th: 'เลือกบัญชีสมาชิก',
+    vi: 'Chọn Tài khoản Thành viên',
+    zh: '选择会员账户',
+    ko: '회원 계정 선택',
+  },
+  {
+    en: 'Update Photo',
+    lo: 'ອັບເດດຮູບພາບ',
+    th: 'อัปเดตรูปภาพ',
+    vi: 'Cập nhật Ảnh',
+    zh: '更新头像',
+    ko: '사진 업데이트',
+  },
+  {
+    en: 'Phone (+856)',
+    lo: 'ເບີໂທ (+856)',
+    th: 'เบอร์โทร (+856)',
+    vi: 'Điện thoại (+856)',
+    zh: '电话 (+856)',
+    ko: '전화번호 (+856)',
+  },
+  {
+    en: 'New Password / PIN',
+    lo: 'ລະຫັດຜ່ານໃໝ່ / PIN',
+    th: 'รหัสผ่านใหม่ / PIN',
+    vi: 'Mật khẩu Mới / PIN',
+    zh: '新密码 / PIN',
+    ko: '새 비밀번호 / PIN',
+  },
+  {
+    en: 'Confirm Password',
+    lo: 'ຢືນຢັນລະຫັດຜ່ານ',
+    th: 'ยืนยันรหัสผ่าน',
+    vi: 'Xác nhận Mật khẩu',
+    zh: '确认密码',
+    ko: '비밀번호 확인',
+  },
+
+  // ============================================================================
+  // 6. ADMIN MEMBER CRUD, SAVE/CONFIRM & DELETE MODALS
+  // ============================================================================
+  {
+    en: 'Add New Member',
+    lo: 'ເພີ່ມສະມາຊິກໃໝ່',
+    th: 'เพิ่มสมาชิกใหม่',
+    vi: 'Thêm Thành viên Mới',
+    zh: '添加新会员',
+    ko: '신규 회원 추가',
+  },
+  {
+    en: 'Add New Member Account',
+    lo: 'ເພີ່ມບັນຊີສະມາຊິກໃໝ່',
+    th: 'เพิ่มบัญชีสมาชิกใหม่',
+    vi: 'Thêm Tài khoản Thành viên Mới',
+    zh: '添加新会员账户',
+    ko: '신규 회원 계정 추가',
+  },
+  {
+    en: 'Confirm & Save All Changes',
+    lo: 'ຢືນຢັນ & ບັນທຶກການປ່ຽນແປງທັງໝົດ',
+    th: 'ยืนยัน & บันทึกการเปลี่ยนแปลงทั้งหมด',
+    vi: 'Xác nhận & Lưu Tất cả Thay đổi',
+    zh: '确认并保存所有更改',
+    ko: '모든 변경 사항 확인 및 저장',
+  },
+  {
+    en: 'Confirm & Save New Member',
+    lo: 'ຢືນຢັນ & ບັນທຶກສະມາຊິກໃໝ່',
+    th: 'ยืนยัน & บันทึกสมาชิกใหม่',
+    vi: 'Xác nhận & Lưu Thành viên Mới',
+    zh: '确认并保存新会员',
+    ko: '신규 회원 확인 및 저장',
+  },
+  {
+    en: 'Confirm & Save Changes',
+    lo: 'ຢືນຢັນ & ບັນທຶກການປ່ຽນແປງ',
+    th: 'ยืนยัน & บันทึกการเปลี่ยนแปลง',
+    vi: 'Xác nhận & Lưu Thay đổi',
+    zh: '确认并保存更改',
+    ko: '변경 사항 확인 및 저장',
+  },
+  {
+    en: 'Confirm Delete & Save',
+    lo: 'ຢືນຢັນການລຶບ & ບັນທຶກ',
+    th: 'ยืนยันการลบ & บันทึก',
+    vi: 'Xác nhận Xóa & Lưu',
+    zh: '确认删除并保存',
+    ko: '삭제 확인 및 저장',
+  },
+  {
+    en: 'Restore Demo Members',
+    lo: 'ກູ້ຄືນສະມາຊິກຕົວຢ່າງ',
+    th: 'กู้คืนสมาชิกตัวอย่าง',
+    vi: 'Khôi phục Thành viên Mẫu',
+    zh: '恢复演示会员',
+    ko: '데모 회원 복원',
+  },
+  {
+    en: 'Edit / Update',
+    lo: 'ແກ້ໄຂ / ອັບເດດ',
+    th: 'แก้ไข / อัปเดต',
+    vi: 'Sửa / Cập nhật',
+    zh: '编辑 / 更新',
+    ko: '수정 / 업데이트',
+  },
+  {
+    en: 'Adjust Balance',
+    lo: 'ປັບຍອດເງິນ',
+    th: 'ปรับยอดเงิน',
+    vi: 'Điều chỉnh Số dư',
+    zh: '调整余额',
+    ko: '잔액 조정',
+  },
+  {
+    en: 'Delete',
+    lo: 'ລຶບ',
+    th: 'ลบ',
+    vi: 'Xóa',
+    zh: '删除',
+    ko: '삭제',
+  },
+  {
+    en: 'Cancel',
+    lo: 'ຍົກເລີກ',
+    th: 'ยกเลิก',
+    vi: 'Hủy',
+    zh: '取消',
+    ko: '취소',
+  },
+  {
+    en: 'Save Changes',
+    lo: 'ບັນທຶກການປ່ຽນແປງ',
+    th: 'บันทึกการเปลี่ยนแปลง',
+    vi: 'Lưu Thay đổi',
+    zh: '保存更改',
+    ko: '변경 사항 저장',
+  },
+  {
+    en: 'Search name, phone, ID...',
+    lo: 'ຄົ້ນຫາຊື່, ເບີໂທ, ລະຫັດ...',
+    th: 'ค้นหาชื่อ, เบอร์โทร, รหัส...',
+    vi: 'Tìm tên, SĐT, ID...',
+    zh: '搜索姓名、电话、ID...',
+    ko: '이름, 전화번호, ID 검색...',
+  },
+  {
+    en: 'Approve Customer → User Member (1.6M)',
+    lo: 'ອະນຸມັດລູກຄ້າ → ສະມາຊິກສົມບູນ (1.6M)',
+    th: 'อนุมัติลูกค้า → สมาชิกสมบูรณ์ (1.6M)',
+    vi: 'Duyệt Khách hàng → Thành viên (1.6M)',
+    zh: '批准客户 → 正式会员 (1.6M)',
+    ko: '고객 승인 → 정회원 (1.6M)',
+  },
+  {
+    en: '✓ Approved User Member',
+    lo: '✓ ອະນຸມັດເປັນສະມາຊິກສົມບູນແລ້ວ',
+    th: '✓ อนุมัติเป็นสมาชิกสมบูรณ์แล้ว',
+    vi: '✓ Đã duyệt Thành viên',
+    zh: '✓ 已批准为正式会员',
+    ko: '✓ 정회원 승인 완료',
+  },
+  {
+    en: 'Update Staff Role',
+    lo: 'ອັບເດດຕຳແໜ່ງພະນັກງານ',
+    th: 'อัปเดตตำแหน่งพนักงาน',
+    vi: 'Cập nhật Chức vụ Nhân sự',
+    zh: '更新员工职位',
+    ko: '스태프 직책 업데이트',
+  },
+  {
+    en: '↑ Upgrade to Staff',
+    lo: '↑ ເລື່ອນຂັ້ນເປັນທີມງານ Staff',
+    th: '↑ เลื่อนขั้นเป็นทีมงาน Staff',
+    vi: '↑ Nâng cấp lên Nhân sự Staff',
+    zh: '↑ 升级为官方员工',
+    ko: '↑ 스태프로 승급',
+  },
+  {
+    en: 'Book',
+    lo: 'ຈອງ',
+    th: 'จอง',
+    vi: 'Đặt',
+    zh: '预订',
+    ko: '예약',
+  },
+  {
+    en: 'Save & Update Member',
+    lo: 'ບັນທຶກ & ອັບເດດສະມາຊິກ',
+    th: 'บันทึก & อัปเดตสมาชิก',
+    vi: 'Lưu & Cập nhật Thành viên',
+    zh: '保存并更新会员',
+    ko: '회원 저장 및 업데이트',
+  },
+  {
+    en: 'Save Profile Update',
+    lo: 'ບັນທຶກການອັບເດດໂປຣໄຟລ໌',
+    th: 'บันทึกการอัปเดตโปรไฟล์',
+    vi: 'Lưu Cập nhật Hồ sơ',
+    zh: '保存个人资料更新',
+    ko: '프로필 업데이트 저장',
+  },
+  {
+    en: 'Confirm & Save Member',
+    lo: 'ຢືນຢັນ & ບັນທຶກສະມາຊິກ',
+    th: 'ยืนยัน & บันทึกสมาชิก',
+    vi: 'Xác nhận & Lưu Thành viên',
+    zh: '确认并保存会员',
+    ko: '확인 및 회원 저장',
+  },
+  {
+    en: 'Save to Organize Tree',
+    lo: 'ບັນທຶກລົງໂຄງສ້າງສາຍງານ',
+    th: 'บันทึกลงผังสายงาน',
+    vi: 'Lưu vào Cây Hệ thống',
+    zh: '保存到组织架构树',
+    ko: '조직도에 저장',
+  },
+  {
+    en: 'Confirm Delete?',
+    lo: 'ຢືນຢັນການລຶບ?',
+    th: 'ยืนยันการลบ?',
+    vi: 'Xác nhận Xóa?',
+    zh: '确认删除？',
+    ko: '삭제하시겠습니까?',
+  },
+  {
+    en: 'Yes, Delete',
+    lo: 'ແມ່ນ, ລຶບເລີຍ',
+    th: 'ใช่, ลบเลย',
+    vi: 'Đúng, Xóa ngay',
+    zh: '确认删除',
+    ko: '예, 삭제',
+  },
 ];
 
-// Fast case-insensitive lookup map for exact string matches
+// Fast case-insensitive lookup map for exact string matches (spaces normalized)
 const EXACT_LOOKUP = new Map<string, TranslationEntry>();
 for (const entry of PHRASE_DICTIONARY) {
-  EXACT_LOOKUP.set(entry.en.toLowerCase(), entry);
+  EXACT_LOOKUP.set(entry.en.replace(/\s+/g, ' ').trim().toLowerCase(), entry);
 }
+
+// Longest-first sorted phrases for safe word-boundary substring replacement (min length 6)
+const SORTED_LONG_PHRASES = [...PHRASE_DICTIONARY]
+  .filter((e) => e.en.length >= 6)
+  .sort((a, b) => b.en.length - a.en.length);
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const REGEX_CACHE = new Map<string, RegExp>();
+function getSafeBoundaryRegex(phrase: string): RegExp {
+  let cached = REGEX_CACHE.get(phrase);
+  if (cached) return cached;
+  const startsAscii = /^[A-Za-z0-9]/.test(phrase);
+  const endsAscii = /[A-Za-z0-9]$/.test(phrase);
+  const pattern =
+    (startsAscii ? '(?<![A-Za-z0-9])' : '') +
+    escapeRegExp(phrase) +
+    (endsAscii ? '(?![A-Za-z0-9])' : '');
+  cached = new RegExp(pattern, 'g');
+  REGEX_CACHE.set(phrase, cached);
+  return cached;
+}
+
+const DYNAMIC_PATTERN_TRANSLATORS: Array<{
+  regex: RegExp;
+  replace: (match: RegExpMatchArray, lang: Language) => string;
+}> = [
+  {
+    regex: /^Sign In User Member \((.+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Sign In User Member',
+        lo: 'ເຂົ້າສູ່ລະບົບສະມາຊິກ',
+        th: 'เข้าสู่ระบบสมาชิก',
+        vi: 'Đăng nhập Thành viên',
+        zh: '登录普通会员',
+        ko: '일반 회원 로그인',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Sign In User Singer \((.+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Sign In User Singer',
+        lo: 'ເຂົ້າສູ່ລະບົບນັກຮ້ອງ',
+        th: 'เข้าสู่ระบบนักร้อง',
+        vi: 'Đăng nhập Ca sĩ',
+        zh: '登录歌手会员',
+        ko: '가수 회원 로그인',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Sign In User Customer \((.+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Sign In User Customer',
+        lo: 'ເຂົ້າສູ່ລະບົບລູກຄ້າ',
+        th: 'เข้าสู่ระบบลูกค้า',
+        vi: 'Đăng nhập Khách hàng',
+        zh: '登录客户账号',
+        ko: '고객 로그인',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Singer List \((\d+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Singer List',
+        lo: 'ລາຍຊື່ນັກຮ້ອງ',
+        th: 'รายชื่อนักร้อง',
+        vi: 'Danh sách Ca sĩ',
+        zh: '歌手列表',
+        ko: '가수 목록',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Staff \((\d+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Staff',
+        lo: 'ທີມງານ',
+        th: 'ทีมงาน',
+        vi: 'Nhân sự',
+        zh: '员工团队',
+        ko: '스태프',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Active Members:\s*(\d+)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Active Members',
+        lo: 'ສະມາຊິກທີ່ເປີດໃຊ້ງານ',
+        th: 'สมาชิกที่ใช้งานอยู่',
+        vi: 'Thành viên Đang hoạt động',
+        zh: '当前有效会员',
+        ko: '활성 회원',
+      };
+      return `${prefixes[lang]}: ${m[1]}`;
+    },
+  },
+  {
+    regex: /^Deleted Permanently:\s*(\d+)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Deleted Permanently',
+        lo: 'ລຶບອອກຖາວອນແລ້ວ',
+        th: 'ลบออกถาวรแล้ว',
+        vi: 'Đã xóa vĩnh viễn',
+        zh: '已永久删除',
+        ko: '영구 삭제됨',
+      };
+      return `${prefixes[lang]}: ${m[1]}`;
+    },
+  },
+  {
+    regex: /^Confirm Delete Member \((.+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Confirm Delete Member',
+        lo: 'ຢືນຢັນການລຶບສະມາຊິກ',
+        th: 'ยืนยันการลบสมาชิก',
+        vi: 'Xác nhận Xóa Thành viên',
+        zh: '确认删除会员',
+        ko: '회원 삭제 확인',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Edit Member:\s*(.+)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Edit Member',
+        lo: 'ແກ້ໄຂຂໍ້ມູນສະມາຊິກ',
+        th: 'แก้ไขข้อมูลสมาชิก',
+        vi: 'Chỉnh sửa Thành viên',
+        zh: '编辑会员信息',
+        ko: '회원 정보 수정',
+      };
+      return `${prefixes[lang]}: ${m[1]}`;
+    },
+  },
+  {
+    regex: /^Confirm Withdraw \((.+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Confirm Withdraw',
+        lo: 'ຢືນຢັນການຖອນເງິນ',
+        th: 'ยืนยันการถอนเงิน',
+        vi: 'Xác nhận Rút tiền',
+        zh: '确认提款',
+        ko: '출금 확인',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+  {
+    regex: /^Member Own Profile Image \((.+)\)$/i,
+    replace: (m, lang) => {
+      const prefixes: Record<Language, string> = {
+        en: 'Member Own Profile Image',
+        lo: 'ຮູບໂປຣໄຟລ໌ສ່ວນຕົວຂອງສະມາຊິກ',
+        th: 'รูปโปรไฟล์ส่วนตัวของสมาชิก',
+        vi: 'Ảnh Hồ sơ Cá nhân Thành viên',
+        zh: '会员个人头像',
+        ko: '회원 본인 프로필 사진',
+      };
+      return `${prefixes[lang]} (${m[1]})`;
+    },
+  },
+];
 
 // Store original English text and last translated text for each DOM Text node
 // so switching languages is always reversible even when React updates nodeValue in place
@@ -1554,17 +2426,28 @@ function translateTextContent(englishText: string, lang: Language): string {
     return englishText;
   }
 
-  // 1. Check case-insensitive exact match first
-  const exact = EXACT_LOOKUP.get(trimmed.toLowerCase());
+  // 1. Check whitespace-normalized, case-insensitive exact match first
+  const normalizedTrimmed = trimmed.replace(/\s+/g, ' ');
+  const exact = EXACT_LOOKUP.get(normalizedTrimmed.toLowerCase());
   if (exact) {
     return englishText.replace(trimmed, exact[lang]);
   }
 
-  // 2. Replace any matching phrases inside dynamic strings (e.g., "Report Singer Register (5)" or "Confirm Withdraw (-1,000,000 LAK)")
+  // 2. Check dynamic pattern translators (e.g. "Sign In User Member (DMC-LA-00404)")
+  for (const dyn of DYNAMIC_PATTERN_TRANSLATORS) {
+    const match = normalizedTrimmed.match(dyn.regex);
+    if (match) {
+      return englishText.replace(trimmed, dyn.replace(match, lang));
+    }
+  }
+
+  // 3. Fallback: longest-first phrase substitution with strict ASCII word boundaries
+  // (never lets short words like "Book" corrupt "Booking")
   let result = englishText;
-  for (const entry of PHRASE_DICTIONARY) {
-    if (entry.en.length >= 4 && result.includes(entry.en)) {
-      result = result.split(entry.en).join(entry[lang]);
+  for (const entry of SORTED_LONG_PHRASES) {
+    if (result.includes(entry.en)) {
+      const rx = getSafeBoundaryRegex(entry.en);
+      result = result.replace(rx, entry[lang]);
     }
   }
 
@@ -1588,7 +2471,14 @@ export const AutoLanguageDomTranslator: React.FC = () => {
             const parent = node.parentElement;
             if (!parent) return NodeFilter.FILTER_REJECT;
             const tag = parent.tagName;
-            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEXTAREA') {
+            if (
+              tag === 'SCRIPT' ||
+              tag === 'STYLE' ||
+              tag === 'NOSCRIPT' ||
+              tag === 'TEXTAREA' ||
+              tag === 'PRE' ||
+              tag === 'CODE'
+            ) {
               return NodeFilter.FILTER_REJECT;
             }
             return NodeFilter.FILTER_ACCEPT;

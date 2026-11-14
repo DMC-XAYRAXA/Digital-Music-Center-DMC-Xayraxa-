@@ -54,6 +54,76 @@ import {
 export const TWELVE_HOURS_INACTIVITY_MS = 12 * 60 * 60 * 1000; // 12 Hours (43,200,000 ms)
 export const FOUR_HOURS_INACTIVITY_MS = TWELVE_HOURS_INACTIVITY_MS;
 const ACTIVE_SESSION_STORAGE_KEY = 'dmc_rev26_active_session_v1';
+const MEMBERS_STORAGE_KEY = 'dmc_rev26_members_v1';
+const DELETED_MEMBER_IDS_STORAGE_KEY = 'dmc_rev26_deleted_member_ids_v1';
+const LEDGER_ENTRIES_STORAGE_KEY = 'dmc_rev26_ledger_entries_v1';
+const AWARDS_STORAGE_KEY = 'dmc_rev26_awards_v1';
+const SUPER_ADMIN_STORAGE_KEY = 'dmc_rev26_super_admin_v1';
+
+function loadDeletedMemberIdsFromStorage(): string[] {
+  try {
+    const raw = localStorage.getItem(DELETED_MEMBER_IDS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((id) => String(id).trim().toUpperCase()).filter(Boolean);
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return [];
+}
+
+function generateNextMemberId(existingMembers: Member[], deletedIds: string[]): string {
+  const usedUpper = new Set<string>();
+  let maxNum = 100;
+  for (const m of existingMembers) {
+    const upper = m.memberId.trim().toUpperCase();
+    usedUpper.add(upper);
+    const match = upper.match(/DMC-LA-(\d+)/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (!Number.isNaN(n) && n > maxNum) maxNum = n;
+    }
+  }
+  for (const delId of deletedIds) {
+    const upper = delId.trim().toUpperCase();
+    usedUpper.add(upper);
+    const match = upper.match(/DMC-LA-(\d+)/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (!Number.isNaN(n) && n > maxNum) maxNum = n;
+    }
+  }
+  let nextNum = maxNum + 1;
+  let candidate = `DMC-LA-${String(nextNum).padStart(5, '0')}`;
+  while (usedUpper.has(candidate)) {
+    nextNum += 1;
+    candidate = `DMC-LA-${String(nextNum).padStart(5, '0')}`;
+  }
+  return candidate;
+}
+
+const EMPTY_FALLBACK_MEMBER: Member = {
+  id: 'usr-guest-empty',
+  memberId: 'DMC-LA-00000',
+  name: 'Guest / No Active Member',
+  phone: '+856 20 0000 0000',
+  email: 'member@dmcxayraxa.music',
+  language: 'en',
+  membershipState: 'FREE_MEMBER',
+  sponsorId: null,
+  createdAt: '2026-10-01T00:00:00Z',
+  consents: {
+    termsAccepted: true,
+    termsVersion: 'v2.6',
+    termsAcceptedAt: '2026-10-01T00:00:00Z',
+    autoRedeemConsent: false,
+    autoRedeemVersion: 'v2.6',
+  },
+  kycStatus: 'UNVERIFIED',
+};
 
 interface StoredActiveSession {
   isLoggedOut: boolean;
@@ -200,9 +270,12 @@ interface DmcContextType {
   rejectWithdrawal: (withdrawalId: string, reason: string) => boolean;
   
   // Admin CRUD Management (Add, Edit, Update, Delete)
-  adminAddMember: (data: { name: string; phone: string; email?: string; avatarUrl?: string; sponsorId?: string | null; membershipState?: Member['membershipState']; initialHeldLak?: number; initialAvailableLak?: number }) => Member;
+  deletedMemberIds: string[];
+  adminAddMember: (data: { name: string; phone: string; email?: string; password?: string; avatarUrl?: string; sponsorId?: string | null; membershipState?: Member['membershipState']; initialHeldLak?: number; initialAvailableLak?: number }) => Member;
   adminUpdateMember: (memberId: string, updates: Partial<Member>) => void;
   adminDeleteMember: (memberId: string) => boolean;
+  adminSaveAndConfirmMembers: () => { memberCount: number; deletedCount: number; savedAt: string };
+  adminRestoreDefaultMembers: () => void;
   adminAddProduct: (prod: ProductSKU) => void;
   adminUpdateProduct: (sku: string, updates: Partial<ProductSKU>) => void;
   adminDeleteProduct: (sku: string) => boolean;
@@ -1965,12 +2038,19 @@ const INITIAL_ADMIN_PANEL_BOOKING_REPORTS: DmcAdminPanelBookingReport[] = [
 ];
 
 export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [deletedMemberIds, setDeletedMemberIds] = useState<string[]>(() =>
+    loadDeletedMemberIdsFromStorage()
+  );
+  const deletedMemberIdsRef = useRef<Set<string>>(
+    new Set(loadDeletedMemberIdsFromStorage())
+  );
+
   const [members, setMembers] = useState<Member[]>(() => {
     try {
-      const saved = localStorage.getItem('dmc_rev26_members_v1');
-      if (saved) {
+      const saved = localStorage.getItem(MEMBERS_STORAGE_KEY);
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
       // ignore storage errors
@@ -2113,17 +2193,56 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.clearInterval(intervalId);
     };
   }, [isLoggedOut]);
-  const [superAdminProfile, setSuperAdminProfile] = useState<SuperAdminProfile>({
-    operatorId: 'SUPER-ADMIN-LAO',
-    name: 'Xayraxa Master Administrator',
-    phone: '+856 20 5599 8888',
-    email: 'xay.raxa@gmail.com',
-    roleTitle: 'Chief Executive & Master CRUD Controller',
-    passwordPin: '888888',
-    twoFactorSmsEnabled: true,
-    telecomCarrier: 'Lao Telecom (020 5)',
-    lastPasswordUpdatedAt: '2026-10-01T08:00:00Z',
+  const [superAdminProfile, setSuperAdminProfile] = useState<SuperAdminProfile>(() => {
+    try {
+      const saved = localStorage.getItem(SUPER_ADMIN_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && parsed.operatorId) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return {
+      operatorId: 'SUPER-ADMIN-LAO',
+      name: 'Xayraxa Master Administrator',
+      phone: '+856 20 5599 8888',
+      email: 'xay.raxa@gmail.com',
+      roleTitle: 'Chief Executive & Master CRUD Controller',
+      passwordPin: '888888',
+      twoFactorSmsEnabled: true,
+      telecomCarrier: 'Lao Telecom (020 5)',
+      lastPasswordUpdatedAt: '2026-10-01T08:00:00Z',
+    };
   });
+
+  // Always keep members, deletedMemberIds, and superAdminProfile synced to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+    } catch {
+      // ignore storage errors
+    }
+  }, [members]);
+
+  useEffect(() => {
+    deletedMemberIdsRef.current = new Set(deletedMemberIds.map((id) => id.trim().toUpperCase()));
+    try {
+      localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(deletedMemberIds));
+    } catch {
+      // ignore storage errors
+    }
+  }, [deletedMemberIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SUPER_ADMIN_STORAGE_KEY, JSON.stringify(superAdminProfile));
+    } catch {
+      // ignore storage errors
+    }
+  }, [superAdminProfile]);
   const [activeSmsOtps, setActiveSmsOtps] = useState<Record<string, string>>({});
   const [products, setProducts] = useState<ProductSKU[]>(() => {
     try {
@@ -2250,8 +2369,11 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               packagePartyPriceLak: s.packagePartyPriceLak || 8300000,
             };
           });
+          const deletedIdsOnBoot = new Set(loadDeletedMemberIdsFromStorage());
           for (const defaultSinger of INITIAL_SINGER_PROFILES) {
+            const defMemUpper = defaultSinger.memberId?.trim().toUpperCase() || '';
             if (
+              !deletedIdsOnBoot.has(defMemUpper) &&
               !normalized.some(
                 (s: DmcSingerProfile) =>
                   s.id === defaultSinger.id || s.singerCode === defaultSinger.singerCode
@@ -2464,12 +2586,16 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const targetMemberId =
         sng.memberId?.trim() ||
         `DMC-LA-${String(410 + idx).padStart(5, '0')}`;
+      const targetUpper = targetMemberId.toUpperCase();
+      if (deletedMemberIdsRef.current.has(targetUpper)) {
+        return;
+      }
       const exists =
         updatedMembersList.some(
-          m => m.memberId.toUpperCase() === targetMemberId.toUpperCase()
+          m => m.memberId.toUpperCase() === targetUpper
         ) ||
         missingSingerMembers.some(
-          m => m.memberId.toUpperCase() === targetMemberId.toUpperCase()
+          m => m.memberId.toUpperCase() === targetUpper
         );
       if (!exists) {
         membersChangedForSingers = true;
@@ -2518,12 +2644,16 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const targetCustMemberId =
         bk.customerMemberId?.trim() ||
         `DMC-LA-${String(810 + idx).padStart(5, '0')}`;
+      const targetCustUpper = targetCustMemberId.toUpperCase();
+      if (deletedMemberIdsRef.current.has(targetCustUpper)) {
+        return;
+      }
       const exists =
         updatedMembersList.some(
-          m => m.memberId.toUpperCase() === targetCustMemberId.toUpperCase()
+          m => m.memberId.toUpperCase() === targetCustUpper
         ) ||
         missingSingerMembers.some(
-          m => m.memberId.toUpperCase() === targetCustMemberId.toUpperCase()
+          m => m.memberId.toUpperCase() === targetCustUpper
         );
       if (!exists) {
         membersChangedForSingers = true;
@@ -2897,50 +3027,69 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   
   // Commission Awards
-  const [awards, setAwards] = useState<CommissionAward[]>([
-    {
-      id: 'awd-101',
-      orderId: 'ORD-20260901-001',
-      orderLineId: 'line-1',
-      sku: 'MUSIC_SINGLE_1600',
-      tier: 'L1',
-      beneficiaryMemberId: 'DMC-LA-00404',
-      buyerMemberId: 'DMC-LA-00505',
-      grossAwardLak: 400000,
-      status: 'HELD_FOR_QUALIFICATION',
-      ruleVersion: 'v2.6',
-      createdAt: '2026-09-02T10:00:00Z',
-      clearedAt: '2026-09-02T10:00:00Z',
-    },
-    {
-      id: 'awd-102',
-      orderId: 'ORD-20260910-002',
-      orderLineId: 'line-1',
-      sku: 'MUSIC_SINGLE_1600',
-      tier: 'L1',
-      beneficiaryMemberId: 'DMC-LA-00404',
-      buyerMemberId: 'DMC-LA-00506',
-      grossAwardLak: 400000,
-      status: 'HELD_FOR_QUALIFICATION',
-      ruleVersion: 'v2.6',
-      createdAt: '2026-09-10T12:00:00Z',
-      clearedAt: '2026-09-10T12:00:00Z',
-    },
-    {
-      id: 'awd-103',
-      orderId: 'ORD-20260920-003',
-      orderLineId: 'line-1',
-      sku: 'MUSIC_SINGLE_1600',
-      tier: 'L1',
-      beneficiaryMemberId: 'DMC-LA-00404',
-      buyerMemberId: 'DMC-LA-00507',
-      grossAwardLak: 400000,
-      status: 'HELD_FOR_QUALIFICATION',
-      ruleVersion: 'v2.6',
-      createdAt: '2026-09-20T15:00:00Z',
-      clearedAt: '2026-09-20T15:00:00Z',
-    },
-  ]);
+  const [awards, setAwards] = useState<CommissionAward[]>(() => {
+    try {
+      const saved = localStorage.getItem(AWARDS_STORAGE_KEY);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return [
+      {
+        id: 'awd-101',
+        orderId: 'ORD-20260901-001',
+        orderLineId: 'line-1',
+        sku: 'MUSIC_SINGLE_1600',
+        tier: 'L1',
+        beneficiaryMemberId: 'DMC-LA-00404',
+        buyerMemberId: 'DMC-LA-00505',
+        grossAwardLak: 400000,
+        status: 'HELD_FOR_QUALIFICATION',
+        ruleVersion: 'v2.6',
+        createdAt: '2026-09-02T10:00:00Z',
+        clearedAt: '2026-09-02T10:00:00Z',
+      },
+      {
+        id: 'awd-102',
+        orderId: 'ORD-20260910-002',
+        orderLineId: 'line-1',
+        sku: 'MUSIC_SINGLE_1600',
+        tier: 'L1',
+        beneficiaryMemberId: 'DMC-LA-00404',
+        buyerMemberId: 'DMC-LA-00506',
+        grossAwardLak: 400000,
+        status: 'HELD_FOR_QUALIFICATION',
+        ruleVersion: 'v2.6',
+        createdAt: '2026-09-10T12:00:00Z',
+        clearedAt: '2026-09-10T12:00:00Z',
+      },
+      {
+        id: 'awd-103',
+        orderId: 'ORD-20260920-003',
+        orderLineId: 'line-1',
+        sku: 'MUSIC_SINGLE_1600',
+        tier: 'L1',
+        beneficiaryMemberId: 'DMC-LA-00404',
+        buyerMemberId: 'DMC-LA-00507',
+        grossAwardLak: 400000,
+        status: 'HELD_FOR_QUALIFICATION',
+        ruleVersion: 'v2.6',
+        createdAt: '2026-09-20T15:00:00Z',
+        clearedAt: '2026-09-20T15:00:00Z',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(AWARDS_STORAGE_KEY, JSON.stringify(awards));
+    } catch {
+      // ignore storage errors
+    }
+  }, [awards]);
 
   // Unallocated awards
   const [unallocatedAwards, setUnallocatedAwards] = useState<UnallocatedAwardRecord[]>([
@@ -3054,102 +3203,121 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ]);
 
   // Immutable Ledger Entries
-  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([
-    // Khamla's 3 seed awards (400k x 3 = 1,200,000 LAK held for qualification, matching Spec Table 11 A04!)
-    {
-      id: 'led-001',
-      txRef: 'TX-20260902-001',
-      timestamp: '2026-09-02T10:00:00Z',
-      memberId: 'DMC-LA-00404',
-      type: 'COMMISSION_CLEARED_HELD',
-      sourceRef: 'awd-101',
-      debit: 0,
-      credit: 400000,
-      targetBalance: 'HELD_FOR_QUALIFICATION',
-      balanceAfter: 400000,
-      description: 'L1 Direct Commission on Music Package (ORD-20260901-001) held for qualification',
-    },
-    {
-      id: 'led-002',
-      txRef: 'TX-20260910-002',
-      timestamp: '2026-09-10T12:00:00Z',
-      memberId: 'DMC-LA-00404',
-      type: 'COMMISSION_CLEARED_HELD',
-      sourceRef: 'awd-102',
-      debit: 0,
-      credit: 400000,
-      targetBalance: 'HELD_FOR_QUALIFICATION',
-      balanceAfter: 800000,
-      description: 'L1 Direct Commission on Music Package (ORD-20260910-002) held for qualification',
-    },
-    {
-      id: 'led-003',
-      txRef: 'TX-20260920-003',
-      timestamp: '2026-09-20T15:00:00Z',
-      memberId: 'DMC-LA-00404',
-      type: 'COMMISSION_CLEARED_HELD',
-      sourceRef: 'awd-103',
-      debit: 0,
-      credit: 400000,
-      targetBalance: 'HELD_FOR_QUALIFICATION',
-      balanceAfter: 1200000,
-      description: 'L1 Direct Commission on Music Package (ORD-20260920-003) held for qualification',
-    },
-    // Somphone's initial seed balance
-    {
-      id: 'led-004',
-      txRef: 'TX-20260920-004',
-      timestamp: '2026-09-20T15:05:00Z',
-      memberId: 'DMC-LA-00303',
-      type: 'COMMISSION_CLEARED_AVAILABLE',
-      sourceRef: 'awd-seed-01',
-      debit: 0,
-      credit: 800000,
-      targetBalance: 'AVAILABLE',
-      balanceAfter: 800000,
-      description: 'Cleared referral commissions for Active Lifetime Member',
-    },
-    {
-      id: 'led-005',
-      txRef: 'TX-20261011-005',
-      timestamp: '2026-10-11T16:20:00Z',
-      memberId: 'DMC-LA-00303',
-      type: 'WITHDRAWAL_RESERVE',
-      sourceRef: 'WTH-20261011-002',
-      debit: 400000,
-      credit: 0,
-      targetBalance: 'AVAILABLE',
-      balanceAfter: 400000,
-      description: 'Atomic hold reserved for withdrawal payout review (WTH-20261011-002)',
-    },
-    // Sengdao's initial seed balance
-    {
-      id: 'led-006',
-      txRef: 'TX-20260915-006',
-      timestamp: '2026-09-15T09:00:00Z',
-      memberId: 'DMC-LA-00101',
-      type: 'COMMISSION_CLEARED_AVAILABLE',
-      sourceRef: 'awd-seed-02',
-      debit: 0,
-      credit: 1500000,
-      targetBalance: 'AVAILABLE',
-      balanceAfter: 1500000,
-      description: 'L3 Network commissions cleared into Available balance',
-    },
-    {
-      id: 'led-007',
-      txRef: 'TX-20261001-007',
-      timestamp: '2026-10-01T15:00:00Z',
-      memberId: 'DMC-LA-00101',
-      type: 'WITHDRAWAL_PAID',
-      sourceRef: 'WTH-20261001-001',
-      debit: 1000000,
-      credit: 0,
-      targetBalance: 'AVAILABLE',
-      balanceAfter: 500000,
-      description: 'BCEL One external transfer settled successfully (WTH-20261001-001)',
-    },
-  ]);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem(LEDGER_ENTRIES_STORAGE_KEY);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return [
+      // Khamla's 3 seed awards (400k x 3 = 1,200,000 LAK held for qualification, matching Spec Table 11 A04!)
+      {
+        id: 'led-001',
+        txRef: 'TX-20260902-001',
+        timestamp: '2026-09-02T10:00:00Z',
+        memberId: 'DMC-LA-00404',
+        type: 'COMMISSION_CLEARED_HELD',
+        sourceRef: 'awd-101',
+        debit: 0,
+        credit: 400000,
+        targetBalance: 'HELD_FOR_QUALIFICATION',
+        balanceAfter: 400000,
+        description: 'L1 Direct Commission on Music Package (ORD-20260901-001) held for qualification',
+      },
+      {
+        id: 'led-002',
+        txRef: 'TX-20260910-002',
+        timestamp: '2026-09-10T12:00:00Z',
+        memberId: 'DMC-LA-00404',
+        type: 'COMMISSION_CLEARED_HELD',
+        sourceRef: 'awd-102',
+        debit: 0,
+        credit: 400000,
+        targetBalance: 'HELD_FOR_QUALIFICATION',
+        balanceAfter: 800000,
+        description: 'L1 Direct Commission on Music Package (ORD-20260910-002) held for qualification',
+      },
+      {
+        id: 'led-003',
+        txRef: 'TX-20260920-003',
+        timestamp: '2026-09-20T15:00:00Z',
+        memberId: 'DMC-LA-00404',
+        type: 'COMMISSION_CLEARED_HELD',
+        sourceRef: 'awd-103',
+        debit: 0,
+        credit: 400000,
+        targetBalance: 'HELD_FOR_QUALIFICATION',
+        balanceAfter: 1200000,
+        description: 'L1 Direct Commission on Music Package (ORD-20260920-003) held for qualification',
+      },
+      // Somphone's initial seed balance
+      {
+        id: 'led-004',
+        txRef: 'TX-20260920-004',
+        timestamp: '2026-09-20T15:05:00Z',
+        memberId: 'DMC-LA-00303',
+        type: 'COMMISSION_CLEARED_AVAILABLE',
+        sourceRef: 'awd-seed-01',
+        debit: 0,
+        credit: 800000,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 800000,
+        description: 'Cleared referral commissions for Active Lifetime Member',
+      },
+      {
+        id: 'led-005',
+        txRef: 'TX-20261011-005',
+        timestamp: '2026-10-11T16:20:00Z',
+        memberId: 'DMC-LA-00303',
+        type: 'WITHDRAWAL_RESERVE',
+        sourceRef: 'WTH-20261011-002',
+        debit: 400000,
+        credit: 0,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 400000,
+        description: 'Atomic hold reserved for withdrawal payout review (WTH-20261011-002)',
+      },
+      // Sengdao's initial seed balance
+      {
+        id: 'led-006',
+        txRef: 'TX-20260915-006',
+        timestamp: '2026-09-15T09:00:00Z',
+        memberId: 'DMC-LA-00101',
+        type: 'COMMISSION_CLEARED_AVAILABLE',
+        sourceRef: 'awd-seed-02',
+        debit: 0,
+        credit: 1500000,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 1500000,
+        description: 'L3 Network commissions cleared into Available balance',
+      },
+      {
+        id: 'led-007',
+        txRef: 'TX-20261001-007',
+        timestamp: '2026-10-01T15:00:00Z',
+        memberId: 'DMC-LA-00101',
+        type: 'WITHDRAWAL_PAID',
+        sourceRef: 'WTH-20261001-001',
+        debit: 1000000,
+        credit: 0,
+        targetBalance: 'AVAILABLE',
+        balanceAfter: 500000,
+        description: 'BCEL One external transfer settled successfully (WTH-20261001-001)',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LEDGER_ENTRIES_STORAGE_KEY, JSON.stringify(ledgerEntries));
+    } catch {
+      // ignore storage errors
+    }
+  }, [ledgerEntries]);
 
   // Audit Logs
   const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([
@@ -3169,9 +3337,9 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
   ]);
 
-  // Current active member
+  // Current active member (always safe even if all demo members are deleted)
   const currentMember = useMemo(() => {
-    return members.find(m => m.memberId === currentMemberId) || members[0];
+    return members.find(m => m.memberId === currentMemberId) || members[0] || EMPTY_FALLBACK_MEMBER;
   }, [members, currentMemberId]);
 
   // Compute authoritatively balances from ledger entries
@@ -3291,8 +3459,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const newIndex = members.length + 101;
-    const newMemberId = `DMC-LA-${String(newIndex).padStart(5, '0')}`;
+    const newMemberId = generateNextMemberId(members, deletedMemberIds);
     const newMember: Member = {
       id: `usr-${Date.now()}`,
       memberId: newMemberId,
@@ -3313,9 +3480,19 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         autoRedeemAcceptedAt: data.autoRedeemConsent ? new Date().toISOString() : undefined,
       },
       kycStatus: 'VERIFIED',
+      memberQrToken: `MEM-QR-${newMemberId}-PRIVATE`,
+      referralQrToken: `REF-QR-${newMemberId}-PUBLIC`,
     };
 
-    setMembers(prev => [...prev, newMember]);
+    setMembers(prev => {
+      const next = [newMember, ...prev];
+      try {
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
     setCurrentMemberId(newMemberId);
     setIsAdminMode(false);
     setIsLoggedOut(false);
@@ -4360,44 +4537,58 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     name: string;
     phone: string;
     email?: string;
+    password?: string;
     avatarUrl?: string;
     sponsorId?: string | null;
     membershipState?: Member['membershipState'];
     initialHeldLak?: number;
     initialAvailableLak?: number;
   }): Member => {
-    const nextIdx = members.length + 101;
-    const newMemberId = `DMC-LA-${String(nextIdx).padStart(5, '0')}`;
+    const newMemberId = generateNextMemberId(members, deletedMemberIds);
+    const cleanName = data.name.trim();
+    const cleanPhone = data.phone.trim();
+    const cleanPassword = data.password?.trim() || '123456';
+    const nowIso = new Date().toISOString();
     const newMember: Member = {
       id: `usr-${Date.now()}`,
       memberId: newMemberId,
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
+      name: cleanName,
+      phone: cleanPhone,
+      email: data.email?.trim() || undefined,
+      password: cleanPassword,
       avatarUrl: data.avatarUrl,
       language: language,
       membershipState: data.membershipState || 'FREE_MEMBER',
-      sponsorId: data.sponsorId || null,
-      createdAt: new Date().toISOString(),
+      sponsorId: data.sponsorId?.trim() || null,
+      createdAt: nowIso,
+      activatedAt:
+        data.membershipState === 'ACTIVE_LIFETIME_MEMBER' ? nowIso : undefined,
+      activationMethod:
+        data.membershipState === 'ACTIVE_LIFETIME_MEMBER' ? 'DIRECT_CASH' : undefined,
       consents: {
         termsAccepted: true,
         termsVersion: 'v2.6',
-        termsAcceptedAt: new Date().toISOString(),
+        termsAcceptedAt: nowIso,
         autoRedeemConsent: true,
         autoRedeemVersion: 'v2.6',
       },
       kycStatus: 'VERIFIED',
       bankAccount: {
-        bankName: 'BCEL One',
+        bankName: 'BANQUE POUR LE COMMERCE EXTERIEUR LAO PUBLIC',
+        bankCode: 'BCEL',
         accountNumber: '160-12-00000000-001',
-        accountName: data.name.toUpperCase(),
+        accountName: cleanName.toUpperCase(),
+        branch: 'Head Office Vientiane',
+        isDefault: true,
       },
+      memberQrToken: `MEM-QR-${newMemberId}-PRIVATE`,
+      referralQrToken: `REF-QR-${newMemberId}-PUBLIC`,
     };
 
     setMembers(prev => {
-      const next = [...prev, newMember];
+      const next = [newMember, ...prev];
       try {
-        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(next));
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
@@ -4410,7 +4601,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newEntries.push({
         id: `led-init-held-${Date.now()}`,
         txRef: `TX-INIT-HELD-${Date.now()}`,
-        timestamp: new Date().toISOString(),
+        timestamp: nowIso,
         memberId: newMemberId,
         type: 'COMMISSION_CLEARED_HELD',
         sourceRef: 'ADMIN-GRANT',
@@ -4425,7 +4616,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newEntries.push({
         id: `led-init-avail-${Date.now()}`,
         txRef: `TX-INIT-AVAIL-${Date.now()}`,
-        timestamp: new Date().toISOString(),
+        timestamp: nowIso,
         memberId: newMemberId,
         type: 'COMMISSION_CLEARED_AVAILABLE',
         sourceRef: 'ADMIN-GRANT',
@@ -4438,18 +4629,26 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (newEntries.length > 0) {
-      setLedgerEntries(prev => [...prev, ...newEntries]);
+      setLedgerEntries(prev => {
+        const next = [...prev, ...newEntries];
+        try {
+          localStorage.setItem(LEDGER_ENTRIES_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
     }
 
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
-        timestamp: new Date().toISOString(),
+        timestamp: nowIso,
         actor: 'ADMIN',
         action: 'ADMIN_CREATE_MEMBER',
         entityType: 'MEMBER',
         entityId: newMemberId,
-        details: { name: data.name, phone: data.phone, sponsorId: data.sponsorId },
+        details: { name: cleanName, phone: cleanPhone, sponsorId: data.sponsorId || null },
       },
       ...prev,
     ]);
@@ -4704,8 +4903,8 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const nowIso = new Date().toISOString();
-    setMembers(prev =>
-      prev.map(m =>
+    setMembers(prev => {
+      const next = prev.map(m =>
         m.memberId === matchedId
           ? {
               ...m,
@@ -4717,8 +4916,14 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               lastRecoverySmsAt: nowIso,
             }
           : m
-      )
-    );
+      );
+      try {
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
 
     const targetMember = members.find(m => m.memberId === matchedId);
     const verifiedEmail =
@@ -4745,22 +4950,42 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const adminDeleteMember = (memberId: string): boolean => {
-    const target = members.find(m => m.memberId === memberId);
+    const cleanId = memberId.trim();
+    const upperId = cleanId.toUpperCase();
+    const target = members.find(m => m.memberId.toUpperCase() === upperId);
     const parentSponsorId = target ? target.sponsorId : null;
-    setMembers(prev => {
-      const remaining = prev
-        .filter(m => m.memberId !== memberId)
-        .map(m => (m.sponsorId === memberId ? { ...m, sponsorId: parentSponsorId } : m));
+
+    // Record permanent deletion tombstone so demo reconciliation NEVER re-injects this member on Admin sign-in or reload
+    deletedMemberIdsRef.current.add(upperId);
+    setDeletedMemberIds(prev => {
+      const next = Array.from(new Set([...prev.map(id => id.toUpperCase()), upperId]));
       try {
-        localStorage.setItem('dmc_rev26_members_v1', JSON.stringify(remaining));
+        localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(next));
       } catch {
         // ignore quota errors
       }
-      if (currentMemberId === memberId && remaining.length > 0) {
-        setCurrentMemberId(remaining[0].memberId);
+      return next;
+    });
+
+    setMembers(prev => {
+      const remaining = prev
+        .filter(m => m.memberId.toUpperCase() !== upperId)
+        .map(m =>
+          m.sponsorId && m.sponsorId.toUpperCase() === upperId
+            ? { ...m, sponsorId: parentSponsorId }
+            : m
+        );
+      try {
+        localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(remaining));
+      } catch {
+        // ignore quota errors
+      }
+      if (currentMemberId.toUpperCase() === upperId) {
+        setCurrentMemberId(remaining[0]?.memberId || '');
       }
       return remaining;
     });
+
     setAuditLogs(prev => [
       {
         id: `aud-${Date.now()}`,
@@ -4768,12 +4993,69 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         actor: 'ADMIN',
         action: 'ADMIN_DELETE_MEMBER',
         entityType: 'MEMBER',
-        entityId: memberId,
+        entityId: cleanId,
         details: { deletedAt: new Date().toISOString(), reattachedChildrenTo: parentSponsorId },
       },
       ...prev,
     ]);
     return true;
+  };
+
+  const adminSaveAndConfirmMembers = () => {
+    const savedAt = new Date().toISOString();
+    try {
+      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+      localStorage.setItem(DELETED_MEMBER_IDS_STORAGE_KEY, JSON.stringify(deletedMemberIds));
+      localStorage.setItem(LEDGER_ENTRIES_STORAGE_KEY, JSON.stringify(ledgerEntries));
+      localStorage.setItem(AWARDS_STORAGE_KEY, JSON.stringify(awards));
+    } catch {
+      // ignore quota errors
+    }
+    setAuditLogs(prev => [
+      {
+        id: `aud-save-members-${Date.now()}`,
+        timestamp: savedAt,
+        actor: 'ADMIN',
+        action: 'ADMIN_CONFIRM_SAVE_MEMBERS',
+        entityType: 'MEMBER_DIRECTORY',
+        entityId: 'MEMBERS_STORE',
+        details: {
+          activeMemberCount: members.length,
+          permanentlyDeletedCount: deletedMemberIds.length,
+          savedAt,
+        },
+      },
+      ...prev,
+    ]);
+    return {
+      memberCount: members.length,
+      deletedCount: deletedMemberIds.length,
+      savedAt,
+    };
+  };
+
+  const adminRestoreDefaultMembers = () => {
+    deletedMemberIdsRef.current.clear();
+    setDeletedMemberIds([]);
+    setMembers(INITIAL_MEMBERS);
+    try {
+      localStorage.removeItem(DELETED_MEMBER_IDS_STORAGE_KEY);
+      localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(INITIAL_MEMBERS));
+    } catch {
+      // ignore quota errors
+    }
+    setAuditLogs(prev => [
+      {
+        id: `aud-restore-members-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: 'ADMIN',
+        action: 'ADMIN_RESTORE_DEFAULT_DEMO_MEMBERS',
+        entityType: 'MEMBER_DIRECTORY',
+        entityId: 'INITIAL_MEMBERS',
+        details: { count: INITIAL_MEMBERS.length },
+      },
+      ...prev,
+    ]);
   };
 
   // 2. Products CRUD (with localStorage persistence)
@@ -5816,16 +6098,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Automatically make the Singer an Official Active Member (ACTIVE_LIFETIME_MEMBER) with Member ID & Password
     if (isGeneralPublic) {
-      let nextMemberSeq = 405 + members.length;
-      let generatedMemberId = `DMC-LA-${String(nextMemberSeq).padStart(5, '0')}`;
-      while (
-        members.some(
-          m => m.memberId.toUpperCase() === generatedMemberId.toUpperCase()
-        )
-      ) {
-        nextMemberSeq += 1;
-        generatedMemberId = `DMC-LA-${String(nextMemberSeq).padStart(5, '0')}`;
-      }
+      const generatedMemberId = generateNextMemberId(members, deletedMemberIds);
       linkedMemberId = generatedMemberId;
 
       const sponsorObj =
@@ -7332,7 +7605,7 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const resolvedMemberId = existingCustomerMember
       ? existingCustomerMember.memberId
-      : `DMC-LA-${String(800 + members.length + 1).padStart(5, '0')}`;
+      : generateNextMemberId(members, deletedMemberIds);
     const autoAffiliateCode = `AFF-${resolvedMemberId}`;
     const autoAffiliateLink = `https://dmcxayraxa.music/register?ref=${resolvedMemberId}&aff=${autoAffiliateCode}&singer=${singer.singerCode}`;
 
@@ -9507,9 +9780,12 @@ export const DmcProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         checkerExecutePayout,
         adminApproveWithdrawalRequest,
         rejectWithdrawal,
+        deletedMemberIds,
         adminAddMember,
         adminUpdateMember,
         adminDeleteMember,
+        adminSaveAndConfirmMembers,
+        adminRestoreDefaultMembers,
         adminAddProduct,
         adminUpdateProduct,
         adminDeleteProduct,

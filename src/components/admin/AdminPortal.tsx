@@ -105,11 +105,14 @@ export const AdminPortal: React.FC = () => {
     auditLogs, 
     unallocatedAwards,
     allMembers,
+    deletedMemberIds,
     getMemberBalances,
     getMemberSongs,
     adminAddMember,
     adminUpdateMember,
     adminDeleteMember,
+    adminSaveAndConfirmMembers,
+    adminRestoreDefaultMembers,
     adminApproveCustomerToActiveMember,
     adminAddProduct,
     adminUpdateProduct,
@@ -255,6 +258,17 @@ export const AdminPortal: React.FC = () => {
     setTimeout(() => setSuccessBanner(null), 4000);
   };
 
+  // ---------------- CUSTOM CONFIRMATION MODAL & SAVE STATE (Replaces blocked window.confirm) ----------------
+  const [hasUnsavedMemberConfirmation, setHasUnsavedMemberConfirmation] = useState(false);
+  const [lastMembersConfirmedAt, setLastMembersConfirmedAt] = useState<string | null>(null);
+  const [pendingConfirmModal, setPendingConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'danger' | 'success';
+    onConfirm: () => void;
+  } | null>(null);
+
   // ---------------- MEMBERS CRUD MODALS ----------------
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -265,6 +279,7 @@ export const AdminPortal: React.FC = () => {
     name: '',
     phone: '',
     email: '',
+    password: '123456',
     sponsorId: '',
     membershipState: 'FREE_MEMBER' as Member['membershipState'],
     initialHeldLak: 0,
@@ -280,26 +295,31 @@ export const AdminPortal: React.FC = () => {
 
   const handleCreateMember = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newMemberForm.name.trim() || !newMemberForm.phone.trim()) return;
     const created = adminAddMember({
-      name: newMemberForm.name,
-      phone: newMemberForm.phone,
-      email: newMemberForm.email,
-      sponsorId: newMemberForm.sponsorId || null,
+      name: newMemberForm.name.trim(),
+      phone: newMemberForm.phone.trim(),
+      email: newMemberForm.email.trim() || undefined,
+      password: newMemberForm.password.trim() || '123456',
+      sponsorId: newMemberForm.sponsorId.trim() || null,
       membershipState: newMemberForm.membershipState,
-      initialHeldLak: Number(newMemberForm.initialHeldLak),
-      initialAvailableLak: Number(newMemberForm.initialAvailableLak),
+      initialHeldLak: Number(newMemberForm.initialHeldLak) || 0,
+      initialAvailableLak: Number(newMemberForm.initialAvailableLak) || 0,
     });
+    setSearchQuery('');
     setShowAddMemberModal(false);
     setNewMemberForm({
       name: '',
       phone: '',
       email: '',
+      password: '123456',
       sponsorId: '',
       membershipState: 'FREE_MEMBER',
       initialHeldLak: 0,
       initialAvailableLak: 0,
     });
-    showNotification(`Successfully added member ${created.name} (${created.memberId})!`);
+    setHasUnsavedMemberConfirmation(true);
+    showNotification(`Added & saved new member ${created.name} (${created.memberId})! Click "Confirm & Save All Changes" to finalize.`);
   };
 
   const handleSaveMemberEdit = (e: React.FormEvent) => {
@@ -316,14 +336,48 @@ export const AdminPortal: React.FC = () => {
       bankAccount: editingMember.bankAccount,
     });
     setEditingMember(null);
-    showNotification(`Updated member ${editingMember.memberId} profile & password successfully!`);
+    setHasUnsavedMemberConfirmation(true);
+    showNotification(`Updated member ${editingMember.memberId} profile & password! Click "Confirm & Save All Changes" to finalize.`);
   };
 
-  const handleDeleteMember = (memberId: string) => {
-    if (window.confirm(`Are you sure you want to delete member ${memberId}? This will remove the member record.`)) {
-      adminDeleteMember(memberId);
-      showNotification(`Deleted member ${memberId}.`);
-    }
+  const handleDeleteMember = (memberId: string, memberName?: string) => {
+    setPendingConfirmModal({
+      title: `Confirm Delete Member (${memberId})`,
+      message: `Are you sure you want to permanently delete ${memberName ? `${memberName} (${memberId})` : memberId}? Once confirmed, this account will stay deleted even when Administrator signs in or reloads the app.`,
+      confirmLabel: 'Confirm Delete & Save',
+      tone: 'danger',
+      onConfirm: () => {
+        adminDeleteMember(memberId);
+        const snap = adminSaveAndConfirmMembers();
+        setHasUnsavedMemberConfirmation(false);
+        setLastMembersConfirmedAt(snap.savedAt);
+        showNotification(`Permanently deleted & saved member ${memberId}.`);
+      },
+    });
+  };
+
+  const handleConfirmSaveAllMembers = () => {
+    const snap = adminSaveAndConfirmMembers();
+    setHasUnsavedMemberConfirmation(false);
+    setLastMembersConfirmedAt(snap.savedAt);
+    showNotification(
+      `Confirmed & Saved! ${snap.memberCount} active member(s) and ${snap.deletedCount} deleted record(s) saved permanently.`
+    );
+  };
+
+  const handleRestoreDemoMembersPrompt = () => {
+    setPendingConfirmModal({
+      title: 'Restore Default Demo Members?',
+      message: 'This will restore the original DMC XAYRAXA demo member accounts and clear the deleted members list.',
+      confirmLabel: 'Confirm Restore Demo Members',
+      tone: 'success',
+      onConfirm: () => {
+        adminRestoreDefaultMembers();
+        setHasUnsavedMemberConfirmation(false);
+        setLastMembersConfirmedAt(new Date().toISOString());
+        showNotification('Restored default demo member accounts.');
+      },
+    });
   };
 
   const handleExecuteBalanceAdjustment = (e: React.FormEvent) => {
@@ -408,10 +462,16 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleDeleteProduct = (sku: string) => {
-    if (window.confirm(`Are you sure you want to delete product SKU ${sku}?`)) {
-      adminDeleteProduct(sku);
-      showNotification(`Deleted product SKU ${sku}.`);
-    }
+    setPendingConfirmModal({
+      title: `Confirm Delete Product (${sku})`,
+      message: `Are you sure you want to delete product SKU ${sku}?`,
+      confirmLabel: 'Confirm Delete & Save',
+      tone: 'danger',
+      onConfirm: () => {
+        adminDeleteProduct(sku);
+        showNotification(`Deleted product SKU ${sku}.`);
+      },
+    });
   };
 
   // ---------------- ORDERS CRUD MODALS ----------------
@@ -482,10 +542,16 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    if (window.confirm(`Are you sure you want to delete/cancel order ${orderId}?`)) {
-      adminDeleteOrder(orderId);
-      showNotification(`Deleted order ${orderId}.`);
-    }
+    setPendingConfirmModal({
+      title: `Confirm Delete Order (${orderId})`,
+      message: `Are you sure you want to delete/cancel order ${orderId}?`,
+      confirmLabel: 'Confirm Delete & Save',
+      tone: 'danger',
+      onConfirm: () => {
+        adminDeleteOrder(orderId);
+        showNotification(`Deleted order ${orderId}.`);
+      },
+    });
   };
 
   // ---------------- SHIPPING CARRIERS & PRICE CRUD STATE ----------------
@@ -626,10 +692,16 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleDeleteSong = (songId: string) => {
-    if (window.confirm(`Are you sure you want to delete studio song ${songId}?`)) {
-      adminDeleteSong(songId);
-      showNotification(`Deleted song project ${songId}.`);
-    }
+    setPendingConfirmModal({
+      title: `Confirm Delete Studio Song (${songId})`,
+      message: `Are you sure you want to delete studio song ${songId}?`,
+      confirmLabel: 'Confirm Delete & Save',
+      tone: 'danger',
+      onConfirm: () => {
+        adminDeleteSong(songId);
+        showNotification(`Deleted song project ${songId}.`);
+      },
+    });
   };
 
   // ---------------- LAO BANKS & CORPORATE BANKING CRUD ----------------
@@ -714,10 +786,16 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleDeleteLaoBank = (bankId: string, bankName: string) => {
-    if (window.confirm(`Delete Lao bank registry entry "${bankName}"?`)) {
-      adminDeleteLaoBank(bankId);
-      showNotification(`Deleted Lao bank registry entry ${bankName}.`);
-    }
+    setPendingConfirmModal({
+      title: `Confirm Delete Lao Bank (${bankName})`,
+      message: `Delete Lao bank registry entry "${bankName}"?`,
+      confirmLabel: 'Confirm Delete & Save',
+      tone: 'danger',
+      onConfirm: () => {
+        adminDeleteLaoBank(bankId);
+        showNotification(`Deleted Lao bank registry entry ${bankName}.`);
+      },
+    });
   };
 
   const handleCreateCorpBank = (e: React.FormEvent) => {
@@ -760,10 +838,16 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleDeleteCorpBank = (accId: string, accNum: string) => {
-    if (window.confirm(`Delete corporate bank account ${accNum}?`)) {
-      adminDeleteCorporateBankAccount(accId);
-      showNotification(`Deleted corporate bank account ${accNum}.`);
-    }
+    setPendingConfirmModal({
+      title: `Confirm Delete Corporate Account (${accNum})`,
+      message: `Delete corporate bank account ${accNum}?`,
+      confirmLabel: 'Confirm Delete & Save',
+      tone: 'danger',
+      onConfirm: () => {
+        adminDeleteCorporateBankAccount(accId);
+        showNotification(`Deleted corporate bank account ${accNum}.`);
+      },
+    });
   };
 
   const handleOpenMemberBankEdit = (member: Member) => {
@@ -1212,7 +1296,7 @@ export const AdminPortal: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                 <input
@@ -1225,16 +1309,79 @@ export const AdminPortal: React.FC = () => {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowAddMemberModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow"
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add New Member</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmSaveAllMembers}
+                className={`px-3.5 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer ${
+                  hasUnsavedMemberConfirmation
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 ring-2 ring-emerald-300 animate-pulse'
+                    : 'bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/50'
+                }`}
+              >
+                <Save className="w-4 h-4" />
+                <span>Confirm &amp; Save All Changes</span>
+              </button>
             </div>
           </div>
 
+          {/* Save & Deletion Status Confirmation Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 font-bold">
+                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <span>Active Members: {allMembers.length}</span>
+              </span>
+              {deletedMemberIds.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Deleted Permanently: {deletedMemberIds.length}</span>
+                </span>
+              )}
+              {lastMembersConfirmedAt && !hasUnsavedMemberConfirmation && (
+                <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Confirmed &amp; Saved ({new Date(lastMembersConfirmedAt).toLocaleTimeString()})</span>
+                </span>
+              )}
+              {hasUnsavedMemberConfirmation && (
+                <span className="inline-flex items-center gap-1 text-amber-300 font-bold text-[11px]">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Updates applied — click "Confirm &amp; Save All Changes" to verify</span>
+                </span>
+              )}
+            </div>
+            {deletedMemberIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRestoreDemoMembersPrompt}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Restore Demo Members</span>
+              </button>
+            )}
+          </div>
+
           <div className="space-y-3">
+            {filteredMembers.length === 0 && (
+              <div className="p-8 rounded-2xl bg-slate-800/30 border border-dashed border-slate-700 text-center space-y-2">
+                <Users className="w-8 h-8 text-slate-500 mx-auto" />
+                <div className="text-sm font-bold text-slate-300">No members found</div>
+                <p className="text-xs text-slate-500">
+                  {searchQuery
+                    ? `No member matches "${searchQuery}".`
+                    : 'All demo members have been deleted. Click "Add New Member" to create a new account.'}
+                </p>
+              </div>
+            )}
             {filteredMembers.map(member => {
               const b = getMemberBalances(member.memberId);
               const isAct = member.membershipState === 'ACTIVE_LIFETIME_MEMBER';
@@ -1385,8 +1532,9 @@ export const AdminPortal: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => handleDeleteMember(member.memberId)}
-                        className="px-2.5 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 font-semibold text-[11px] flex items-center gap-1 border border-red-500/30"
+                        type="button"
+                        onClick={() => handleDeleteMember(member.memberId, member.name)}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 font-semibold text-[11px] flex items-center gap-1 border border-red-500/30 cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Delete</span>
@@ -3566,6 +3714,18 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="text-amber-300 font-bold block mb-1">Password / PIN *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="123456"
+                  value={newMemberForm.password}
+                  onChange={e => setNewMemberForm({ ...newMemberForm, password: e.target.value })}
+                  className="w-full bg-slate-800 border border-amber-500/40 rounded-xl p-2.5 text-emerald-300 font-mono font-bold"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
                 <div>
                   <label className="text-slate-300 font-medium block mb-1">Initial Held Credit (LAK)</label>
@@ -3595,15 +3755,16 @@ export const AdminPortal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddMemberModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black flex items-center justify-center gap-1.5 cursor-pointer shadow"
                 >
-                  Add Member
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirm &amp; Save New Member</span>
                 </button>
               </div>
             </form>
@@ -3819,15 +3980,16 @@ export const AdminPortal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditingMember(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black flex items-center justify-center gap-1.5 cursor-pointer shadow"
                 >
-                  Save Changes
+                  <Save className="w-4 h-4" />
+                  <span>Confirm &amp; Save Changes</span>
                 </button>
               </div>
             </form>
@@ -5871,6 +6033,67 @@ export const AdminPortal: React.FC = () => {
             setViewingBankQr(null);
           }}
         />
+      )}
+
+      {/* Custom In-App Confirmation Modal (Replaces blocked window.confirm) */}
+      {pendingConfirmModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 text-slate-100 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`p-2 rounded-xl ${
+                    pendingConfirmModal.tone === 'danger'
+                      ? 'bg-rose-500/20 text-rose-400'
+                      : 'bg-emerald-500/20 text-emerald-400'
+                  }`}
+                >
+                  {pendingConfirmModal.tone === 'danger' ? (
+                    <AlertTriangle className="w-5 h-5" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5" />
+                  )}
+                </div>
+                <h3 className="font-bold text-base text-white">{pendingConfirmModal.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingConfirmModal(null)}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">{pendingConfirmModal.message}</p>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const fn = pendingConfirmModal.onConfirm;
+                  setPendingConfirmModal(null);
+                  fn();
+                }}
+                className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow ${
+                  pendingConfirmModal.tone === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{pendingConfirmModal.confirmLabel}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

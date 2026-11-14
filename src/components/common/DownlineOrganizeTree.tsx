@@ -326,15 +326,11 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
 
   const handleDeleteMemberFromTree = () => {
     if (!editingOriginalId) return;
-    if (allMembers.length <= 1) {
-      showToast('Cannot delete the last remaining member in the system.');
-      return;
-    }
     const target = allMembers.find((m) => m.memberId === editingOriginalId);
     const fallbackRootId =
       target?.sponsorId ||
       allMembers.find((m) => m.memberId !== editingOriginalId)?.memberId ||
-      currentMember.memberId;
+      '';
 
     adminDeleteMember(editingOriginalId);
 
@@ -345,7 +341,7 @@ export const DownlineOrganizeTree: React.FC<DownlineOrganizeTreeProps> = ({
     setShowEditModal(false);
     setConfirmDeleteStep(false);
     showToast(
-      `Deleted member ${target?.name || editingOriginalId} (${editingOriginalId}) and re-linked downlines.`
+      `Deleted member ${target?.name || editingOriginalId} (${editingOriginalId}) and saved permanently.`
     );
   };
 
